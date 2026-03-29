@@ -11,3 +11,12 @@ app.include_router(health_router)
 app.include_router(detect_router)
 app.include_router(nutrition_router)
 app.include_router(meals_router)
+
+
+@app.get("/")
+def root() -> dict[str, object]:
+    return {
+        "message": "NutrAI API is running",
+        "docs": "/docs",
+        "endpoints": ["/health", "/detect", "/nutrition/calculate", "/meals"],
+    }

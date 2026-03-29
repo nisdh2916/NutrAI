@@ -208,7 +208,9 @@ uvicorn server.main:app --reload
 
 ### 4. API 동작 확인
 ```bash
+curl http://127.0.0.1:8000/
 curl http://127.0.0.1:8000/health
+# 브라우저: http://127.0.0.1:8000/docs
 ```
 
 ### 📂 프로젝트 구조
