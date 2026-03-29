@@ -116,3 +116,90 @@ graph TD
     YOLO --> Server
     DB --> Server
     Server --> App
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## 🤝 협업 컨벤션 (Convention)
+
+<details>
+<summary><b>📌 Git Commit Message 규칙</b></summary>
+<br/>
+
+> **"태그: 상세 내용"** 형식을 준수합니다. (예: `feat: 로그인 기능 추가`)
+
+| 태그 | 의미 |
+| :--- | :--- |
+| `feat` | 새로운 기능 추가 |
+| `fix` | 버그 수정 |
+| `docs` | 문서 수정 (README 등) |
+| `design` | UI 디자인 변경 |
+| `chore` | 빌드 업무, 패키지 설정 수정 |
+| `refactor` | 코드 리팩토링 |
+</details>
+
+<details>
+<summary><b>🌿 Branch 전략</b></summary>
+<br/>
+
+- `main`: 배포 가능한 최종 코드
+- `develop`: 개발 중인 코드들이 모이는 곳
+- `feat/app`: 앱 관련 기능 개발 (동하)
+- `feat/server`: 서버 API 개발
+- `feat/ai`: AI 모델 학습 및 데이터 처리
+</details>
+
+---
+
+## 🏃 설치 및 실행 방법 (Installation)
+
+### 1️⃣ 프로젝트 클론
+```bash
+git clone https://github.com/nisdh2916/NutrAI.git
+cd NutrAI
+```
+
+### 2️⃣ Frontend (Flutter) 실행
+```Bash
+cd app
+flutter pub get
+flutter run
+```
+### 3️⃣ Backend (FastAPI) 실행
+```Bash
+cd server
+# 가상환경 생성 및 활성화 (윈도우 기준)
+python -m venv venv
+call venv/Scripts/activate
+```
+
+# 라이브러리 설치 및 서버 실행
+```pip install -r requirements.txt
+uvicorn main:app --reload
+```
+
+### 📂 프로젝트 구조
+```Plaintext
+NutrAI/
+├── app/                # Flutter 앱 소스 코드
+├── server/             # FastAPI 백엔드 소스 코드
+├── ai/                 # AI 모델 및 데이터셋
+├── docs/               # 기획서 및 회의록
+└── README.md
+```
+
+<div align="center">
+Copyright © 2026 <b>Team Moonshot</b>. All rights reserved.
+</div>
