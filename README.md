@@ -165,19 +165,19 @@ graph TD
 
 ## 🏃 설치 및 실행 방법 (Installation)
 
-### 1️⃣ 프로젝트 클론
+### 1. 프로젝트 클론
 ```bash
 git clone https://github.com/nisdh2916/NutrAI.git
 cd NutrAI
 ```
 
-### 2️⃣ Frontend (Flutter) 실행
+### 2. Frontend (Flutter) 실행
 ```Bash
 cd app
 flutter pub get
 flutter run
 ```
-### 3️⃣ Backend (FastAPI) 실행
+### 3. Backend (FastAPI) 실행
 ```Bash
 cd server
 # 가상환경 생성 및 활성화 (윈도우 기준)
@@ -193,11 +193,36 @@ uvicorn main:app --reload
 ### 📂 프로젝트 구조
 ```Plaintext
 NutrAI/
-├── app/                # Flutter 앱 소스 코드
-├── server/             # FastAPI 백엔드 소스 코드
-├── ai/                 # AI 모델 및 데이터셋
-├── docs/               # 기획서 및 회의록
-└── README.md
+├── .github/                # GitHub Actions CI/CD 워크플로우
+├── app/                    # Flutter 프론트엔드 (Dart)
+│   ├── android/            # 안드로이드 네이티브 설정
+│   ├── ios/                # iOS 네이티브 설정
+│   ├── lib/
+│   │   ├── core/           # 공통 유틸, 테마, 라우터
+│   │   ├── features/       # 기능별 모듈 (촬영, 분석, 추천, 리포트)
+│   │   ├── models/         # 데이터 모델 (User, Meal 등)
+│   │   └── data/           # SQLite 로컬 캐시 처리
+│   └── pubspec.yaml        # Flutter 패키지 관리
+├── server/                 # FastAPI 백엔드 (Python)
+│   ├── api/                # API 엔드포인트 (/chat, /detect 등) 
+│   ├── core/               # 인증(JWT) 및 서버 설정
+│   ├── db/                 # MySQL 연결 및 ORM 설정
+│   ├── services/           # 비즈니스 로직 (영양 분석, 추천 알고리즘)
+│   └── requirements.txt    # 서버 라이브러리 목록
+├── ai/                     # AI 모델 및 추론 로직
+│   ├── models/             # YOLOv11 가중치 파일 (.pt, .tflite)
+│   ├── scripts/            # 모델 학습 및 데이터 전처리 스크립트
+│   └── rag_engine/         # GPT-OSS + RAG 관련 프롬프트 및 벡터 DB
+├── docs/                   # 기획서, 보고서 및 테스트 케이스
+│   ├── planning/           # 아이디어 기획서 및 시스템 설계서
+│   ├── designs/            # 피그마(Figma) 링크 및 UI 설계도
+│   ├── test_cases/         # 단위/통합 테스트 명세서 (TC-MealLog-01 등)
+│   └── img/                # 문서용 이미지 폴더
+├── data/                   # 데이터셋 및 영양 DB
+│   ├── dataset/            # 한국 음식 이미지 샘플 (라벨링 데이터)
+│   └── nutrition_db/       # 한국식품영양성분표(KFDA) CSV/SQL
+├── .gitignore              # 깃 제외 목록 (API Key, 가상환경 등) 
+└── README.md               # 프로젝트 메인 대문
 ```
 
 <div align="center">
