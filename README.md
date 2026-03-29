@@ -1,2 +1,118 @@
-# NutrAI
-AI 기반 식단 관리 및 맞춤형 추천 서비스
+#  NutrAI (nutrition + AI)
+> **Shoot for your health, Moonshot for your diet.**
+> 
+> **"불가능해 보이는 식단 기록의 자동화, NutrAI가 현실로 만듭니다."**
+
+<div align="center">
+  <br/>
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=auto&height=200&section=header&text=NutrAI&fontSize=90" width="100%">
+</div>
+
+---
+
+##  목차
+1. [팀 소개](#-팀-소개)
+2. [프로젝트 소개](#-프로젝트-소개)
+3. [주요 기능](#-주요-기능)
+4. [기술 스택](#-기술-스택)
+5. [시스템 아키텍처](#-시스템-아키텍처)
+6. [협업 컨벤션](#-협업-컨벤션)
+7. [설치 및 실행 방법](#-설치-및-실행-방법)
+
+---
+
+## 팀 소개 (Team Moonshot)
+
+| 이름 | 직책 | 역할 | 담당 업무 |
+| :---: | :---: | :--- | :--- |
+| **김영서** | 팀장 | **App / PM** | Flutter 앱 개발, UI/UX 설계, 전체 일정 관리 |
+| **김서연** | 팀원 | **BackEnd** | FastAPI 서버 구축, DB 설계, API 명세서 작성 |
+| **신동하** | 팀원 | **AI / Data** | YOLOv11 모델 학습, 영양 DB 전처리, RAG 엔진 최적화 |
+| **이호연** | 팀원 | **BackEnd** | FastAPI 서버 구축, DB 설계, API 명세서 작성 |
+| **최영수** | 팀원 | **AI / Data** | YOLOv11 모델 학습, 영양 DB 전처리, RAG 엔진 최적화 |
+---
+
+##  프로젝트 소개
+
+### 1. 기획 배경
+- **현대인의 페르소나**: 기록이 귀찮아 식단 관리를 포기하는 다이어터, 당뇨 환자.
+- **기존의 한계**: 수기 입력의 번거로움과 정확도 낮은 영양 정보.
+- **우리의 목표**: 사진 한 장으로 끝내는 **자동 기록**과 개인 맞춤형 **AI 피드백**.
+
+### 2. 주요 타겟
+- 식단 관리가 생존인 **만성질환자**
+- 체계적인 영양 섭취를 원하는 **헬스 및 자기관리형 사용자**
+
+---
+
+##  주요 기능 (Features)
+
+<details>
+<summary><b> AI 식단 자동 기록 (Smart Capture)</b></summary>
+<br/>
+
+- **YOLOv11** 객체 탐지 기술을 이용해 사진 속 음식 종류와 개수를 자동 인식.
+- 한국식품영양성분표 DB와 연동하여 칼로리 및 탄단지 즉시 분석.
+</details>
+
+<details>
+<summary><b> 지능형 대시보드 (Dashboard)</b></summary>
+<br/>
+
+- 오늘 남은 권장 섭취량 시각화.
+- 일별/주별 기록 추이를 통한 건강 상태 트래킹.
+</details>
+
+<details>
+<summary><b> 맞춤형 AI 코칭 (RAG Engine)</b></summary>
+<br/>
+
+- 사용자 건강 데이터(키, 몸무게, 활동량) 기반 맞춤 영양 가이드.
+- **RAG(검색 증강 생성)**를 통해 최신 영양학 근거에 기반한 챗봇 답변 제공.
+</details>
+
+---
+
+## 🛠 기술 스택
+
+###  Frontend
+<p align="left">
+  <img src="https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=Flutter&logoColor=white">
+  <img src="https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=Dart&logoColor=white">
+</p>
+
+###  Backend
+<p align="left">
+  <img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=FastAPI&logoColor=white">
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=Python&logoColor=white">
+  <img src="https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=MySQL&logoColor=white">
+</p>
+
+###  AI & Data
+<p align="left">
+  <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=PyTorch&logoColor=white">
+  <img src="https://img.shields.io/badge/YOLOv11-FF6F00?style=for-the-badge&logo=fastapi&logoColor=white">
+  <img src="https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=OpenAI&logoColor=white">
+</p>
+
+###  DevOps & Tools
+<p align="left">
+  <img src="https://img.shields.io/badge/GitHub%20Actions-2088FF?style=for-the-badge&logo=GitHub%20Actions&logoColor=white">
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=Docker&logoColor=white">
+  <img src="https://img.shields.io/badge/Notion-000000?style=for-the-badge&logo=Notion&logoColor=white">
+</p>
+
+---
+
+##  시스템 아키텍처
+
+```mermaid
+graph TD
+    User((사용자)) --> App[Flutter App]
+    App --> Server[FastAPI Server]
+    Server --> YOLO[YOLOv11 Detection]
+    Server --> DB[(MySQL)]
+    Server --> RAG[RAG + GPT Engine]
+    YOLO --> Server
+    DB --> Server
+    Server --> App
