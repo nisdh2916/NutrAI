@@ -178,16 +178,37 @@ flutter pub get
 flutter run
 ```
 ### 3. Backend (FastAPI) 실행
-```Bash
-cd server
-# 가상환경 생성 및 활성화 (윈도우 기준)
-python -m venv venv
-call venv/Scripts/activate
+
+#### macOS / Linux (bash, zsh)
+```bash
+# 프로젝트 루트(NutrAI/)에서 실행
+python -m venv .venv
+source .venv/bin/activate
+pip install -r server/requirements.txt
+uvicorn server.main:app --reload
 ```
 
-# 라이브러리 설치 및 서버 실행
-```pip install -r requirements.txt
-uvicorn main:app --reload
+#### Windows PowerShell
+```powershell
+# 프로젝트 루트(NutrAI/)에서 실행
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r server/requirements.txt
+uvicorn server.main:app --reload
+```
+> PowerShell에서 실행 정책 오류가 나면: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`
+
+#### Windows CMD
+```cmd
+python -m venv .venv
+.venv\Scripts\activate.bat
+pip install -r server/requirements.txt
+uvicorn server.main:app --reload
+```
+
+### 4. API 동작 확인
+```bash
+curl http://127.0.0.1:8000/health
 ```
 
 ### 📂 프로젝트 구조
