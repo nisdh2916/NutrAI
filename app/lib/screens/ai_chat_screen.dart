@@ -167,7 +167,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: AppColors.green100),
                 ),
-                child: Text(q, style: const TextStyle(fontSize: 12, color: AppColors.green700, fontWeight: FontWeight.w500)),
+                child: Text(q, style: const TextStyle(fontSize: 12, color: AppColors.green600, fontWeight: FontWeight.w500)),
               ),
             )).toList(),
           ),
