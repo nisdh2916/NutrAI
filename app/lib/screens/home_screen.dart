@@ -4,6 +4,7 @@ import '../models/user_profile.dart';
 import '../models/meal_models.dart';
 import '../theme/app_theme.dart';
 import 'settings_screen.dart';
+import 'ai_chat_screen.dart';
 
 // ── 홈 화면 ──────────────────────────────────────
 class HomeScreen extends StatelessWidget {
@@ -347,7 +348,10 @@ class _ChatbotCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        // TODO: 챗봇 화면 이동
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AiChatScreen()),
+        );
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
