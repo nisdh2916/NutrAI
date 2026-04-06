@@ -1,5 +1,5 @@
 #  NutrAI (nutrition + AI)
-> **Shoot for your health, Moonshot for your diet.**
+> **Shoot for your health, NutrAI for your diet.**
 > 
 > **"불가능해 보이는 식단 기록의 자동화, NutrAI가 현실로 만듭니다."**
 
@@ -68,7 +68,7 @@
 <br/>
 
 - 사용자 건강 데이터(키, 몸무게, 활동량) 기반 맞춤 영양 가이드.
-- **RAG(검색 증강 생성)**를 통해 최신 영양학 근거에 기반한 챗봇 답변 제공.
+- **RAG(검색 증강 생성)** 를 통해 최신 영양학 근거에 기반한 챗봇 답변 제공.
 </details>
 
 ---
@@ -132,10 +132,10 @@ graph TD
 
 
 
-## 🤝 협업 컨벤션 (Convention)
+##  협업 컨벤션 (Convention)
 
 <details>
-<summary><b>📌 Git Commit Message 규칙</b></summary>
+<summary><b> Git Commit Message 규칙</b></summary>
 <br/>
 
 > **"태그: 상세 내용"** 형식을 준수합니다. (예: `feat: 로그인 기능 추가`)
@@ -151,19 +151,19 @@ graph TD
 </details>
 
 <details>
-<summary><b>🌿 Branch 전략</b></summary>
+<summary><b> Branch 전략</b></summary>
 <br/>
 
 - `main`: 배포 가능한 최종 코드
 - `develop`: 개발 중인 코드들이 모이는 곳
-- `feat/app`: 앱 관련 기능 개발 (동하)
+- `feat/app`: 앱 관련 기능 개발
 - `feat/server`: 서버 API 개발
 - `feat/ai`: AI 모델 학습 및 데이터 처리
 </details>
 
 ---
 
-## 🏃 설치 및 실행 방법 (Installation)
+##  설치 및 실행 방법 (Installation)
 
 ### 1. 프로젝트 클론
 ```bash
@@ -191,13 +191,12 @@ uvicorn server.main:app --reload
 curl http://127.0.0.1:8000/health
 ```
 
-### 📂 프로젝트 구조
+###  프로젝트 구조
 ```Plaintext
 NutrAI/
 ├── .github/                # GitHub Actions CI/CD 워크플로우
 ├── app/                    # Flutter 프론트엔드 (Dart)
 │   ├── android/            # 안드로이드 네이티브 설정
-│   ├── ios/                # iOS 네이티브 설정
 │   ├── lib/
 │   │   ├── core/           # 공통 유틸, 테마, 라우터
 │   │   ├── features/       # 기능별 모듈 (촬영, 분석, 추천, 리포트)
