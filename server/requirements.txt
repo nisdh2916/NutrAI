@@ -1,3 +1,12 @@
-fastapi==0.116.1
+fastapi>=0.115.9
 uvicorn==0.35.0
 python-multipart==0.0.20
+
+# RAG
+langchain==0.3.25
+langchain-ollama==0.3.3
+langchain-community==0.3.24
+chromadb==1.0.4
+
+# Data
+pydantic==2.11.4
