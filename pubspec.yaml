@@ -1,0 +1,31 @@
+name: nutrai
+description: AI 기반 식사 기록 및 메뉴 추천 앱
+
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # SQLite DB
+  sqflite: ^2.3.3
+  path: ^1.9.0
+
+  # 상태 관리
+  provider: ^6.1.2
+
+  # 날짜 포맷
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
