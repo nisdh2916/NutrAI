@@ -10,3 +10,4 @@ chromadb==1.0.4
 
 # Data
 pydantic==2.11.4
+pandas==2.2.0

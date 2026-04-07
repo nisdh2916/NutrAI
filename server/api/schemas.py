@@ -71,3 +71,27 @@ class MealsByDateResponse(BaseModel):
     date: str
     total_kcal: float
     meals: list[MealSummary]
+
+
+class FoodAddRequest(BaseModel):
+    name: str
+    category: str = ""
+    source: str = "직접입력"
+    kcal: float = Field(ge=0)
+    carb_g: float = Field(ge=0, default=0.0)
+    protein_g: float = Field(ge=0, default=0.0)
+    fat_g: float = Field(ge=0, default=0.0)
+    sodium_mg: float = Field(ge=0, default=0.0)
+    fiber_g: float = Field(ge=0, default=0.0)
+    sugar_g: float = Field(ge=0, default=0.0)
+    serving: str = "1인분"
+
+
+class FoodBulkAddRequest(BaseModel):
+    items: list[FoodAddRequest]
+
+
+class FoodAddResponse(BaseModel):
+    added: int
+    failed: int
+    names: list[str]

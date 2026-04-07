@@ -10,60 +10,40 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import OllamaEmbeddings
+import chromadb
+from sentence_transformers import SentenceTransformer
 from langchain_ollama import OllamaLLM
-from langchain.schema import Document
-
-from ai.rag_engine.nutrition_data import get_all_docs
 
 # ChromaDB 저장 경로
 CHROMA_DIR = Path(__file__).parent / "chroma_db"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-EMBED_MODEL = "qwen2.5:7b"
-LLM_MODEL = "qwen2.5:7b"
+EMBED_MODEL = "snunlp/KR-SBERT-V40K-klueNLI-augSTS"  # 한국어 특화 모델
+LLM_MODEL = "qwen2.5:7b"         # 답변 생성용
+
+_embed_model: SentenceTransformer | None = None
+_collection = None
 
 
-def _build_vectorstore() -> Chroma:
-    """최초 1회 벡터 DB 구축 (이후 로드)"""
-    docs_text = get_all_docs()
-    documents = [Document(page_content=text) for text in docs_text]
-
-    splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
-    chunks = splitter.split_documents(documents)
-
-    embeddings = OllamaEmbeddings(
-        model=EMBED_MODEL,
-        base_url=OLLAMA_BASE_URL,
-    )
-    vectorstore = Chroma.from_documents(
-        documents=chunks,
-        embedding=embeddings,
-        persist_directory=str(CHROMA_DIR),
-    )
-    return vectorstore
+def _get_embed_model() -> SentenceTransformer:
+    global _embed_model
+    if _embed_model is None:
+        import torch
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        _embed_model = SentenceTransformer(EMBED_MODEL, device=device)
+    return _embed_model
 
 
-def _load_vectorstore() -> Chroma:
-    embeddings = OllamaEmbeddings(
-        model=EMBED_MODEL,
-        base_url=OLLAMA_BASE_URL,
-    )
-    return Chroma(
-        persist_directory=str(CHROMA_DIR),
-        embedding_function=embeddings,
-    )
-
-
-def get_vectorstore() -> Chroma:
-    if CHROMA_DIR.exists() and any(CHROMA_DIR.iterdir()):
-        return _load_vectorstore()
-    return _build_vectorstore()
+def get_collection():
+    global _collection
+    if _collection is None:
+        client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+        _collection = client.get_collection("nutrition")
+    return _collection
 
 
 # ── 프롬프트 템플릿 ───────────────────────────────────
 SYSTEM_PROMPT = """당신은 NutrAI의 전문 영양 코치입니다.
+반드시 한국어로만 답변하세요. 영어나 중국어로 절대 답변하지 마세요.
 사용자의 건강 목표와 현재 식단을 분석하여 근거 있는 맞춤형 식단 추천을 제공합니다.
 
 아래 영양 정보를 참고하여 답변하세요:
@@ -107,9 +87,6 @@ def get_recommendation(
     Returns:
         {"answer": str, "sources": list[str], "detected_foods": list}
     """
-    vectorstore = get_vectorstore()
-    retriever = vectorstore.as_retriever(search_kwargs={"k": k})
-
     # 검색 쿼리 구성 (인식된 음식 + 사용자 질문)
     search_query = user_query
     if detected_foods:
@@ -117,8 +94,14 @@ def get_recommendation(
     if user_profile.get("condition"):
         search_query += f" {user_profile['condition']}"
 
-    retrieved_docs = retriever.invoke(search_query)
-    context = "\n".join([doc.page_content for doc in retrieved_docs])
+    embed_model = _get_embed_model()
+    query_embedding = embed_model.encode(search_query, convert_to_numpy=True).tolist()
+
+    collection = get_collection()
+    results = collection.query(query_embeddings=[query_embedding], n_results=k)
+
+    retrieved_docs = results["documents"][0] if results["documents"] else []
+    context = "\n".join(retrieved_docs)
 
     prompt = build_prompt(context, user_query, user_profile)
 
@@ -131,6 +114,6 @@ def get_recommendation(
 
     return {
         "answer": answer,
-        "sources": [doc.page_content[:80] + "..." for doc in retrieved_docs],
+        "sources": [doc[:80] + "..." for doc in retrieved_docs],
         "detected_foods": detected_foods or [],
     }
