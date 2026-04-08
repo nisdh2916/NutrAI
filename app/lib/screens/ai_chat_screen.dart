@@ -70,13 +70,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     try {
       final user = context.read<AppState>().user;
-      final res = await ChatService.sendMessage(
-        message: text,
-        user: user,
-      );
-      _addBotMessage(res.answer);
+      final response = await ChatService.sendMessage(message: text, user: user);
+      setState(() {
+        _messages.add(_Message(text: response.answer, isBot: true));
+      });
+      _scrollToBottom();
     } catch (e) {
-      _addBotMessage('죄송해요, 잠시 서버 연결에 문제가 있어요.\n잠시 후 다시 시도해주세요. 😥');
+      setState(() {
+        _messages.add(_Message(
+          text: '서버 연결 오류: $e',
+          isBot: true,
+        ));
+      });
     } finally {
       setState(() => _isLoading = false);
     }
