@@ -18,7 +18,7 @@ from langchain_ollama import OllamaLLM
 CHROMA_DIR = Path(__file__).parent / "chroma_db"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 EMBED_MODEL = "snunlp/KR-SBERT-V40K-klueNLI-augSTS"  # 한국어 특화 모델
-LLM_MODEL = "qwen2.5:7b"         # 답변 생성용
+LLM_MODEL = "gemma4:e4b"         # 답변 생성용
 
 _embed_model: SentenceTransformer | None = None
 _collection = None
@@ -36,8 +36,13 @@ def _get_embed_model() -> SentenceTransformer:
 def get_collection():
     global _collection
     if _collection is None:
+        if not CHROMA_DIR.exists():
+            raise RuntimeError(f"ChromaDB 경로가 존재하지 않습니다: {CHROMA_DIR}")
         client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-        _collection = client.get_collection("nutrition")
+        try:
+            _collection = client.get_collection("nutrition")
+        except Exception:
+            raise RuntimeError("ChromaDB 'nutrition' 컬렉션이 없습니다. build_nutrition_db.py를 먼저 실행하세요.")
     return _collection
 
 
@@ -73,7 +78,7 @@ def get_recommendation(
     user_query: str,
     user_profile: dict,
     detected_foods: list[str] | None = None,
-    k: int = 5,
+    k: int = 3,
 ) -> dict:
     """
     RAG 기반 식단 추천
@@ -101,7 +106,9 @@ def get_recommendation(
     results = collection.query(query_embeddings=[query_embedding], n_results=k)
 
     retrieved_docs = results["documents"][0] if results["documents"] else []
-    context = "\n".join(retrieved_docs)
+    # gemma4는 '|' 문자가 포함되면 빈 응답을 반환하므로 제거
+    cleaned_docs = [doc.replace("|", ",") for doc in retrieved_docs]
+    context = "\n".join(cleaned_docs)
 
     prompt = build_prompt(context, user_query, user_profile)
 
@@ -110,10 +117,49 @@ def get_recommendation(
         base_url=OLLAMA_BASE_URL,
         temperature=0.3,
     )
-    answer = llm.invoke(prompt)
+    try:
+        answer = llm.invoke(prompt)
+    except Exception as e:
+        raise RuntimeError(f"LLM 응답 실패 (Ollama 서버 확인 필요): {e}")
 
     return {
         "answer": answer,
         "sources": [doc[:80] + "..." for doc in retrieved_docs],
         "detected_foods": detected_foods or [],
     }
+
+
+def stream_recommendation(
+    user_query: str,
+    user_profile: dict,
+    detected_foods: list[str] | None = None,
+    k: int = 3,
+):
+    """스트리밍 버전 — 청크 단위로 텍스트를 yield"""
+    search_query = user_query
+    if detected_foods:
+        search_query = f"{', '.join(detected_foods)} {user_query}"
+    if user_profile.get("condition"):
+        search_query += f" {user_profile['condition']}"
+
+    embed_model = _get_embed_model()
+    query_embedding = embed_model.encode(search_query, convert_to_numpy=True).tolist()
+
+    collection = get_collection()
+    results = collection.query(query_embeddings=[query_embedding], n_results=k)
+
+    retrieved_docs = results["documents"][0] if results["documents"] else []
+    cleaned_docs = [doc.replace("|", ",") for doc in retrieved_docs]
+    context = "\n".join(cleaned_docs)
+    prompt = build_prompt(context, user_query, user_profile)
+
+    llm = OllamaLLM(
+        model=LLM_MODEL,
+        base_url=OLLAMA_BASE_URL,
+        temperature=0.3,
+    )
+    try:
+        for chunk in llm.stream(prompt):
+            yield chunk
+    except Exception as e:
+        yield f"\n\n[오류] LLM 응답 실패: {e}"
