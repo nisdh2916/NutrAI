@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 
 class DatabaseHelper {
   static const _dbName    = 'nutrai.db';
-  static const _dbVersion = 1;
+  static const _dbVersion = 2;
 
   // 싱글턴
   DatabaseHelper._();
@@ -46,6 +46,9 @@ class DatabaseHelper {
         weight_kg      REAL,
         activity_level TEXT,
         target_kcal    REAL,
+        goal           TEXT,
+        allergy        TEXT,
+        condition      TEXT,
         created_at     TEXT NOT NULL,
         updated_at     TEXT NOT NULL
       )
@@ -104,7 +107,11 @@ class DatabaseHelper {
   }
 
   Future<void> _onUpgrade(Database db, int oldV, int newV) async {
-    // 추후 마이그레이션 처리
+    if (oldV < 2) {
+      await db.execute('ALTER TABLE user_profile ADD COLUMN goal TEXT');
+      await db.execute('ALTER TABLE user_profile ADD COLUMN allergy TEXT');
+      await db.execute('ALTER TABLE user_profile ADD COLUMN condition TEXT');
+    }
   }
 
   // ── 샘플 데이터 (LD_Sample.sql 기준) ─────────────
