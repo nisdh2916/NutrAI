@@ -11,6 +11,9 @@ class UserProfileEntity {
   final double? weightKg;
   final String? activityLevel; // '낮음' | '보통' | '높음'
   final double? targetKcal;
+  final String? goal;          // '다이어트' | '근육 증가' | '체중 유지' | '건강 관리'
+  final String? allergy;       // 쉼표 구분: '유제품,견과류'
+  final String? condition;     // 쉼표 구분: '당뇨,고혈압'
   final String createdAt;
   final String updatedAt;
 
@@ -24,6 +27,9 @@ class UserProfileEntity {
     this.weightKg,
     this.activityLevel,
     this.targetKcal,
+    this.goal,
+    this.allergy,
+    this.condition,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -62,6 +68,9 @@ class UserProfileEntity {
     weightKg:      m['weight_kg'] as double?,
     activityLevel: m['activity_level'] as String?,
     targetKcal:    m['target_kcal'] as double?,
+    goal:          m['goal'] as String?,
+    allergy:       m['allergy'] as String?,
+    condition:     m['condition'] as String?,
     createdAt:     m['created_at'] as String,
     updatedAt:     m['updated_at'] as String,
   );
@@ -76,6 +85,9 @@ class UserProfileEntity {
     'weight_kg':       weightKg,
     'activity_level':  activityLevel,
     'target_kcal':     targetKcal,
+    'goal':            goal,
+    'allergy':         allergy,
+    'condition':       condition,
     'created_at':      createdAt,
     'updated_at':      updatedAt,
   };
@@ -83,7 +95,9 @@ class UserProfileEntity {
   UserProfileEntity copyWith({
     String? nickname, String? gender, int? age,
     double? heightCm, double? weightKg,
-    String? activityLevel, double? targetKcal, String? updatedAt,
+    String? activityLevel, double? targetKcal,
+    String? goal, String? allergy, String? condition,
+    String? updatedAt,
   }) => UserProfileEntity(
     id: id, memberNo: memberNo,
     nickname:      nickname      ?? this.nickname,
@@ -93,6 +107,9 @@ class UserProfileEntity {
     weightKg:      weightKg      ?? this.weightKg,
     activityLevel: activityLevel ?? this.activityLevel,
     targetKcal:    targetKcal    ?? this.targetKcal,
+    goal:          goal          ?? this.goal,
+    allergy:       allergy       ?? this.allergy,
+    condition:     condition     ?? this.condition,
     createdAt:     createdAt,
     updatedAt:     updatedAt     ?? this.updatedAt,
   );
