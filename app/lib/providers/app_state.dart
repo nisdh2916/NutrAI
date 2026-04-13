@@ -59,6 +59,9 @@ class AppState extends ChangeNotifier {
     double? weightKg,
     String? activityLevel,
     double? targetKcal,
+    String? goal,
+    String? allergy,
+    String? condition,
   }) async {
     final now = DateTime.now().toIso8601String();
 
@@ -72,6 +75,9 @@ class AppState extends ChangeNotifier {
         weightKg:      weightKg,
         activityLevel: activityLevel,
         targetKcal:    targetKcal,
+        goal:          goal,
+        allergy:       allergy,
+        condition:     condition,
         createdAt:     now,
         updatedAt:     now,
       );
@@ -87,6 +93,9 @@ class AppState extends ChangeNotifier {
         weightKg:      weightKg,
         activityLevel: activityLevel,
         targetKcal:    targetKcal,
+        goal:          goal,
+        allergy:       allergy,
+        condition:     condition,
         updatedAt:     now,
       );
       await _userRepo.updateUser(updated);
