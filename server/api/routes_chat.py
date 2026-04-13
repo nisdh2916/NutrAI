@@ -15,15 +15,25 @@ class UserProfile(BaseModel):
     age: int | None = None
     height: float | None = None
     weight: float | None = None
-    goal: str = "일반 건강 관리"       # 다이어트, 근육 증가, 당뇨 관리 등
-    condition: str | None = None       # 당뇨, 고혈압, 없음
+    gender: str | None = None
+    goal: str = "일반 건강 관리"
+    condition: str | None = None
     allergy: str | None = None
+    activity_level: str | None = None
+    target_kcal: float | None = None
+
+
+class MealHistoryItem(BaseModel):
+    meal_type: str = ""
+    foods: list[dict] = []
+    total_kcal: float = 0.0
 
 
 class ChatRequest(BaseModel):
     message: str
     user_profile: UserProfile = UserProfile()
-    detected_foods: list[str] = []     # YOLO 인식 결과
+    detected_foods: list[str] = []
+    meal_history: list[MealHistoryItem] = []
 
 
 class ChatResponse(BaseModel):
@@ -35,10 +45,12 @@ class ChatResponse(BaseModel):
 @router.post("", response_model=ChatResponse)
 async def chat(req: ChatRequest) -> ChatResponse:
     try:
+        meal_history = [m.model_dump() for m in req.meal_history] if req.meal_history else None
         result = get_recommendation(
             user_query=req.message,
             user_profile=req.user_profile.model_dump(exclude_none=False),
             detected_foods=req.detected_foods or None,
+            meal_history=meal_history,
         )
         return ChatResponse(**result)
     except RuntimeError as e:
@@ -53,10 +65,12 @@ async def chat(req: ChatRequest) -> ChatResponse:
 async def chat_stream(req: ChatRequest):
     def generate():
         try:
+            meal_history = [m.model_dump() for m in req.meal_history] if req.meal_history else None
             for chunk in stream_recommendation(
                 user_query=req.message,
                 user_profile=req.user_profile.model_dump(exclude_none=False),
                 detected_foods=req.detected_foods or None,
+                meal_history=meal_history,
             ):
                 yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
         except RuntimeError as e:

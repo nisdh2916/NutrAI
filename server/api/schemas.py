@@ -95,3 +95,21 @@ class FoodAddResponse(BaseModel):
     added: int
     failed: int
     names: list[str]
+
+
+class FoodSearchResult(BaseModel):
+    name: str
+    category: str = ""
+    kcal: float = 0.0
+    carb_g: float = 0.0
+    protein_g: float = 0.0
+    fat_g: float = 0.0
+    sodium_mg: float = 0.0
+    sugar_g: float = 0.0
+    sat_fat_g: float = 0.0
+    cholesterol_mg: float = 0.0
+    serving: str = ""
+
+
+class FoodSearchResponse(BaseModel):
+    results: list[FoodSearchResult]
