@@ -22,6 +22,9 @@ dependencies:
   # 날짜 포맷
   intl: ^0.19.0
 
+  # HTTP 통신 (RAG 서버 연동)
+  http: ^1.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -19,8 +19,12 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   late final TextEditingController _ageCtrl;
   final TextEditingController _heightCtrl = TextEditingController();
   final TextEditingController _weightCtrl = TextEditingController();
+  late final TextEditingController _allergyCtrl;
+  late final TextEditingController _conditionCtrl;
 
   String _selectedGender = '남';
+  late String _selectedGoal;
+  late String _selectedActivity;
 
   @override
   void initState() {
@@ -29,7 +33,11 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
     _ageCtrl  = TextEditingController(
       text: widget.profile.age != null ? widget.profile.age.toString() : '',
     );
-    _selectedGender = widget.profile.gender;
+    _selectedGender   = widget.profile.gender;
+    _selectedGoal     = widget.profile.goal;
+    _selectedActivity = widget.profile.activityLevel;
+    _allergyCtrl   = TextEditingController(text: widget.profile.allergy);
+    _conditionCtrl = TextEditingController(text: widget.profile.condition);
   }
 
   @override
@@ -38,6 +46,8 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
     _ageCtrl.dispose();
     _heightCtrl.dispose();
     _weightCtrl.dispose();
+    _allergyCtrl.dispose();
+    _conditionCtrl.dispose();
     super.dispose();
   }
 
@@ -80,12 +90,15 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final profile = UserProfile(
-      name:   _nameCtrl.text.trim(),
-      gender: _selectedGender,
-      age:    int.tryParse(_ageCtrl.text),
-      height: double.tryParse(_heightCtrl.text),
-      weight: double.tryParse(_weightCtrl.text),
-      goal:   widget.profile.goal,
+      name:          _nameCtrl.text.trim(),
+      gender:        _selectedGender,
+      age:           int.tryParse(_ageCtrl.text),
+      height:        double.tryParse(_heightCtrl.text),
+      weight:        double.tryParse(_weightCtrl.text),
+      goal:          _selectedGoal,
+      activityLevel: _selectedActivity,
+      allergy:       _allergyCtrl.text.trim(),
+      condition:     _conditionCtrl.text.trim(),
     );
 
     Navigator.push(
@@ -196,6 +209,61 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
                 const SizedBox(width: 8),
                 const Text('kg', style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
               ]),
+            ),
+
+            const SizedBox(height: 32),
+
+            // ── 건강 목표 ──
+            _HorizField(
+              label: '목표',
+              child: _ChipSelector(
+                options: const ['다이어트', '체중 유지', '근육 증진', '건강 관리'],
+                selected: _selectedGoal,
+                onChanged: (v) => setState(() => _selectedGoal = v),
+              ),
+            ),
+            const SizedBox(height: 22),
+
+            // ── 활동량 ──
+            _HorizField(
+              label: '활동량',
+              child: _ChipSelector(
+                options: const ['낮음', '보통', '높음'],
+                selected: _selectedActivity,
+                onChanged: (v) => setState(() => _selectedActivity = v),
+              ),
+            ),
+            const SizedBox(height: 22),
+
+            // ── 알레르기 ──
+            _HorizField(
+              label: '알레르기',
+              child: _InlineInput(
+                controller: _allergyCtrl,
+                keyboardType: TextInputType.text,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Padding(
+              padding: EdgeInsets.only(left: 76),
+              child: Text('예: 유제품, 견과류 (없으면 비워두세요)',
+                  style: TextStyle(fontSize: 11, color: AppColors.gray400)),
+            ),
+            const SizedBox(height: 22),
+
+            // ── 질환 ──
+            _HorizField(
+              label: '질환',
+              child: _InlineInput(
+                controller: _conditionCtrl,
+                keyboardType: TextInputType.text,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Padding(
+              padding: EdgeInsets.only(left: 76),
+              child: Text('예: 당뇨, 고혈압 (없으면 비워두세요)',
+                  style: TextStyle(fontSize: 11, color: AppColors.gray400)),
             ),
 
             const SizedBox(height: 40),
@@ -313,6 +381,41 @@ class _GenderToggle extends StatelessWidget {
                     color: isSel ? AppColors.white : AppColors.gray400,
                   )),
             ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _ChipSelector extends StatelessWidget {
+  final List<String> options;
+  final String selected;
+  final ValueChanged<String> onChanged;
+  const _ChipSelector({required this.options, required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: options.map((opt) {
+        final isSel = selected == opt;
+        return GestureDetector(
+          onTap: () => onChanged(opt),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: isSel ? AppColors.green400 : AppColors.gray50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: isSel ? AppColors.green400 : AppColors.border, width: isSel ? 1.5 : 0.5),
+            ),
+            child: Text(opt,
+                style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w500,
+                  color: isSel ? AppColors.white : AppColors.gray400,
+                )),
           ),
         );
       }).toList(),
