@@ -5,8 +5,7 @@ import '../models/db_models.dart';
 
 class ChatService {
   // 실제 배포 시 환경변수로 관리
-  static const String _baseUrl = 'http://10.0.2.2:8000'; // Android 에뮬레이터
-  // 실기기 or 웹 테스트 시: 'http://127.0.0.1:8000'
+  static const String _baseUrl = 'http://127.0.0.1:8000'; // adb reverse 터널링
 
   static Map<String, dynamic> _buildBody(
     String message,
