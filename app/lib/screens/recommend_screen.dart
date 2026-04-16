@@ -60,10 +60,10 @@ class _RecommendScreenState extends State<RecommendScreen>
       if (!mounted) return;
 
       final colors = [
-        const Color(0xFFF0E6D3), const Color(0xFFE8DFD0),
-        const Color(0xFFF5E8C0), const Color(0xFFE0EDD8),
-        const Color(0xFFDDE8F0), const Color(0xFFF5EDE8),
-        const Color(0xFFDEF0E4), const Color(0xFFE8EEF5),
+        AppColors.surfaceAlt, AppColors.surfaceAlt,
+        AppColors.surfaceAlt, AppColors.surfaceAlt,
+        AppColors.surfaceAlt, AppColors.surfaceAlt,
+        AppColors.surfaceAlt, AppColors.surfaceAlt,
       ];
 
       setState(() {
@@ -280,17 +280,20 @@ class _RecommendFeed extends StatelessWidget {
               margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppColors.green50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.green100, width: 0.5),
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x0A000000), blurRadius: 2, offset: Offset(0, 1)),
+                ],
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.tips_and_updates_rounded, size: 20, color: AppColors.green600),
+                  const Icon(Icons.tips_and_updates_outlined, size: 16, color: AppColors.textSecondary),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(coaching,
-                        style: const TextStyle(fontSize: 13, color: AppColors.green800, height: 1.5)),
+                        style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5)),
                   ),
                 ],
               ),
@@ -357,8 +360,11 @@ class _RecommendCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+          boxShadow: const [
+            BoxShadow(color: Color(0x0A000000), blurRadius: 2, offset: Offset(0, 1)),
+          ],
         ),
         clipBehavior: Clip.hardEdge,
         child: Column(
@@ -467,12 +473,20 @@ class _NutrPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha:0.1),
-        borderRadius: BorderRadius.circular(20),
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          color: color,
+          fontWeight: FontWeight.w500,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
     );
   }
 }
@@ -598,19 +612,20 @@ class _RecommendDetailSheet extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: AppColors.green50,
-                        borderRadius: BorderRadius.circular(12),
+                        color: AppColors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.border),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
                           _NutrStat('칼로리', '${item.kcal.round()}', 'kcal', AppColors.textPrimary),
                           _vDivider(),
-                          _NutrStat('탄수화물', '${item.carb.round()}', 'g', const Color(0xFF5BA4D0)),
+                          _NutrStat('탄수화물', '${item.carb.round()}', 'g', AppColors.carbColor),
                           _vDivider(),
-                          _NutrStat('단백질', '${item.protein.round()}', 'g', AppColors.green600),
+                          _NutrStat('단백질', '${item.protein.round()}', 'g', AppColors.proteinColor),
                           _vDivider(),
-                          _NutrStat('지방', '${item.fat.round()}', 'g', const Color(0xFFE8A838)),
+                          _NutrStat('지방', '${item.fat.round()}', 'g', AppColors.fatColor),
                         ],
                       ),
                     ),
@@ -625,10 +640,10 @@ class _RecommendDetailSheet extends StatelessWidget {
                     ElevatedButton(
                       onPressed: () => Navigator.pop(context),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.green400,
+                        backgroundColor: AppColors.accent,
                         foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 50),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         elevation: 0,
                       ),
                       child: const Text('지금 바로 보러가기', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
@@ -638,8 +653,8 @@ class _RecommendDetailSheet extends StatelessWidget {
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.textSecondary,
-                        minimumSize: const Size(double.infinity, 50),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         side: const BorderSide(color: AppColors.border),
                       ),
                       child: const Text('다시 내일에도 추천하기', style: TextStyle(fontSize: 15)),
@@ -666,7 +681,7 @@ class _RecommendDetailSheet extends StatelessWidget {
     );
   }
 
-  Widget _vDivider() => Container(width: 0.5, height: 32, color: AppColors.green100);
+  Widget _vDivider() => Container(width: 0.5, height: 32, color: AppColors.border);
 }
 
 class _NutrStat extends StatelessWidget {
@@ -678,7 +693,7 @@ class _NutrStat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.green600)),
+        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
         const SizedBox(height: 4),
         RichText(
           text: TextSpan(

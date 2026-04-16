@@ -32,7 +32,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   @override
   void initState() {
     super.initState();
-    _addBotMessage('안녕하세요! NutrAI 영양 코치입니다 🌿\n무엇이 궁금하신가요? 식단 추천, 영양 정보 등 뭐든 물어보세요!');
+    _addBotMessage('안녕하세요. NutrAI 영양 코치입니다.\n식단 추천, 영양 정보 등 궁금한 것이 있으면 물어보세요.');
   }
 
   @override
@@ -126,11 +126,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
           Container(
             width: 32, height: 32,
             decoration: BoxDecoration(
-              color: AppColors.green50,
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.green100),
+              color: AppColors.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
             ),
-            child: const Icon(Icons.smart_toy_outlined, size: 18, color: AppColors.green800),
+            child: const Icon(Icons.smart_toy_outlined, size: 17, color: AppColors.textSecondary),
           ),
           const SizedBox(width: 10),
           Column(
@@ -176,13 +176,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
             children: _quickQuestions.map((q) => GestureDetector(
               onTap: () => _sendMessage(q),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
-                  color: AppColors.green50,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.green100),
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppColors.border),
                 ),
-                child: Text(q, style: const TextStyle(fontSize: 12, color: AppColors.green600, fontWeight: FontWeight.w500)),
+                child: Text(q, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w400)),
               ),
             )).toList(),
           ),
@@ -301,8 +301,12 @@ class _MessageBubbleState extends State<_MessageBubble> with SingleTickerProvide
           if (isBot) ...[
             Container(
               width: 28, height: 28,
-              decoration: BoxDecoration(color: AppColors.green50, shape: BoxShape.circle, border: Border.all(color: AppColors.green100)),
-              child: const Icon(Icons.smart_toy_outlined, size: 15, color: AppColors.green800),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Icon(Icons.smart_toy_outlined, size: 14, color: AppColors.textSecondary),
             ),
             const SizedBox(width: 8),
           ],
@@ -553,18 +557,25 @@ class _FoodDetailSheet extends StatelessWidget {
           // 칼로리 강조
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14),
+            padding: const EdgeInsets.symmetric(vertical: 16),
             decoration: BoxDecoration(
-              color: AppColors.green50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.green100),
+              color: AppColors.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
             ),
             child: Column(
               children: [
-                const Text('칼로리', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                const Text('칼로리', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                 const SizedBox(height: 4),
-                Text('${food.kcal.toStringAsFixed(0)} kcal',
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: AppColors.green600)),
+                Text(
+                  '${food.kcal.toStringAsFixed(0)} kcal',
+                  style: const TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
               ],
             ),
           ),

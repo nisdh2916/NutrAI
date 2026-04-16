@@ -76,13 +76,16 @@ class _MainTabScreenState extends State<MainTabScreen> {
   }
 
   Widget _buildFab() => SizedBox(
-    width: 52, height: 52,
+    width: 46, height: 46,
     child: FloatingActionButton(
       onPressed: _onFabTap,
-      backgroundColor: AppColors.green400,
-      elevation: 2,
+      backgroundColor: AppColors.accent,
+      elevation: 0,
+      focusElevation: 0,
+      hoverElevation: 0,
+      highlightElevation: 1,
       shape: const CircleBorder(),
-      child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
+      child: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
     ),
   );
 
@@ -94,11 +97,11 @@ class _MainTabScreenState extends State<MainTabScreen> {
     notchMargin: 6,
     shape: const CircularNotchedRectangle(),
     child: Row(children: [
-      _NavItem(icon: Icons.home_rounded,              label: '홈',    index: 0, current: _currentIndex, onTap: _setTab),
-      _NavItem(icon: Icons.calendar_month_rounded,    label: '기록',  index: 1, current: _currentIndex, onTap: _setTab),
+      _NavItem(iconActive: Icons.home_rounded,           iconInactive: Icons.home_outlined,              label: '홈',    index: 0, current: _currentIndex, onTap: _setTab),
+      _NavItem(iconActive: Icons.calendar_month_rounded, iconInactive: Icons.calendar_month_outlined,    label: '기록',  index: 1, current: _currentIndex, onTap: _setTab),
       const Expanded(child: SizedBox()),              // FAB 자리
-      _NavItem(icon: Icons.bar_chart_rounded,         label: '리포트',index: 3, current: _currentIndex, onTap: _setTab),
-      _NavItem(icon: Icons.lightbulb_outline_rounded, label: '추천',  index: 4, current: _currentIndex, onTap: _setTab),
+      _NavItem(iconActive: Icons.bar_chart_rounded,       iconInactive: Icons.bar_chart_outlined,        label: '리포트',index: 3, current: _currentIndex, onTap: _setTab),
+      _NavItem(iconActive: Icons.lightbulb_rounded,       iconInactive: Icons.lightbulb_outline_rounded, label: '추천',  index: 4, current: _currentIndex, onTap: _setTab),
     ]),
   );
 
@@ -106,13 +109,20 @@ class _MainTabScreenState extends State<MainTabScreen> {
 }
 
 class _NavItem extends StatelessWidget {
-  final IconData icon;
+  final IconData iconActive;
+  final IconData iconInactive;
   final String label;
   final int index, current;
   final ValueChanged<int> onTap;
 
-  const _NavItem({required this.icon, required this.label,
-      required this.index, required this.current, required this.onTap});
+  const _NavItem({
+    required this.iconActive,
+    required this.iconInactive,
+    required this.label,
+    required this.index,
+    required this.current,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -122,12 +132,15 @@ class _NavItem extends StatelessWidget {
         onTap: () => onTap(index),
         behavior: HitTestBehavior.opaque,
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, size: 22,
-              color: isActive ? AppColors.green400 : AppColors.gray200),
+          Icon(
+            isActive ? iconActive : iconInactive,
+            size: 22,
+            color: isActive ? AppColors.accent : AppColors.textHint,
+          ),
           const SizedBox(height: 3),
           Text(label, style: TextStyle(
             fontSize: 10,
-            color: isActive ? AppColors.green400 : AppColors.gray200,
+            color: isActive ? AppColors.accent : AppColors.textHint,
             fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
           )),
         ]),

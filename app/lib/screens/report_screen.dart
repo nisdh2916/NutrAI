@@ -4,9 +4,9 @@ import '../models/meal_models.dart';
 import '../theme/app_theme.dart';
 
 // 영양소 색상 상수
-const _kCarb = Color(0xFF5BA4D0);
-const _kProtein = Color(0xFF639922);
-const _kFat = Color(0xFFE8A838);
+const _kCarb    = AppColors.carbColor;
+const _kProtein = AppColors.proteinColor;
+const _kFat     = AppColors.fatColor;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 리포트 화면 (루트)
@@ -346,9 +346,10 @@ class _NutritionCard extends StatelessWidget {
               Column(mainAxisSize: MainAxisSize.min, children: [
                 Text('${totalKcal.round()}',
                     style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 26,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
+                        color: AppColors.textPrimary,
+                        fontFeatures: [FontFeature.tabularFigures()])),
                 const Text('kcal',
                     style: TextStyle(
                         fontSize: 10, color: AppColors.textSecondary)),
@@ -445,25 +446,28 @@ class _TipCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.green50,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.green100, width: 0.5),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0A000000), blurRadius: 2, offset: Offset(0, 1)),
+        ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.tips_and_updates_rounded,
-              size: 16, color: AppColors.green600),
+          const Icon(Icons.tips_and_updates_outlined,
+              size: 15, color: AppColors.textSecondary),
           const SizedBox(width: 6),
           const Text('맞춤 조언',
               style: TextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.green800)),
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary)),
         ]),
         const SizedBox(height: 8),
         Text(_tip,
             style: const TextStyle(
-                fontSize: 13, color: AppColors.green600, height: 1.6)),
+                fontSize: 13, color: AppColors.textSecondary, height: 1.6)),
       ]),
     );
   }
@@ -481,8 +485,8 @@ class _DonutPainter extends CustomPainter {
     if (total == 0) {
       final p = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 16
-        ..color = AppColors.gray50;
+        ..strokeWidth = 10
+        ..color = AppColors.border;
       canvas.drawCircle(
           Offset(size.width / 2, size.height / 2), size.width / 2 - 8, p);
       return;
@@ -492,11 +496,11 @@ class _DonutPainter extends CustomPainter {
     final r = size.width / 2 - 8;
     final p = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 16
+      ..strokeWidth = 10
       ..strokeCap = StrokeCap.butt;
 
     // 배경 트랙
-    p.color = AppColors.gray50;
+    p.color = AppColors.border;
     canvas.drawCircle(Offset(cx, cy), r, p);
 
     const gap = 0.04;
@@ -983,7 +987,7 @@ class _MonthlyTabState extends State<_MonthlyTab> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.12),
+                      color: color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(m.label,
