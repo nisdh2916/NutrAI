@@ -22,6 +22,7 @@ LLM_MODEL = "gemma4:e4b"         # 답변 생성용
 
 _embed_model: SentenceTransformer | None = None
 _collection = None
+_llm: OllamaLLM | None = None
 
 
 def _get_embed_model() -> SentenceTransformer:
@@ -31,6 +32,18 @@ def _get_embed_model() -> SentenceTransformer:
         device = "cuda" if torch.cuda.is_available() else "cpu"
         _embed_model = SentenceTransformer(EMBED_MODEL, device=device)
     return _embed_model
+
+
+def _get_llm() -> OllamaLLM:
+    global _llm
+    if _llm is None:
+        _llm = OllamaLLM(
+            model=LLM_MODEL,
+            base_url=OLLAMA_BASE_URL,
+            temperature=0.3,
+            num_predict=512,
+        )
+    return _llm
 
 
 def get_collection():
@@ -47,24 +60,13 @@ def get_collection():
 
 
 # ── 프롬프트 템플릿 ───────────────────────────────────
-SYSTEM_PROMPT = """당신은 NutrAI의 전문 영양 코치입니다.
-반드시 한국어로만 답변하세요. 영어나 중국어로 절대 답변하지 마세요.
-사용자의 건강 목표, 신체 정보, 오늘 먹은 식단을 종합 분석하여 근거 있는 맞춤형 식단 추천을 제공합니다.
+SYSTEM_PROMPT = """한국어로만 답변하는 NutrAI 영양 코치입니다.
+알레르기 식품 추천 금지. 질환 있으면 맞는 식단 우선. 추천 메뉴명은 **메뉴명** 형식으로.
 
-중요 규칙:
-- 알레르기 식품은 절대 추천하지 마세요
-- 질환이 있으면 해당 질환에 맞는 식단을 우선 고려하세요
-- 오늘 이미 먹은 음식과 영양소 균형을 고려하여 부족한 영양소를 보충하는 메뉴를 추천하세요
-- 추천 메뉴명은 반드시 **메뉴명** 형식(볼드)으로 표시하세요
-
-아래 영양 정보를 참고하여 답변하세요:
+참고 영양 정보:
 {context}
 
-답변 형식:
-1. 추천 메뉴 3~5개 (각 **메뉴명**, 예상 칼로리, 추천 이유)
-2. 코칭 메시지 (1~2문장)
-3. 주의사항 (해당 시)
-"""
+추천 메뉴 3개(**메뉴명**, 칼로리, 추천 이유)와 코칭 메시지를 한국어로 답변하세요."""
 
 
 def _build_profile_str(user_profile: dict) -> str:
@@ -173,11 +175,7 @@ def get_recommendation(
 
     prompt = build_prompt(context, user_query, user_profile, meal_history=meal_history)
 
-    llm = OllamaLLM(
-        model=LLM_MODEL,
-        base_url=OLLAMA_BASE_URL,
-        temperature=0.3,
-    )
+    llm = _get_llm()
     try:
         answer = llm.invoke(prompt)
     except Exception as e:
@@ -218,11 +216,7 @@ def stream_recommendation(
     context = "\n".join(cleaned_docs)
     prompt = build_prompt(context, user_query, user_profile, meal_history=meal_history)
 
-    llm = OllamaLLM(
-        model=LLM_MODEL,
-        base_url=OLLAMA_BASE_URL,
-        temperature=0.3,
-    )
+    llm = _get_llm()
     try:
         for chunk in llm.stream(prompt):
             yield chunk
