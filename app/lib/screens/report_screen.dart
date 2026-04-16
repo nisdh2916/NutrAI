@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../models/meal_models.dart';
 import '../theme/app_theme.dart';
 
-// 영양소 색상 상수
-const _kCarb = Color(0xFF5BA4D0);
-const _kProtein = Color(0xFF639922);
-const _kFat = Color(0xFFE8A838);
+// 영양소 색상 상수 (AppColors 토큰 사용)
+const _kCarb    = AppColors.carbColor;
+const _kProtein = AppColors.proteinColor;
+const _kFat     = AppColors.fatColor;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 리포트 화면 (루트)
@@ -274,14 +274,9 @@ class _MealThumbnailRow extends StatelessWidget {
                 height: 80,
                 decoration: BoxDecoration(
                   color: meal != null
-                      ? _colors[i].withOpacity(0.15)
-                      : AppColors.gray50,
+                      ? _colors[i].withValues(alpha: 0.15)
+                      : AppColors.green50,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                      color: meal != null
-                          ? _colors[i].withOpacity(0.3)
-                          : AppColors.border,
-                      width: 0.5),
                 ),
                 child: Center(
                   child: Icon(
@@ -330,7 +325,7 @@ class _NutritionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 0.5),
+        boxShadow: AppTheme.cardShadow,
       ),
       child: Row(
         children: [
@@ -446,8 +441,8 @@ class _TipCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.green50,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.green100, width: 0.5),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: AppTheme.cardShadow,
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -478,28 +473,31 @@ class _DonutPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final total = carb + protein + fat;
+    const sw = 18.0;
+    const gap = 0.08;
     if (total == 0) {
       final p = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 16
-        ..color = AppColors.gray50;
+        ..strokeWidth = sw
+        ..color = AppColors.green100;
       canvas.drawCircle(
-          Offset(size.width / 2, size.height / 2), size.width / 2 - 8, p);
+          Offset(size.width / 2, size.height / 2), size.width / 2 - sw / 2, p);
       return;
     }
     final cx = size.width / 2;
     final cy = size.height / 2;
-    final r = size.width / 2 - 8;
+    final r = size.width / 2 - sw / 2;
+    final track = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = sw
+      ..color = AppColors.green100;
+    canvas.drawCircle(Offset(cx, cy), r, track);
+
     final p = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 16
-      ..strokeCap = StrokeCap.butt;
+      ..strokeWidth = sw
+      ..strokeCap = StrokeCap.round;
 
-    // 배경 트랙
-    p.color = AppColors.gray50;
-    canvas.drawCircle(Offset(cx, cy), r, p);
-
-    const gap = 0.04;
     final segs = [
       (carb / total, _kCarb),
       (protein / total, _kProtein),
@@ -510,8 +508,8 @@ class _DonutPainter extends CustomPainter {
       final sweep = ratio * 2 * math.pi - gap;
       if (sweep <= 0) continue;
       p.color = color;
-      canvas.drawArc(Rect.fromCircle(center: Offset(cx, cy), radius: r), start,
-          sweep, false, p);
+      canvas.drawArc(Rect.fromCircle(center: Offset(cx, cy), radius: r),
+          start + gap / 2, sweep, false, p);
       start += ratio * 2 * math.pi;
     }
   }
@@ -560,7 +558,7 @@ class _WeeklyTab extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border, width: 0.5),
+              boxShadow: AppTheme.cardShadow,
             ),
             child: Row(children: [
               _StatBox(
@@ -583,7 +581,7 @@ class _WeeklyTab extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border, width: 0.5),
+              boxShadow: AppTheme.cardShadow,
             ),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -653,7 +651,7 @@ class _WeeklyTab extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border, width: 0.5),
+              boxShadow: AppTheme.cardShadow,
             ),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -936,7 +934,7 @@ class _MonthlyTabState extends State<_MonthlyTab> {
             decoration: BoxDecoration(
               color: AppColors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border, width: 0.5),
+              boxShadow: AppTheme.cardShadow,
             ),
             child: Row(children: [
               _StatBox(
@@ -974,17 +972,17 @@ class _MonthlyTabState extends State<_MonthlyTab> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                 decoration: BoxDecoration(
-                  color: AppColors.white,
+                  color: AppColors.background,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border, width: 0.5),
+                  boxShadow: AppTheme.cardShadow,
                 ),
                 child: Row(children: [
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(20),
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(m.label,
                         style: TextStyle(
@@ -1015,7 +1013,7 @@ class _MonthlyTabState extends State<_MonthlyTab> {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 46),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(999)),
                 side: const BorderSide(color: AppColors.green400, width: 1.5),
               ),
             ),
@@ -1038,14 +1036,13 @@ class _EmptyReport extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 40),
       child: Column(children: [
-        Icon(Icons.insert_chart_outlined_rounded,
-            size: 48, color: AppColors.gray100),
+        const Text('🥗', style: TextStyle(fontSize: 44)),
         const SizedBox(height: 12),
         const Text('아직 식단 기록이 없어요',
-            style: TextStyle(fontSize: 14, color: AppColors.gray400)),
+            style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
         const SizedBox(height: 4),
-        const Text('+ 버튼으로 오늘 식사를 기록해보세요',
-            style: TextStyle(fontSize: 12, color: AppColors.gray200)),
+        const Text('+ 버튼으로 오늘 식사를 기록해봐요 😊',
+            style: TextStyle(fontSize: 12, color: AppColors.textHint)),
       ]),
     );
   }

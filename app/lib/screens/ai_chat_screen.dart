@@ -32,7 +32,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   @override
   void initState() {
     super.initState();
-    _addBotMessage('안녕하세요! NutrAI 영양 코치입니다 🌿\n무엇이 궁금하신가요? 식단 추천, 영양 정보 등 뭐든 물어보세요!');
+    _addBotMessage('안녕하세요! 저는 NutrAI 영양 코치예요 🌿\n식단 추천, 영양 정보, 건강 고민 — 뭐든 편하게 물어보세요! 😊');
   }
 
   @override
@@ -124,13 +124,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
       title: Row(
         children: [
           Container(
-            width: 32, height: 32,
+            width: 36, height: 36,
             decoration: BoxDecoration(
-              color: AppColors.green50,
+              color: AppColors.green400,
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.green100),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.green400.withValues(alpha: 0.3),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: const Icon(Icons.smart_toy_outlined, size: 18, color: AppColors.green800),
+            child: const Icon(Icons.smart_toy_rounded, size: 20, color: Colors.white),
           ),
           const SizedBox(width: 10),
           Column(
@@ -176,13 +182,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
             children: _quickQuestions.map((q) => GestureDetector(
               onTap: () => _sendMessage(q),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: BoxDecoration(
                   color: AppColors.green50,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.green100),
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
                 ),
-                child: Text(q, style: const TextStyle(fontSize: 12, color: AppColors.green600, fontWeight: FontWeight.w500)),
+                child: Text(q, style: const TextStyle(fontSize: 13, color: AppColors.green600, fontWeight: FontWeight.w600)),
               ),
             )).toList(),
           ),
@@ -300,9 +312,19 @@ class _MessageBubbleState extends State<_MessageBubble> with SingleTickerProvide
         children: [
           if (isBot) ...[
             Container(
-              width: 28, height: 28,
-              decoration: BoxDecoration(color: AppColors.green50, shape: BoxShape.circle, border: Border.all(color: AppColors.green100)),
-              child: const Icon(Icons.smart_toy_outlined, size: 15, color: AppColors.green800),
+              width: 30, height: 30,
+              decoration: BoxDecoration(
+                color: AppColors.green400,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.green400.withValues(alpha: 0.25),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.smart_toy_rounded, size: 16, color: Colors.white),
             ),
             const SizedBox(width: 8),
           ],
@@ -310,14 +332,20 @@ class _MessageBubbleState extends State<_MessageBubble> with SingleTickerProvide
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: isBot ? AppColors.white : AppColors.green400,
+                color: isBot ? AppColors.botBubble : AppColors.green400,
                 borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isBot ? 4 : 16),
-                  bottomRight: Radius.circular(isBot ? 16 : 4),
+                  topLeft: const Radius.circular(18),
+                  topRight: const Radius.circular(18),
+                  bottomLeft: Radius.circular(isBot ? 4 : 18),
+                  bottomRight: Radius.circular(isBot ? 18 : 4),
                 ),
-                border: isBot ? Border.all(color: AppColors.border, width: 0.5) : null,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
               ),
               child: isBot
                   ? _RichBotText(text: widget.message.text)
@@ -553,18 +581,20 @@ class _FoodDetailSheet extends StatelessWidget {
           // 칼로리 강조
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14),
+            padding: const EdgeInsets.symmetric(vertical: 18),
             decoration: BoxDecoration(
               color: AppColors.green50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.green100),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: AppTheme.cardShadow,
             ),
             child: Column(
               children: [
-                const Text('칼로리', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                const Text('🔥 칼로리', style: TextStyle(fontSize: 13, color: AppColors.green600, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
-                Text('${food.kcal.toStringAsFixed(0)} kcal',
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: AppColors.green600)),
+                Text(
+                  '${food.kcal.toStringAsFixed(0)} kcal',
+                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.green600),
+                ),
               ],
             ),
           ),
@@ -691,8 +721,12 @@ class _TypingIndicatorState extends State<_TypingIndicator> with TickerProviderS
         children: [
           Container(
             width: 28, height: 28,
-            decoration: BoxDecoration(color: AppColors.green50, shape: BoxShape.circle, border: Border.all(color: AppColors.green100)),
-            child: const Icon(Icons.smart_toy_outlined, size: 15, color: AppColors.green800),
+            decoration: BoxDecoration(
+              color: AppColors.green400,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: AppColors.green400.withValues(alpha: 0.25), blurRadius: 4, offset: const Offset(0, 1))],
+            ),
+            child: const Icon(Icons.smart_toy_rounded, size: 15, color: Colors.white),
           ),
           const SizedBox(width: 8),
           Container(

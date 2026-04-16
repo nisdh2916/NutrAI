@@ -278,19 +278,29 @@ class _RecommendFeed extends StatelessWidget {
           SliverToBoxAdapter(
             child: Container(
               margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.green50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.green100, width: 0.5),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: AppTheme.cardShadow,
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.tips_and_updates_rounded, size: 20, color: AppColors.green600),
-                  const SizedBox(width: 10),
+                  Container(
+                    width: 38, height: 38,
+                    decoration: BoxDecoration(
+                      color: AppColors.green400,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: AppColors.green400.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2)),
+                      ],
+                    ),
+                    child: const Icon(Icons.smart_toy_rounded, size: 20, color: Colors.white),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(coaching,
-                        style: const TextStyle(fontSize: 13, color: AppColors.green800, height: 1.5)),
+                        style: const TextStyle(fontSize: 13, color: AppColors.green600, height: 1.6, fontWeight: FontWeight.w500)),
                   ),
                 ],
               ),
@@ -358,7 +368,7 @@ class _RecommendCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          boxShadow: AppTheme.cardShadow,
         ),
         clipBehavior: Clip.hardEdge,
         child: Column(
@@ -470,7 +480,7 @@ class _NutrPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha:0.1),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500)),
     );
@@ -628,7 +638,7 @@ class _RecommendDetailSheet extends StatelessWidget {
                         backgroundColor: AppColors.green400,
                         foregroundColor: Colors.white,
                         minimumSize: const Size(double.infinity, 50),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                         elevation: 0,
                       ),
                       child: const Text('지금 바로 보러가기', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
@@ -639,7 +649,7 @@ class _RecommendDetailSheet extends StatelessWidget {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.textSecondary,
                         minimumSize: const Size(double.infinity, 50),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                         side: const BorderSide(color: AppColors.border),
                       ),
                       child: const Text('다시 내일에도 추천하기', style: TextStyle(fontSize: 15)),
@@ -801,7 +811,7 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
                   onPressed: () => Navigator.pop(context),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 48),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                     side: const BorderSide(color: AppColors.border),
                     foregroundColor: AppColors.textSecondary,
                   ),
@@ -817,7 +827,7 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
                     backgroundColor: AppColors.green400,
                     foregroundColor: Colors.white,
                     minimumSize: const Size(0, 48),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                     elevation: 0,
                   ),
                   child: const Text('피드백 제출', style: TextStyle(fontWeight: FontWeight.w600)),
