@@ -61,12 +61,9 @@ class ProfileSummaryScreen extends StatelessWidget {
             title: '사용자 커스텀 설정',
             items: [
               _InfoItem('목표', profile.goal.isNotEmpty ? profile.goal : '—'),
-              // 추후 챗봇 or 추가 설정 화면에서 수집한 값으로 교체
-              _InfoItem('운동 빈도', '—'),
-              _InfoItem('알레르기', '—'),
-              _InfoItem('식단 취향', '—'),
-              _InfoItem('식습관 특성', '—'),
-              _InfoItem('기대 효과', '—'),
+              _InfoItem('활동량', profile.activityLevel.isNotEmpty ? profile.activityLevel : '—'),
+              _InfoItem('알레르기', profile.allergy.isNotEmpty ? profile.allergy : '없음'),
+              _InfoItem('질환', profile.condition.isNotEmpty ? profile.condition : '없음'),
             ],
           ),
         ],
@@ -77,12 +74,16 @@ class ProfileSummaryScreen extends StatelessWidget {
           // DB에 사용자 저장
           final appState = context.read<AppState>();
           await appState.saveUser(
-            nickname:  profile.name.isNotEmpty ? profile.name : '사용자',
-            gender:    profile.gender,
-            age:       profile.age,
-            heightCm:  profile.height,
-            weightKg:  profile.weight,
-            targetKcal: profile.bmr,
+            nickname:      profile.name.isNotEmpty ? profile.name : '사용자',
+            gender:        profile.gender,
+            age:           profile.age,
+            heightCm:      profile.height,
+            weightKg:      profile.weight,
+            targetKcal:    profile.bmr,
+            goal:          profile.goal.isNotEmpty ? profile.goal : null,
+            activityLevel: profile.activityLevel.isNotEmpty ? profile.activityLevel : null,
+            allergy:       profile.allergy.isNotEmpty ? profile.allergy : null,
+            condition:     profile.condition.isNotEmpty ? profile.condition : null,
           );
           if (!context.mounted) return;
           Navigator.pushAndRemoveUntil(
