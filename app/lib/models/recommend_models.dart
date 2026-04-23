@@ -6,12 +6,14 @@ class RecommendItem {
   final String name;
   final List<String> tags;
   final String description;
-  final Color placeholderColor; // 실제 앱에서는 imageUrl
+  final Color placeholderColor;
   final double kcal;
   final double carb;
   final double protein;
   final double fat;
   bool isFavorite;
+  final bool allergenWarning;
+  final List<String> allergenNames;
 
   RecommendItem({
     required this.id,
@@ -24,6 +26,8 @@ class RecommendItem {
     required this.protein,
     required this.fat,
     this.isFavorite = false,
+    this.allergenWarning = false,
+    this.allergenNames = const [],
   });
 }
 
