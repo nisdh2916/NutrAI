@@ -69,6 +69,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
     _scrollToBottom();
 
+    // 빈 봇 메시지 먼저 추가 후 스트리밍으로 채움
+    setState(() => _messages.add(_Message(text: '', isBot: true, animated: false)));
+    final botIndex = _messages.length - 1;
+
     try {
       final appState = context.read<AppState>();
       final user = appState.user;
@@ -76,24 +80,30 @@ class _AiChatScreenState extends State<AiChatScreen> {
       final mealHistory = todayMeals.isNotEmpty
           ? ChatService.mealsToHistory(todayMeals)
           : null;
-      final response = await ChatService.sendMessage(
+
+      final buffer = StringBuffer();
+      await for (final chunk in ChatService.streamMessage(
         message: text,
         user: user,
         mealHistory: mealHistory,
-      );
-      setState(() {
-        _messages.add(_Message(text: response.answer, isBot: true));
-      });
-      _scrollToBottom();
-    } catch (e) {
-      setState(() {
-        _messages.add(_Message(
-          text: '서버 연결 오류: $e',
+      )) {
+        buffer.write(chunk);
+        if (!mounted) return;
+        setState(() => _messages[botIndex] = _Message(
+          text: buffer.toString(),
           isBot: true,
+          animated: false,
         ));
-      });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _messages[botIndex] = _Message(
+        text: '서버 연결 오류: $e',
+        isBot: true,
+      ));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -441,6 +451,12 @@ class _RichBotText extends StatelessWidget {
     );
   }
 
+  // 음식명으로 오인하면 안 되는 라벨 단어
+  static const _nonFoodLabels = {
+    '메뉴명', '칼로리', '추천 이유', '추천이유', '코칭 메시지', '코칭메시지',
+    '추천', '성분', '영양', '식단', '이유', '메뉴', '기준',
+  };
+
   /// 한 줄 내에서 **bold** 파싱
   Widget _buildRichLine(BuildContext context, String line) {
     final spans = <InlineSpan>[];
@@ -450,14 +466,15 @@ class _RichBotText extends StatelessWidget {
       if (match.start > lastEnd) {
         spans.add(TextSpan(text: line.substring(lastEnd, match.start), style: _baseStyle));
       }
-      final boldText = match.group(1)!;
-      // 음식명 판별: 한글 2자 이상이면 탭 가능 음식명으로 처리
-      final isFood = RegExp(r'[가-힣]{2,}').hasMatch(boldText) && boldText.length <= 20;
+      final boldText = match.group(1)!.trim();
+      final isFood = RegExp(r'[가-힣]{2,}').hasMatch(boldText)
+          && boldText.length <= 20
+          && !_nonFoodLabels.contains(boldText);
       if (isFood) {
         spans.add(TextSpan(
           text: boldText,
           style: _foodStyle,
-          recognizer: TapGestureRecognizer()..onTap = () => _showFoodPopup(context, boldText),
+          recognizer: TapGestureRecognizer()..onTap = () => _showFoodPopup(context, boldText, text),
         ));
       } else {
         spans.add(TextSpan(text: boldText, style: _boldStyle));
@@ -475,45 +492,168 @@ class _RichBotText extends StatelessWidget {
     return RichText(text: TextSpan(children: spans));
   }
 
-  static void _showFoodPopup(BuildContext context, String foodName) async {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.green400)),
-    );
-
-    try {
-      final results = await ChatService.searchFood(foodName);
-      if (!context.mounted) return;
-      Navigator.pop(context);
-
-      if (results.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('"$foodName" 영양정보를 찾을 수 없습니다.')),
-        );
-        return;
+  // 메시지 텍스트에서 해당 음식명의 kcal·추천이유 추출
+  static Map<String, String> _parseFoodInfo(String message, String foodName) {
+    final lines = message.split('\n');
+    String kcal = '';
+    String reason = '';
+    for (int i = 0; i < lines.length; i++) {
+      if (!lines[i].contains(foodName)) continue;
+      for (int j = i; j < lines.length && j < i + 5; j++) {
+        if (kcal.isEmpty) {
+          final m = RegExp(r'칼로리[:\s]*(\d+)\s*kcal').firstMatch(lines[j])
+              ?? RegExp(r'[(\s](\d+)\s*kcal').firstMatch(lines[j]);
+          if (m != null) kcal = m.group(1)!;
+        }
+        if (reason.isEmpty && (lines[j].contains('추천 이유') || lines[j].contains('이유:'))) {
+          reason = lines[j]
+              .replaceAll(RegExp(r'\*\*.*?\*\*:?\s*'), '')
+              .replaceAll(RegExp(r'추천\s*이유:?\s*'), '')
+              .trim();
+        }
       }
-
-      final food = results.first;
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        isScrollControlled: true,
-        builder: (_) => _FoodDetailSheet(food: food),
-      );
-    } catch (e) {
-      if (context.mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('영양정보 조회에 실패했습니다.')),
-        );
-      }
+      break;
     }
+    return {'kcal': kcal, 'reason': reason};
+  }
+
+  static void _showFoodPopup(BuildContext context, String foodName, String fullMessage) {
+    final info = _parseFoodInfo(fullMessage, foodName);
+    final allergy = Provider.of<AppState>(context, listen: false).user?.allergy ?? '';
+    final allergenWarning = _detectAllergens(foodName, allergy);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ChatFoodSheet(
+        foodName: foodName,
+        kcal: info['kcal'] ?? '',
+        reason: info['reason'] ?? '',
+        allergenWarning: allergenWarning,
+        allergy: allergy,
+      ),
+    );
+  }
+
+  // 알레르기 키워드 매핑 (서버와 동일)
+  static const _allergenKeywords = <String, List<String>>{
+    '유제품':  ['우유', '치즈', '버터', '요거트', '크림', '밀크', '라떼'],
+    '견과류':  ['아몬드', '호두', '캐슈', '땅콩', '잣', '피스타치오', '마카다미아', '헤이즐넛', '견과'],
+    '갑각류':  ['새우', '게', '랍스터', '크랩', '대게'],
+    '밀':     ['빵', '파스타', '면', '국수', '라면', '우동', '스파게티', '밀가루', '만두'],
+    '글루텐':  ['빵', '파스타', '면', '국수', '라면', '우동', '밀가루'],
+    '계란':   ['계란', '달걀', '에그', '오믈렛', '마요네즈'],
+    '대두':   ['두부', '된장', '간장', '두유', '콩국수'],
+    '조개류':  ['조개', '홍합', '굴', '전복', '바지락', '오징어', '낙지', '문어'],
+  };
+
+  static List<String> _detectAllergens(String foodName, String allergyStr) {
+    if (allergyStr.isEmpty) return [];
+    final allergens = allergyStr.split(RegExp(r'[,\s]+')).where((s) => s.isNotEmpty && s != '없음');
+    final matched = <String>[];
+    for (final allergen in allergens) {
+      final keywords = _allergenKeywords[allergen] ?? [allergen];
+      if (keywords.any((kw) => foodName.contains(kw))) matched.add(allergen);
+    }
+    return matched;
   }
 }
 
 // ──────────────────────────────────────────────
-// 영양정보 바텀시트 팝업
+// 채팅 음식 팝업 (메시지 파싱 기반)
+// ──────────────────────────────────────────────
+class _ChatFoodSheet extends StatelessWidget {
+  final String foodName;
+  final String kcal;
+  final String reason;
+  final List<String> allergenWarning;
+  final String allergy;
+  const _ChatFoodSheet({
+    required this.foodName,
+    required this.kcal,
+    required this.reason,
+    this.allergenWarning = const [],
+    this.allergy = '',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(color: AppColors.gray200, borderRadius: BorderRadius.circular(2)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(foodName,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 12),
+          if (kcal.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: AppColors.green50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.green100),
+              ),
+              child: Column(
+                children: [
+                  const Text('칼로리', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  const SizedBox(height: 4),
+                  Text('$kcal kcal',
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: AppColors.green600)),
+                ],
+              ),
+            ),
+          if (allergenWarning.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF3F3),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFF5252).withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_rounded, size: 16, color: Color(0xFFFF5252)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${allergenWarning.join(', ')} 성분이 포함될 수 있습니다.',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF9E3333), height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (reason.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Text('추천 이유', style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 6),
+            Text(reason, style: const TextStyle(fontSize: 13.5, color: AppColors.textPrimary, height: 1.55)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────
+// 영양정보 바텀시트 팝업 (DB 검색용, 레거시)
 // ──────────────────────────────────────────────
 class _FoodDetailSheet extends StatelessWidget {
   final FoodNutrition food;

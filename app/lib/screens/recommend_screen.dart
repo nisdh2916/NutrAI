@@ -16,9 +16,10 @@ class RecommendScreen extends StatefulWidget {
   State<RecommendScreen> createState() => _RecommendScreenState();
 }
 
-class _RecommendScreenState extends State<RecommendScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabCtrl;
+const _kCategories = ['전체', '다이어트', '기호별', '질환맞춤', '건강기능식품'];
+
+class _RecommendScreenState extends State<RecommendScreen> {
+  String _selectedCategory = '전체';
 
   List<RecommendItem> _items = [];
   bool _loading = false;
@@ -28,19 +29,12 @@ class _RecommendScreenState extends State<RecommendScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
-    // 화면 진입 시 자동 로딩
     WidgetsBinding.instance.addPostFrameCallback((_) => _fetchRecommendations());
   }
 
-  @override
-  void dispose() {
-    _tabCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _fetchRecommendations() async {
+  Future<void> _fetchRecommendations({String? category}) async {
     if (_loading) return;
+    final cat = category ?? _selectedCategory;
     setState(() { _loading = true; _error = null; });
 
     try {
@@ -55,6 +49,7 @@ class _RecommendScreenState extends State<RecommendScreen>
         user: user,
         mealHistory: mealHistory,
         count: 5,
+        category: cat,
       );
 
       if (!mounted) return;
@@ -80,6 +75,8 @@ class _RecommendScreenState extends State<RecommendScreen>
             carb: item.carb,
             protein: item.protein,
             fat: item.fat,
+            allergenWarning: item.allergenWarning,
+            allergenNames: item.allergenNames,
           );
         }).toList();
         _coaching = result.coaching;
@@ -138,54 +135,39 @@ class _RecommendScreenState extends State<RecommendScreen>
       backgroundColor: AppColors.background,
       body: NestedScrollView(
         headerSliverBuilder: (_, __) => [_buildAppBar()],
-        body: TabBarView(
-          controller: _tabCtrl,
-          children: [
-            // 탭 1: AI 맞춤 추천
-            _loading
-                ? const Center(child: Column(
+        body: _loading
+            ? const Center(child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppColors.green400),
+                  SizedBox(height: 16),
+                  Text('AI가 맞춤 메뉴를 분석 중이에요...', style: TextStyle(fontSize: 14, color: AppColors.gray400)),
+                ],
+              ))
+            : _error != null
+                ? Center(child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      CircularProgressIndicator(color: AppColors.green400),
-                      SizedBox(height: 16),
-                      Text('AI가 맞춤 메뉴를 분석 중이에요...', style: TextStyle(fontSize: 14, color: AppColors.gray400)),
+                      const Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.gray200),
+                      const SizedBox(height: 12),
+                      const Text('추천을 불러올 수 없어요', style: TextStyle(fontSize: 14, color: AppColors.gray400)),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: _fetchRecommendations,
+                        icon: const Icon(Icons.refresh_rounded, size: 16),
+                        label: const Text('다시 시도'),
+                      ),
                     ],
                   ))
-                : _error != null
-                    ? Center(child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.gray200),
-                          const SizedBox(height: 12),
-                          Text('추천을 불러올 수 없어요', style: const TextStyle(fontSize: 14, color: AppColors.gray400)),
-                          const SizedBox(height: 8),
-                          TextButton.icon(
-                            onPressed: _fetchRecommendations,
-                            icon: const Icon(Icons.refresh_rounded, size: 16),
-                            label: const Text('다시 시도'),
-                          ),
-                        ],
-                      ))
-                    : _RecommendFeed(
-                        items: _items,
-                        coaching: _coaching,
-                        onCardTap: _onCardTap,
-                        onFavoriteToggle: (item) => setState(() => item.isFavorite = !item.isFavorite),
-                        onFeedbackTap: _showFeedbackSheet,
-                        onRefresh: _fetchRecommendations,
-                        emptyMessage: '취향 데이터를 더 쌓으면\n맞춤 추천이 정확해져요!',
-                      ),
-            // 탭 2: 샘플 (추후 별도 API 연결)
-            _RecommendFeed(
-              items: List.from(RecommendSampleData.today),
-              onCardTap: _onCardTap,
-              onFavoriteToggle: (item) => setState(() => item.isFavorite = !item.isFavorite),
-              onFeedbackTap: _showFeedbackSheet,
-              onRefresh: _fetchRecommendations,
-              emptyMessage: '오늘 식단 기록이 없어\n맞춤 추천을 준비 중이에요.',
-            ),
-          ],
-        ),
+                : _RecommendFeed(
+                    items: _items,
+                    coaching: _coaching,
+                    onCardTap: _onCardTap,
+                    onFavoriteToggle: (item) => setState(() => item.isFavorite = !item.isFavorite),
+                    onFeedbackTap: _showFeedbackSheet,
+                    onRefresh: _fetchRecommendations,
+                    emptyMessage: '취향 데이터를 더 쌓으면\n맞춤 추천이 정확해져요!',
+                  ),
       ),
     );
   }
@@ -211,20 +193,51 @@ class _RecommendScreenState extends State<RecommendScreen>
         ),
       ],
       bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(44),
+        preferredSize: const Size.fromHeight(52),
         child: Column(
           children: [
-            TabBar(
-              controller: _tabCtrl,
-              labelColor: AppColors.green600,
-              unselectedLabelColor: AppColors.gray400,
-              labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              unselectedLabelStyle: const TextStyle(fontSize: 13),
-              indicatorColor: AppColors.green400,
-              indicatorWeight: 2,
-              tabs: const [Tab(text: 'AI 맞춤 추천'), Tab(text: '오늘 맞춤 식단')],
+            SizedBox(
+              height: 44,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                itemCount: _kCategories.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) {
+                  final cat = _kCategories[i];
+                  final selected = cat == _selectedCategory;
+                  return GestureDetector(
+                    onTap: () {
+                      if (!selected && !_loading) {
+                        setState(() => _selectedCategory = cat);
+                        _fetchRecommendations(category: cat);
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: selected ? AppColors.green400 : AppColors.gray50,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: selected ? AppColors.green400 : AppColors.border,
+                          width: 0.5,
+                        ),
+                      ),
+                      child: Text(
+                        cat,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                          color: selected ? Colors.white : AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
-            Divider(height: 0.5, color: AppColors.border),
+            const Divider(height: 0.5, color: AppColors.border),
           ],
         ),
       ),
@@ -379,6 +392,29 @@ class _RecommendCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                // 알레르기 경고 배지
+                if (item.allergenWarning)
+                  Positioned(
+                    top: 10, left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF5252),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.warning_rounded, size: 12, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text(
+                            '알레르기 주의',
+                            style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 // 즐겨찾기 버튼
                 Positioned(
                   top: 10, right: 10,
@@ -616,7 +652,45 @@ class _RecommendDetailSheet extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
 
+                    // 알레르기 경고
+                    if (item.allergenWarning) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF3F3),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFFF5252).withValues(alpha: 0.4)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.warning_rounded, size: 18, color: Color(0xFFFF5252)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    '알레르기 성분 포함 가능',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFFD32F2F)),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${item.allergenNames.join(', ')} 성분이 포함될 수 있습니다.',
+                                    style: const TextStyle(fontSize: 12, color: Color(0xFF9E3333), height: 1.4),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
                     // 설명
+                    const SizedBox(height: 14),
                     Text(item.description,
                         style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.65)),
                     const SizedBox(height: 28),

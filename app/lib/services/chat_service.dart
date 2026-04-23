@@ -148,6 +148,7 @@ class ChatService {
     UserProfileEntity? user,
     List<Map<String, dynamic>>? mealHistory,
     int count = 5,
+    String category = '전체',
   }) async {
     final body = <String, dynamic>{
       'user_profile': {
@@ -162,6 +163,7 @@ class ChatService {
         'target_kcal': user?.targetKcal,
       },
       'count': count,
+      'category': category,
       if (mealHistory != null) 'meal_history': mealHistory,
     };
 
@@ -187,6 +189,8 @@ class RecommendMenuItem {
   final double fat;
   final String reason;
   final List<String> tags;
+  final bool allergenWarning;
+  final List<String> allergenNames;
 
   const RecommendMenuItem({
     required this.name,
@@ -196,6 +200,8 @@ class RecommendMenuItem {
     this.fat = 0,
     this.reason = '',
     this.tags = const [],
+    this.allergenWarning = false,
+    this.allergenNames = const [],
   });
 
   factory RecommendMenuItem.fromJson(Map<String, dynamic> json) => RecommendMenuItem(
@@ -206,6 +212,8 @@ class RecommendMenuItem {
     fat: (json['fat'] ?? 0).toDouble(),
     reason: json['reason'] ?? '',
     tags: List<String>.from(json['tags'] ?? []),
+    allergenWarning: json['allergen_warning'] ?? false,
+    allergenNames: List<String>.from(json['allergen_names'] ?? []),
   );
 }
 
