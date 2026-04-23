@@ -5,14 +5,44 @@ import re
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+import requests as _requests
 from ai.rag_engine.rag_pipeline import (
     get_collection, _get_embed_model, LLM_MODEL, OLLAMA_BASE_URL,
 )
-from langchain_ollama import OllamaLLM
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/recommend", tags=["recommend"])
+
+# 알레르기 유발 성분 키워드 매핑
+_ALLERGEN_KEYWORDS: dict[str, list[str]] = {
+    "유제품": ["우유", "치즈", "버터", "요거트", "크림", "유청", "밀크", "라떼", "카푸치노", "아이스크림", "그라탱"],
+    "견과류": ["아몬드", "호두", "캐슈", "땅콩", "잣", "피스타치오", "마카다미아", "헤이즐넛", "피넛", "견과"],
+    "갑각류": ["새우", "게", "랍스터", "크랩", "대게"],
+    "밀": ["빵", "파스타", "면", "국수", "라면", "우동", "스파게티", "밀가루", "도넛", "케이크", "쿠키", "크래커", "베이글", "피자", "만두", "냉면", "소면", "중면"],
+    "글루텐": ["빵", "파스타", "면", "국수", "라면", "우동", "밀가루"],
+    "계란": ["계란", "달걀", "에그", "오믈렛", "마요네즈", "계란찜", "달걀찜"],
+    "대두": ["두부", "된장", "간장", "두유", "콩국수", "낫토", "청국장"],
+    "복숭아": ["복숭아", "피치"],
+    "토마토": ["토마토", "케첩"],
+    "고등어": ["고등어"],
+    "조개류": ["조개", "홍합", "굴", "전복", "바지락", "오징어", "낙지", "문어"],
+}
+
+
+def _check_allergens(food_name: str, allergy_str: str | None) -> tuple[bool, list[str]]:
+    """음식명과 알레르기 목록을 비교해 경고 여부와 해당 알레르기 이름 목록 반환"""
+    if not allergy_str:
+        return False, []
+    allergens = [a.strip() for a in allergy_str.replace(",", " ").split() if a.strip()]
+    matched = []
+    for allergen in allergens:
+        if allergen == "없음":
+            continue
+        keywords = _ALLERGEN_KEYWORDS.get(allergen, [allergen])
+        if any(kw in food_name for kw in keywords):
+            matched.append(allergen)
+    return bool(matched), matched
 
 
 # ── Request / Response ────────────────────────────
@@ -38,6 +68,7 @@ class RecommendRequest(BaseModel):
     user_profile: UserProfile = UserProfile()
     meal_history: list[MealHistoryItem] = []
     count: int = 5
+    category: str = "전체"
 
 
 class RecommendMenuItem(BaseModel):
@@ -48,6 +79,8 @@ class RecommendMenuItem(BaseModel):
     fat: float = 0.0
     reason: str = ""
     tags: list[str] = []
+    allergen_warning: bool = False
+    allergen_names: list[str] = []
 
 
 class RecommendResponse(BaseModel):
@@ -65,8 +98,10 @@ RECOMMEND_PROMPT = """당신은 NutrAI의 전문 영양 코치입니다.
 - 알레르기 식품은 절대 추천하지 마세요
 - 질환이 있으면 해당 질환에 맞는 식단을 우선 고려하세요
 - 오늘 이미 먹은 음식의 영양소 균형을 고려하여 부족한 영양소를 보충하세요
-- 한국인이 쉽게 구할 수 있는 음식 위주로 추천하세요
-- 프랜차이즈 메뉴, 편의점 음식, 배달 음식도 적극 활용하세요
+- 메뉴명은 반드시 일반 음식명으로 작성하세요 (예: 김치찌개, 된장찌개, 닭가슴살 샐러드)
+- 브랜드명, 제품명, 상품명은 절대 사용하지 마세요 (예: "OO 단백질 쉐이크", "XX 도시락" 금지)
+- 가공식품, 즉석식품, 영양제는 추천하지 마세요
+- 집밥, 한식, 카페 메뉴 등 일반적으로 알려진 음식명만 사용하세요
 
 참고 영양 정보:
 {context}
@@ -129,17 +164,52 @@ def _extract_json(text: str) -> dict:
     return json.loads(text[start:end + 1])
 
 
+def _call_ollama_json(messages: list[dict], retries: int = 2) -> str:
+    payload = {
+        "model": LLM_MODEL,
+        "format": "json",
+        "stream": False,
+        "think": False,
+        "options": {"temperature": 0.4, "num_predict": 1024},
+        "messages": messages,
+    }
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            resp = _requests.post(
+                f"{OLLAMA_BASE_URL}/api/chat",
+                json=payload,
+                timeout=120,
+            )
+            resp.raise_for_status()
+            raw = resp.json()["message"]["content"]
+            _extract_json(raw)  # 파싱 가능한지 검증
+            return raw
+        except (ValueError, KeyError, json.JSONDecodeError) as e:
+            last_err = e
+            logger.warning("JSON 파싱 실패 (시도 %d/%d): %s", attempt + 1, retries + 1, e)
+    raise ValueError(f"JSON 파싱 {retries + 1}회 실패: {last_err}")
+
+
 @router.post("", response_model=RecommendResponse)
 async def recommend(req: RecommendRequest) -> RecommendResponse:
     try:
         profile = req.user_profile.model_dump(exclude_none=False)
         meal_history = [m.model_dump() for m in req.meal_history]
 
-        # RAG 검색: 사용자 목표 + 조건에 맞는 음식 검색
+        # RAG 검색: 카테고리별 + 사용자 프로필 기반 쿼리
         goal = profile.get("goal", "건강 식단")
         condition = profile.get("condition", "")
-        search_query = f"{goal} 추천 메뉴"
-        if condition:
+        category = req.category
+
+        _CATEGORY_QUERIES = {
+            "다이어트":    "저칼로리 다이어트 체중감량 식단",
+            "기호별":     "취향 맞춤 인기 음식 선호",
+            "질환맞춤":   f"{condition or '건강'} 질환 맞춤 식이요법",
+            "건강기능식품": "건강기능식품 영양제 보충제",
+        }
+        search_query = _CATEGORY_QUERIES.get(category, f"{goal} 추천 메뉴")
+        if category == "전체" and condition:
             search_query += f" {condition} 식단"
 
         embed_model = _get_embed_model()
@@ -151,31 +221,35 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
         cleaned_docs = [doc.replace("|", ",") for doc in docs]
         context = "\n".join(cleaned_docs)
 
-        prompt = RECOMMEND_PROMPT.format(
+        system_content = RECOMMEND_PROMPT.format(
             context=context,
             profile_str=_build_profile_str(profile),
             meal_str=_build_meal_str(meal_history),
             count=req.count,
         )
+        messages = [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": f"카테고리: {category}\n위 정보를 바탕으로 {req.count}개 메뉴를 JSON으로 추천해주세요."},
+        ]
 
-        llm = OllamaLLM(
-            model=LLM_MODEL,
-            base_url=OLLAMA_BASE_URL,
-            temperature=0.4,
-        )
-        raw = llm.invoke(prompt)
+        raw = _call_ollama_json(messages)
         data = _extract_json(raw)
 
+        allergy_str = profile.get("allergy")
         items = []
         for item in data.get("items", []):
+            name = item.get("name", "")
+            warning, allergen_names = _check_allergens(name, allergy_str)
             items.append(RecommendMenuItem(
-                name=item.get("name", ""),
+                name=name,
                 kcal=float(item.get("kcal", 0)),
                 carb=float(item.get("carb", 0)),
                 protein=float(item.get("protein", 0)),
                 fat=float(item.get("fat", 0)),
                 reason=item.get("reason", ""),
                 tags=item.get("tags", []),
+                allergen_warning=warning,
+                allergen_names=allergen_names,
             ))
 
         return RecommendResponse(
