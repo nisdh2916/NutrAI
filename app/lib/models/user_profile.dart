@@ -4,7 +4,10 @@ class UserProfile {
   int? age;
   double? height; // cm
   double? weight; // kg
-  String goal; // '다이어트', '유지', '근육 증진', '저염식'
+  String goal;           // '다이어트', '체중 유지', '근육 증진', '건강 관리'
+  String activityLevel;  // '낮음', '보통', '높음'
+  String allergy;        // 쉼표 구분: '유제품, 견과류'
+  String condition;      // 쉼표 구분: '당뇨, 고혈압'
 
   UserProfile({
     this.name = '',
@@ -13,6 +16,9 @@ class UserProfile {
     this.height,
     this.weight,
     this.goal = '다이어트',
+    this.activityLevel = '보통',
+    this.allergy = '',
+    this.condition = '',
   });
 
   double? get bmi {

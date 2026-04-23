@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/recommend_models.dart';
+import '../providers/app_state.dart';
+import '../services/chat_service.dart';
 import '../theme/app_theme.dart';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -17,15 +20,17 @@ class _RecommendScreenState extends State<RecommendScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
 
-  late List<RecommendItem> _preference;
-  late List<RecommendItem> _today;
+  List<RecommendItem> _items = [];
+  bool _loading = false;
+  String? _error;
+  String _coaching = '';
 
   @override
   void initState() {
     super.initState();
-    _tabCtrl   = TabController(length: 2, vsync: this);
-    _preference = List.from(RecommendSampleData.preference);
-    _today      = List.from(RecommendSampleData.today);
+    _tabCtrl = TabController(length: 2, vsync: this);
+    // 화면 진입 시 자동 로딩
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchRecommendations());
   }
 
   @override
@@ -34,19 +39,56 @@ class _RecommendScreenState extends State<RecommendScreen>
     super.dispose();
   }
 
-  void _refresh() {
-    setState(() {
-      // 새로고침: 순서를 섞어 새 추천처럼 보이게 (실제론 API 호출)
-      _preference = [..._preference.reversed];
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('새로운 추천을 불러왔어요!'),
-        backgroundColor: AppColors.green400,
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 1),
-      ),
-    );
+  Future<void> _fetchRecommendations() async {
+    if (_loading) return;
+    setState(() { _loading = true; _error = null; });
+
+    try {
+      final appState = context.read<AppState>();
+      final user = appState.user;
+      final todayMeals = appState.todayMeals;
+      final mealHistory = todayMeals.isNotEmpty
+          ? ChatService.mealsToHistory(todayMeals)
+          : null;
+
+      final result = await ChatService.getRecommendations(
+        user: user,
+        mealHistory: mealHistory,
+        count: 5,
+      );
+
+      if (!mounted) return;
+
+      final colors = [
+        const Color(0xFFF0E6D3), const Color(0xFFE8DFD0),
+        const Color(0xFFF5E8C0), const Color(0xFFE0EDD8),
+        const Color(0xFFDDE8F0), const Color(0xFFF5EDE8),
+        const Color(0xFFDEF0E4), const Color(0xFFE8EEF5),
+      ];
+
+      setState(() {
+        _items = result.items.asMap().entries.map((e) {
+          final i = e.key;
+          final item = e.value;
+          return RecommendItem(
+            id: 'r$i',
+            name: item.name,
+            tags: item.tags,
+            description: item.reason,
+            placeholderColor: colors[i % colors.length],
+            kcal: item.kcal,
+            carb: item.carb,
+            protein: item.protein,
+            fat: item.fat,
+          );
+        }).toList();
+        _coaching = result.coaching;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _error = e.toString(); _loading = false; });
+    }
   }
 
   void _onCardTap(RecommendItem item) {
@@ -77,7 +119,7 @@ class _RecommendScreenState extends State<RecommendScreen>
         itemName: item.name,
         onSubmit: (reasons) {
           Navigator.pop(context);
-          setState(() => _preference.remove(item));
+          setState(() => _items.remove(item));
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('피드백을 반영했어요. 추천을 개선할게요!'),
@@ -99,20 +141,47 @@ class _RecommendScreenState extends State<RecommendScreen>
         body: TabBarView(
           controller: _tabCtrl,
           children: [
+            // 탭 1: AI 맞춤 추천
+            _loading
+                ? const Center(child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: AppColors.green400),
+                      SizedBox(height: 16),
+                      Text('AI가 맞춤 메뉴를 분석 중이에요...', style: TextStyle(fontSize: 14, color: AppColors.gray400)),
+                    ],
+                  ))
+                : _error != null
+                    ? Center(child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.gray200),
+                          const SizedBox(height: 12),
+                          Text('추천을 불러올 수 없어요', style: const TextStyle(fontSize: 14, color: AppColors.gray400)),
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            onPressed: _fetchRecommendations,
+                            icon: const Icon(Icons.refresh_rounded, size: 16),
+                            label: const Text('다시 시도'),
+                          ),
+                        ],
+                      ))
+                    : _RecommendFeed(
+                        items: _items,
+                        coaching: _coaching,
+                        onCardTap: _onCardTap,
+                        onFavoriteToggle: (item) => setState(() => item.isFavorite = !item.isFavorite),
+                        onFeedbackTap: _showFeedbackSheet,
+                        onRefresh: _fetchRecommendations,
+                        emptyMessage: '취향 데이터를 더 쌓으면\n맞춤 추천이 정확해져요!',
+                      ),
+            // 탭 2: 샘플 (추후 별도 API 연결)
             _RecommendFeed(
-              items: _preference,
+              items: List.from(RecommendSampleData.today),
               onCardTap: _onCardTap,
               onFavoriteToggle: (item) => setState(() => item.isFavorite = !item.isFavorite),
               onFeedbackTap: _showFeedbackSheet,
-              onRefresh: _refresh,
-              emptyMessage: '취향 데이터를 더 쌓으면\n맞춤 추천이 정확해져요!',
-            ),
-            _RecommendFeed(
-              items: _today,
-              onCardTap: _onCardTap,
-              onFavoriteToggle: (item) => setState(() => item.isFavorite = !item.isFavorite),
-              onFeedbackTap: _showFeedbackSheet,
-              onRefresh: _refresh,
+              onRefresh: _fetchRecommendations,
               emptyMessage: '오늘 식단 기록이 없어\n맞춤 추천을 준비 중이에요.',
             ),
           ],
@@ -134,9 +203,11 @@ class _RecommendScreenState extends State<RecommendScreen>
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.refresh_rounded, color: AppColors.green400),
+          icon: _loading
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green400))
+              : const Icon(Icons.refresh_rounded, color: AppColors.green400),
           tooltip: '새로고침',
-          onPressed: _refresh,
+          onPressed: _loading ? null : _fetchRecommendations,
         ),
       ],
       bottom: PreferredSize(
@@ -151,7 +222,7 @@ class _RecommendScreenState extends State<RecommendScreen>
               unselectedLabelStyle: const TextStyle(fontSize: 13),
               indicatorColor: AppColors.green400,
               indicatorWeight: 2,
-              tabs: const [Tab(text: '사용자 취향 식단'), Tab(text: '오늘 맞춤 식단')],
+              tabs: const [Tab(text: 'AI 맞춤 추천'), Tab(text: '오늘 맞춤 식단')],
             ),
             Divider(height: 0.5, color: AppColors.border),
           ],
@@ -166,6 +237,7 @@ class _RecommendScreenState extends State<RecommendScreen>
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 class _RecommendFeed extends StatelessWidget {
   final List<RecommendItem> items;
+  final String coaching;
   final ValueChanged<RecommendItem> onCardTap;
   final ValueChanged<RecommendItem> onFavoriteToggle;
   final ValueChanged<RecommendItem> onFeedbackTap;
@@ -174,6 +246,7 @@ class _RecommendFeed extends StatelessWidget {
 
   const _RecommendFeed({
     required this.items,
+    this.coaching = '',
     required this.onCardTap,
     required this.onFavoriteToggle,
     required this.onFeedbackTap,
@@ -188,7 +261,7 @@ class _RecommendFeed extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.restaurant_menu_outlined, size: 48, color: AppColors.gray100),
+            const Icon(Icons.restaurant_menu_outlined, size: 48, color: AppColors.gray100),
             const SizedBox(height: 12),
             Text(emptyMessage,
                 textAlign: TextAlign.center,
@@ -200,6 +273,30 @@ class _RecommendFeed extends StatelessWidget {
 
     return CustomScrollView(
       slivers: [
+        // 코칭 메시지
+        if (coaching.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.green50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.green100, width: 0.5),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.tips_and_updates_rounded, size: 20, color: AppColors.green600),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(coaching,
+                        style: const TextStyle(fontSize: 13, color: AppColors.green800, height: 1.5)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           sliver: SliverList(
@@ -226,7 +323,7 @@ class _RecommendFeed extends StatelessWidget {
               onPressed: onRefresh,
               icon: const Icon(Icons.refresh_rounded, size: 16, color: AppColors.gray400),
               label: const Text(
-                '새로고침 가능 — 새로운 추천',
+                '새로고침 — AI가 새로운 메뉴를 추천해요',
                 style: TextStyle(fontSize: 12, color: AppColors.gray400),
               ),
             ),
@@ -278,7 +375,7 @@ class _RecommendCard extends StatelessWidget {
                     child: Icon(
                       Icons.restaurant_rounded,
                       size: 52,
-                      color: item.placeholderColor.withOpacity(0.4),
+                      color: item.placeholderColor.withValues(alpha:0.4),
                     ),
                   ),
                 ),
@@ -290,7 +387,7 @@ class _RecommendCard extends StatelessWidget {
                     child: Container(
                       width: 34, height: 34,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha:0.9),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -372,7 +469,7 @@ class _NutrPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha:0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500)),
@@ -435,7 +532,7 @@ class _RecommendDetailSheet extends StatelessWidget {
                     color: item.placeholderColor,
                     child: Center(
                       child: Icon(Icons.restaurant_rounded, size: 80,
-                          color: item.placeholderColor.withOpacity(0.5)),
+                          color: item.placeholderColor.withValues(alpha:0.5)),
                     ),
                   ),
                   // 닫기 버튼
@@ -446,7 +543,7 @@ class _RecommendDetailSheet extends StatelessWidget {
                       child: Container(
                         width: 34, height: 34,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha:0.9),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
@@ -462,7 +559,7 @@ class _RecommendDetailSheet extends StatelessWidget {
                         child: Container(
                           width: 34, height: 34,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.9),
+                            color: Colors.white.withValues(alpha:0.9),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(

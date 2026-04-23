@@ -12,18 +12,16 @@ class ChatMessage {
   final String text;
   final MessageSender sender;
   final List<String>? quickReplies;
-  final bool isTyping;
 
   const ChatMessage({
     required this.text,
     required this.sender,
     this.quickReplies,
-    this.isTyping = false,
   });
 }
 
 // ──────────────────────────────────────────────
-// 온보딩 챗봇 화면
+// 온보딩 챗봇 화면 (스크립트 방식)
 // ──────────────────────────────────────────────
 class OnboardingChatScreen extends StatefulWidget {
   const OnboardingChatScreen({super.key});
@@ -43,31 +41,40 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
   bool _waitingInput = false;
   bool _isTyping = false;
 
-  // 챗봇 대화 스크립트
+  // ── 대화 스크립트 ──────────────────────────────
+  // input: 텍스트 직접 입력
+  // quick: 빠른 선택 버튼
+  // allowCustom: quick + 직접입력 둘 다 가능
   static const _script = [
+    // 0
+    {'text': '안녕하세요! 저는 NutrAI 영양 코치예요 🌿\n맞춤 식단 관리를 시작하기 전에\n몇 가지 여쭤볼게요!'},
+    // 1
+    {'text': '먼저 이름이 어떻게 되세요?', 'input': 'name', 'hint': '이름을 입력해주세요'},
+    // 2
+    {'text': '반가워요! 성별을 선택해주세요.', 'quick': ['남성', '여성']},
+    // 3
+    {'text': '나이가 어떻게 되세요?', 'input': 'age', 'hint': '예: 25'},
+    // 4
+    {'text': '건강 목표를 선택해주세요!', 'quick': ['다이어트', '체중 유지', '근육 증진', '건강 관리']},
+    // 5
+    {'text': '평소 활동량은 어느 정도예요?', 'quick': ['낮음 (주로 앉아서)', '보통 (가벼운 운동)', '높음 (주 3회 이상)']},
+    // 6
     {
-      'text': '안녕하세요! 저는 NutrAI 영양 코치예요 🌿\n맞춤 식단 관리를 시작하기 전에\n몇 가지 여쭤볼게요!',
+      'text': '알레르기가 있으신가요?',
+      'quick': ['없음', '유제품', '견과류', '갑각류', '밀(글루텐)', '계란'],
+      'allowCustom': true,
+      'customHint': '직접 입력 (예: 복숭아, 땅콩)',
     },
+    // 7
     {
-      'text': '먼저 성함이 어떻게 되세요?',
-      'input': 'name',
-      'hint': '이름을 입력해주세요',
+      'text': '관리 중인 질환이 있으신가요?',
+      'quick': ['없음', '당뇨', '고혈압', '고지혈증'],
+      'allowCustom': true,
+      'customHint': '직접 입력 (예: 갑상선, 신장질환)',
     },
+    // 8
     {
-      'text': '반가워요! 성별을 선택해주세요.',
-      'quick': ['남성', '여성'],
-    },
-    {
-      'text': '나이가 어떻게 되세요?',
-      'input': 'age',
-      'hint': '예: 25',
-    },
-    {
-      'text': '주요 건강 목표를 선택해주세요!',
-      'quick': ['다이어트', '체중 유지', '근육 증진', '저염식'],
-    },
-    {
-      'text': '좋아요! 이제 기본 신체 정보를 입력하면\n맞춤 분석을 시작할게요.',
+      'text': '좋아요! 이제 키와 몸무게를 입력하면\n맞춤 분석이 시작돼요.',
       'final': true,
     },
   ];
@@ -86,7 +93,7 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
     super.dispose();
   }
 
-  // ── 메시지 추가 ──
+  // ── 메시지 추가 ──────────────────────────────
   void _addMessage(ChatMessage msg) {
     setState(() => _messages.add(msg));
     Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
@@ -102,47 +109,46 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
     }
   }
 
-  // ── 대화 스텝 실행 ──
+  // ── 스텝 실행 ──────────────────────────────
   Future<void> _runStep(int idx) async {
     if (idx >= _script.length) return;
     _step = idx;
     final step = _script[idx];
 
-    // 타이핑 인디케이터
-    setState(() => _isTyping = true);
-    await Future.delayed(const Duration(milliseconds: 800));
+    setState(() { _isTyping = true; _waitingInput = false; });
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
     setState(() => _isTyping = false);
 
-    // 봇 메시지 추가
     _addMessage(ChatMessage(
       text: step['text'] as String,
       sender: MessageSender.bot,
-      quickReplies: step['quick'] as List<String>?,
+      quickReplies: _effectiveQuickReplies(step),
     ));
 
-    // 입력 대기 여부
     if (step.containsKey('input')) {
-      setState(() {
-        _waitingInput = true;
-      });
-      Future.delayed(const Duration(milliseconds: 200), () => _focusNode.requestFocus());
-    }
-
-    // 마지막 스텝 → 다음 화면으로
-    if (step['final'] == true) {
+      setState(() => _waitingInput = true);
+      Future.delayed(const Duration(milliseconds: 150), () => _focusNode.requestFocus());
+    } else if (step['final'] == true) {
       await Future.delayed(const Duration(milliseconds: 1200));
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => UserSetupScreen(profile: _profile),
-          ),
-        );
-      }
+      if (mounted) _goToSetup();
+    } else if (!step.containsKey('quick')) {
+      // input도 quick도 final도 없는 순수 안내 메시지 → 자동으로 다음 스텝
+      await Future.delayed(const Duration(milliseconds: 900));
+      if (mounted) _runStep(idx + 1);
     }
   }
 
-  // ── 사용자 응답 처리 ──
+  List<String>? _effectiveQuickReplies(Map step) {
+    final quick = step['quick'] as List<String>?;
+    if (quick == null) return null;
+    if (step['allowCustom'] == true) {
+      return [...quick, '직접 입력'];
+    }
+    return quick;
+  }
+
+  // ── 텍스트 입력 처리 ──────────────────────────
   Future<void> _handleInput(String value) async {
     if (value.trim().isEmpty) return;
     _inputController.clear();
@@ -151,22 +157,33 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
 
     _addMessage(ChatMessage(text: value, sender: MessageSender.user));
 
-    // 프로필에 저장
     switch (_step) {
-      case 1:
-        _profile.name = value.trim();
-        break;
-      case 3:
-        _profile.age = int.tryParse(value.trim());
-        break;
+      case 1: _profile.name = value.trim(); break;
+      case 3: _profile.age = int.tryParse(value.trim()); break;
+      case 6: _profile.allergy = value.trim(); break;
+      case 7: _profile.condition = value.trim(); break;
     }
 
-    await Future.delayed(const Duration(milliseconds: 400));
+    await Future.delayed(const Duration(milliseconds: 350));
     _runStep(_step + 1);
   }
 
-  // ── 빠른 응답 처리 ──
+  // ── 빠른 응답 처리 ──────────────────────────
   Future<void> _handleQuickReply(String value) async {
+    final step = _script[_step];
+
+    // 직접 입력 선택 시 → 텍스트 입력 모드
+    if (value == '직접 입력') {
+      final hint = step['customHint'] as String? ?? '직접 입력해주세요';
+      setState(() { _waitingInput = true; });
+      _addMessage(ChatMessage(
+        text: '직접 입력해주세요: $hint',
+        sender: MessageSender.bot,
+      ));
+      Future.delayed(const Duration(milliseconds: 150), () => _focusNode.requestFocus());
+      return;
+    }
+
     _addMessage(ChatMessage(text: value, sender: MessageSender.user));
 
     switch (_step) {
@@ -174,12 +191,47 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
         _profile.gender = value == '남성' ? '남' : '여';
         break;
       case 4:
-        _profile.goal = value == '체중 유지' ? '유지' : value;
+        _profile.goal = value;
+        break;
+      case 5:
+        if (value.startsWith('낮음')) _profile.activityLevel = '낮음';
+        else if (value.startsWith('보통')) _profile.activityLevel = '보통';
+        else _profile.activityLevel = '높음';
+        break;
+      case 6:
+        _profile.allergy = value == '없음' ? '' : value;
+        break;
+      case 7:
+        _profile.condition = value == '없음' ? '' : value;
         break;
     }
 
-    await Future.delayed(const Duration(milliseconds: 400));
+    await Future.delayed(const Duration(milliseconds: 350));
     _runStep(_step + 1);
+  }
+
+  void _goToSetup() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => UserSetupScreen(profile: _profile)),
+    );
+  }
+
+  void _skipToSetup() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => UserSetupScreen(profile: UserProfile())),
+    );
+  }
+
+  // ── 현재 힌트 텍스트 ──────────────────────────
+  String get _currentHint {
+    if (_step < _script.length) {
+      return _script[_step]['hint'] as String? ??
+          _script[_step]['customHint'] as String? ??
+          '입력하세요...';
+    }
+    return '입력하세요...';
   }
 
   @override
@@ -189,7 +241,6 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
       appBar: _buildAppBar(),
       body: Column(
         children: [
-          // 메시지 리스트
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
@@ -197,7 +248,7 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
               itemCount: _messages.length + (_isTyping ? 1 : 0),
               itemBuilder: (context, index) {
                 if (_isTyping && index == _messages.length) {
-                  return _TypingBubble();
+                  return const _TypingBubble();
                 }
                 return _buildMessageRow(_messages[index]);
               },
@@ -205,21 +256,14 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
           ),
 
           // 빠른 답변 버튼
-          if (_messages.isNotEmpty && _messages.last.quickReplies != null)
+          if (_messages.isNotEmpty &&
+              _messages.last.quickReplies != null &&
+              !_waitingInput &&
+              !_isTyping)
             _buildQuickReplies(_messages.last.quickReplies!),
 
-          // 입력창
           _buildInputBar(),
         ],
-      ),
-    );
-  }
-
-  void _skipToSetup() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => UserSetupScreen(profile: UserProfile()),
       ),
     );
   }
@@ -230,10 +274,10 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
         padding: const EdgeInsets.all(8),
         child: _BotAvatar(size: 32),
       ),
-      title: Column(
+      title: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('NutrAI 챗봇', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          Text('NutrAI 챗봇', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           Text('온라인', style: TextStyle(fontSize: 11, color: AppColors.green400, fontWeight: FontWeight.w400)),
         ],
       ),
@@ -242,11 +286,7 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
           onPressed: _skipToSetup,
           child: const Text(
             '건너뛰기',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.gray400,
-              fontWeight: FontWeight.w500,
-            ),
+            style: TextStyle(fontSize: 13, color: AppColors.gray400, fontWeight: FontWeight.w500),
           ),
         ),
       ],
@@ -330,7 +370,7 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
               onSubmitted: _handleInput,
               style: const TextStyle(fontSize: 13.5),
               decoration: InputDecoration(
-                hintText: _waitingInput ? (_script[_step]['hint'] as String? ?? '입력하세요...') : '메시지를 입력하세요...',
+                hintText: _waitingInput ? _currentHint : '버튼을 선택해주세요',
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
@@ -351,10 +391,9 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
           ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: () => _handleInput(_inputController.text),
+            onTap: _waitingInput ? () => _handleInput(_inputController.text) : null,
             child: Container(
-              width: 40,
-              height: 40,
+              width: 40, height: 40,
               decoration: BoxDecoration(
                 color: _waitingInput ? AppColors.green400 : AppColors.gray100,
                 shape: BoxShape.circle,
@@ -439,6 +478,8 @@ class _QuickReplyChip extends StatelessWidget {
 }
 
 class _TypingBubble extends StatefulWidget {
+  const _TypingBubble();
+
   @override
   State<_TypingBubble> createState() => _TypingBubbleState();
 }
@@ -454,8 +495,9 @@ class _TypingBubbleState extends State<_TypingBubble> with TickerProviderStateMi
       vsync: this,
       duration: const Duration(milliseconds: 600),
     )..repeat(reverse: true, period: Duration(milliseconds: 600 + i * 150)));
-
-    _animations = _controllers.map((c) => Tween<double>(begin: 0.3, end: 1.0).animate(c)).toList();
+    _animations = _controllers
+        .map((c) => Tween<double>(begin: 0.3, end: 1.0).animate(c))
+        .toList();
   }
 
   @override
