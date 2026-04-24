@@ -3,7 +3,8 @@ import logging
 import re
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 import requests as _requests
 from ai.rag_engine.rag_pipeline import (
@@ -60,13 +61,13 @@ class UserProfile(BaseModel):
 
 class MealHistoryItem(BaseModel):
     meal_type: str = ""
-    foods: list[dict] = []
+    foods: list[dict] = Field(default_factory=list)
     total_kcal: float = 0.0
 
 
 class RecommendRequest(BaseModel):
-    user_profile: UserProfile = UserProfile()
-    meal_history: list[MealHistoryItem] = []
+    user_profile: UserProfile = Field(default_factory=UserProfile)
+    meal_history: list[MealHistoryItem] = Field(default_factory=list)
     count: int = 5
     category: str = "전체"
 
@@ -78,9 +79,9 @@ class RecommendMenuItem(BaseModel):
     protein: float = 0.0
     fat: float = 0.0
     reason: str = ""
-    tags: list[str] = []
+    tags: list[str] = Field(default_factory=list)
     allergen_warning: bool = False
-    allergen_names: list[str] = []
+    allergen_names: list[str] = Field(default_factory=list)
 
 
 class RecommendResponse(BaseModel):
@@ -213,10 +214,20 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
             search_query += f" {condition} 식단"
 
         embed_model = _get_embed_model()
-        query_embedding = embed_model.encode(search_query, convert_to_numpy=True).tolist()
+        query_embedding = (
+            await run_in_threadpool(
+                embed_model.encode,
+                search_query,
+                convert_to_numpy=True,
+            )
+        ).tolist()
 
         collection = get_collection()
-        results = collection.query(query_embeddings=[query_embedding], n_results=8)
+        results = await run_in_threadpool(
+            collection.query,
+            query_embeddings=[query_embedding],
+            n_results=8,
+        )
         docs = results["documents"][0] if results["documents"] else []
         cleaned_docs = [doc.replace("|", ",") for doc in docs]
         context = "\n".join(cleaned_docs)
@@ -232,7 +243,7 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
             {"role": "user", "content": f"카테고리: {category}\n위 정보를 바탕으로 {req.count}개 메뉴를 JSON으로 추천해주세요."},
         ]
 
-        raw = _call_ollama_json(messages)
+        raw = await run_in_threadpool(_call_ollama_json, messages)
         data = _extract_json(raw)
 
         allergy_str = profile.get("allergy")
