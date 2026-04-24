@@ -2,6 +2,7 @@
 *.class
 *.log
 *.pyc
+*.db
 *.swp
 .DS_Store
 .atom/
@@ -10,6 +11,7 @@
 .history
 .svn/
 .swiftpm/
+.venv/
 migrate_working_dir/
 
 # IntelliJ related
