@@ -6,6 +6,7 @@ import 'calendar_screen.dart';
 import 'report_screen.dart';
 import 'recommend_screen.dart';
 import 'food_add_screen.dart';
+import 'settings_screen.dart';
 
 class MainTabScreen extends StatefulWidget {
   final UserProfile profile;
@@ -29,6 +30,7 @@ class _MainTabScreenState extends State<MainTabScreen> {
       const SizedBox.shrink(),
       ReportScreen(userName: name),
       RecommendScreen(userName: name),
+      const SettingsScreen(),
     ];
   }
 
@@ -39,6 +41,7 @@ class _MainTabScreenState extends State<MainTabScreen> {
       case 2:  return 0;
       case 3:  return 2;
       case 4:  return 3;
+      case 5:  return 4;
       default: return 0;
     }
   }
@@ -65,6 +68,7 @@ class _MainTabScreenState extends State<MainTabScreen> {
           _screens[1],
           _screens[3],
           _screens[4],
+          _screens[5],
         ],
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -102,6 +106,7 @@ class _MainTabScreenState extends State<MainTabScreen> {
           const Expanded(child: SizedBox()),
           _NavItem(icon: Icons.bar_chart_outlined,        iconActive: Icons.bar_chart_rounded,         label: '리포트',index: 3, current: _currentIndex, onTap: _setTab),
           _NavItem(icon: Icons.lightbulb_outline_rounded, iconActive: Icons.lightbulb_rounded,         label: '추천',  index: 4, current: _currentIndex, onTap: _setTab),
+          _NavItem(icon: Icons.person_outline_rounded,    iconActive: Icons.person_rounded,            label: '설정',  index: 5, current: _currentIndex, onTap: _setTab),
         ]),
       ),
     ),
