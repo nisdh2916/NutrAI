@@ -216,7 +216,12 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
         query_embedding = embed_model.encode(search_query, convert_to_numpy=True).tolist()
 
         collection = get_collection()
-        results = collection.query(query_embeddings=[query_embedding], n_results=8)
+        # 건강기능식품 카테고리는 메타데이터 필터로 영양제 데이터만 검색
+        where_filter = {"source": "건강기능식품DB"} if category == "건강기능식품" else None
+        query_kwargs = dict(query_embeddings=[query_embedding], n_results=12)
+        if where_filter:
+            query_kwargs["where"] = where_filter
+        results = collection.query(**query_kwargs)
         docs = results["documents"][0] if results["documents"] else []
         cleaned_docs = [doc.replace("|", ",") for doc in docs]
         context = "\n".join(cleaned_docs)
@@ -240,6 +245,8 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
         for item in data.get("items", []):
             name = item.get("name", "")
             warning, allergen_names = _check_allergens(name, allergy_str)
+            if warning:
+                continue  # 알레르기 성분 포함 메뉴는 목록에서 제외
             items.append(RecommendMenuItem(
                 name=name,
                 kcal=float(item.get("kcal", 0)),
@@ -248,8 +255,8 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
                 fat=float(item.get("fat", 0)),
                 reason=item.get("reason", ""),
                 tags=item.get("tags", []),
-                allergen_warning=warning,
-                allergen_names=allergen_names,
+                allergen_warning=False,
+                allergen_names=[],
             ))
 
         return RecommendResponse(
