@@ -120,7 +120,7 @@ class _RecommendScreenState extends State<RecommendScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('피드백을 반영했어요. 추천을 개선할게요!'),
-              backgroundColor: AppColors.green400,
+              backgroundColor: AppColors.brand,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -132,30 +132,33 @@ class _RecommendScreenState extends State<RecommendScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.bg,
       body: NestedScrollView(
         headerSliverBuilder: (_, __) => [_buildAppBar()],
         body: _loading
             ? const Center(child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(color: AppColors.green400),
+                  CircularProgressIndicator(color: AppColors.brand),
                   SizedBox(height: 16),
-                  Text('AI가 맞춤 메뉴를 분석 중이에요...', style: TextStyle(fontSize: 14, color: AppColors.gray400)),
+                  Text('AI가 맞춤 메뉴를 분석 중이에요...',
+                      style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
                 ],
               ))
             : _error != null
                 ? Center(child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.gray200),
+                      const Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.lineStrong),
                       const SizedBox(height: 12),
-                      const Text('추천을 불러올 수 없어요', style: TextStyle(fontSize: 14, color: AppColors.gray400)),
+                      const Text('추천을 불러올 수 없어요',
+                          style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
                       const SizedBox(height: 8),
                       TextButton.icon(
                         onPressed: _fetchRecommendations,
-                        icon: const Icon(Icons.refresh_rounded, size: 16),
-                        label: const Text('다시 시도'),
+                        icon: const Icon(Icons.refresh_rounded, size: 16, color: AppColors.brand),
+                        label: const Text('다시 시도',
+                            style: TextStyle(color: AppColors.brand)),
                       ),
                     ],
                   ))
@@ -174,79 +177,90 @@ class _RecommendScreenState extends State<RecommendScreen> {
 
   SliverAppBar _buildAppBar() {
     return SliverAppBar(
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.bg,
       surfaceTintColor: Colors.transparent,
       pinned: true,
       elevation: 0,
       automaticallyImplyLeading: false,
-      title: Text(
-        '${widget.userName}님을 위한 추천',
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-      ),
-      actions: [
-        IconButton(
-          icon: _loading
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green400))
-              : const Icon(Icons.refresh_rounded, color: AppColors.green400),
-          tooltip: '새로고침',
-          onPressed: _loading ? null : _fetchRecommendations,
-        ),
-      ],
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(52),
-        child: Column(
-          children: [
-            SizedBox(
-              height: 44,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                itemCount: _kCategories.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (_, i) {
-                  final cat = _kCategories[i];
-                  final selected = cat == _selectedCategory;
-                  return GestureDetector(
-                    onTap: () {
-                      if (!selected && !_loading) {
-                        setState(() => _selectedCategory = cat);
-                        _fetchRecommendations(category: cat);
-                      }
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: selected ? AppColors.green400 : AppColors.gray50,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: selected ? AppColors.green400 : AppColors.border,
-                          width: 0.5,
-                        ),
-                      ),
-                      child: Text(
-                        cat,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                          color: selected ? Colors.white : AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  );
-                },
+      titleSpacing: 0,
+      title: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('추천', style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w600,
+              color: AppColors.textMuted, letterSpacing: -0.01)),
+          const SizedBox(height: 2),
+          Row(children: [
+            Text('${widget.userName}님을 위한 추천', style: const TextStyle(
+                fontSize: 22, fontWeight: FontWeight.w800,
+                color: AppColors.text, letterSpacing: -0.03)),
+            const Spacer(),
+            GestureDetector(
+              onTap: _loading ? null : _fetchRecommendations,
+              child: Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.brandSoft,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: _loading
+                    ? const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brand),
+                      )
+                    : const Icon(Icons.refresh_rounded, size: 18, color: AppColors.brandText),
               ),
             ),
-            const Divider(height: 0.5, color: AppColors.border),
-          ],
-        ),
+          ]),
+          const SizedBox(height: 12),
+          // 카테고리 필터 칩
+          SizedBox(
+            height: 34,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _kCategories.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final cat = _kCategories[i];
+                final isSel = cat == _selectedCategory;
+                return GestureDetector(
+                  onTap: () {
+                    if (!isSel && !_loading) {
+                      setState(() => _selectedCategory = cat);
+                      _fetchRecommendations(category: cat);
+                    }
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: isSel ? AppColors.brand : AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      boxShadow: isSel ? null : AppShadows.card,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(cat, style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                        color: isSel ? Colors.white : AppColors.textSub)),
+                  ),
+                );
+              },
+            ),
+          ),
+        ]),
+      ),
+      toolbarHeight: 140,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 1, color: AppColors.line),
       ),
     );
   }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 추천 피드 (탭 공용)
+// 추천 피드
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 class _RecommendFeed extends StatelessWidget {
   final List<RecommendItem> items;
@@ -274,11 +288,11 @@ class _RecommendFeed extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.restaurant_menu_outlined, size: 48, color: AppColors.gray100),
+            const Icon(Icons.restaurant_menu_outlined, size: 48, color: AppColors.lineStrong),
             const SizedBox(height: 12),
             Text(emptyMessage,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14, color: AppColors.gray400, height: 1.6)),
+                style: const TextStyle(fontSize: 14, color: AppColors.textMuted, height: 1.6)),
           ],
         ),
       );
@@ -286,41 +300,49 @@ class _RecommendFeed extends StatelessWidget {
 
     return CustomScrollView(
       slivers: [
-        // 코칭 메시지
+        // AI 가이드 배너
         if (coaching.isNotEmpty)
           SliverToBoxAdapter(
             child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.green50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.green100, width: 0.5),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF22A447), Color(0xFF1E8E3E)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
               ),
-              child: Row(
-                children: [
-                  const Icon(Icons.tips_and_updates_rounded, size: 20, color: AppColors.green600),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(coaching,
-                        style: const TextStyle(fontSize: 13, color: AppColors.green800, height: 1.5)),
+              child: Row(children: [
+                Container(
+                  width: 32, height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
-                ],
-              ),
+                  child: const Icon(Icons.tips_and_updates_rounded, size: 16, color: Colors.white),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(coaching, style: const TextStyle(
+                      fontSize: 13, color: Colors.white, height: 1.5,
+                      fontWeight: FontWeight.w500)),
+                ),
+              ]),
             ),
           ),
 
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
           sliver: SliverList(
             delegate: SliverChildBuilderDelegate(
               (ctx, i) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.only(bottom: 14),
                 child: _RecommendCard(
                   item: items[i],
-                  onTap:           () => onCardTap(items[i]),
-                  onFavoriteTap:   () => onFavoriteToggle(items[i]),
-                  onFeedbackTap:   () => onFeedbackTap(items[i]),
+                  onTap:         () => onCardTap(items[i]),
+                  onFavoriteTap: () => onFavoriteToggle(items[i]),
+                  onFeedbackTap: () => onFeedbackTap(items[i]),
                 ),
               ),
               childCount: items.length,
@@ -328,17 +350,17 @@ class _RecommendFeed extends StatelessWidget {
           ),
         ),
 
-        // 하단 새로고침 힌트
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.only(bottom: 100),
-            child: TextButton.icon(
-              onPressed: onRefresh,
-              icon: const Icon(Icons.refresh_rounded, size: 16, color: AppColors.gray400),
-              label: const Text(
-                '새로고침 — AI가 새로운 메뉴를 추천해요',
-                style: TextStyle(fontSize: 12, color: AppColors.gray400),
-              ),
+            child: GestureDetector(
+              onTap: onRefresh,
+              child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.refresh_rounded, size: 14, color: AppColors.textMuted),
+                SizedBox(width: 4),
+                Text('새로고침 — AI가 새로운 메뉴를 추천해요',
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+              ]),
             ),
           ),
         ),
@@ -348,7 +370,7 @@ class _RecommendFeed extends StatelessWidget {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 추천 카드 (피드 목록용)
+// 추천 카드
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 class _RecommendCard extends StatelessWidget {
   final RecommendItem item;
@@ -369,111 +391,100 @@ class _RecommendCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border, width: 0.5),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          boxShadow: AppShadows.card,
         ),
         clipBehavior: Clip.hardEdge,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── 음식 이미지 영역 ──
-            Stack(
-              children: [
-                Container(
-                  height: 160,
-                  width: double.infinity,
-                  color: item.placeholderColor,
-                  child: Center(
-                    child: Icon(
-                      Icons.restaurant_rounded,
-                      size: 52,
-                      color: item.placeholderColor.withValues(alpha:0.4),
+            // ── 이미지 영역 ──
+            Stack(children: [
+              Container(
+                height: 140,
+                width: double.infinity,
+                color: item.placeholderColor,
+                child: Center(
+                  child: Icon(Icons.restaurant_rounded, size: 48,
+                      color: item.placeholderColor.withValues(alpha: 0.35)),
+                ),
+              ),
+              // 하단 그라디언트
+              Positioned(
+                bottom: 0, left: 0, right: 0,
+                child: Container(
+                  height: 60,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Colors.black.withValues(alpha: 0.18)],
                     ),
                   ),
                 ),
-                // 알레르기 경고 배지
-                if (item.allergenWarning)
-                  Positioned(
-                    top: 10, left: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF5252),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.warning_rounded, size: 12, color: Colors.white),
-                          SizedBox(width: 4),
-                          Text(
-                            '알레르기 주의',
-                            style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                // 즐겨찾기 버튼
+              ),
+              // 알레르기 배지
+              if (item.allergenWarning)
                 Positioned(
-                  top: 10, right: 10,
-                  child: GestureDetector(
-                    onTap: onFavoriteTap,
-                    child: Container(
-                      width: 34, height: 34,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha:0.9),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        item.isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                        size: 18,
-                        color: item.isFavorite ? Colors.red : AppColors.gray400,
-                      ),
+                  top: 10, left: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.red,
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.warning_rounded, size: 11, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text('알레르기 주의',
+                          style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+                ),
+              // 즐겨찾기 버튼
+              Positioned(
+                top: 10, right: 10,
+                child: GestureDetector(
+                  onTap: onFavoriteTap,
+                  child: Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      item.isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                      size: 16,
+                      color: item.isFavorite ? AppColors.red : AppColors.textMuted,
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ]),
 
             // ── 카드 본문 ──
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 음식 이름
-                  Text(
-                    item.name,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(item.name, style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700,
+                    color: AppColors.text, letterSpacing: -0.01)),
+                const SizedBox(height: 6),
+                Wrap(spacing: 6, children: item.tags.map((t) => _TagChip(t)).toList()),
+                const SizedBox(height: 10),
+                Row(children: [
+                  _NutrPill('${item.kcal.round()}kcal', AppColors.textSub),
+                  const SizedBox(width: 6),
+                  _NutrPill('탄 ${item.carb.round()}g', AppColors.carb),
+                  const SizedBox(width: 6),
+                  _NutrPill('단 ${item.protein.round()}g', AppColors.protein),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: onFeedbackTap,
+                    child: const Icon(Icons.thumb_down_outlined, size: 18, color: AppColors.textMuted),
                   ),
-                  const SizedBox(height: 6),
-
-                  // 해시태그
-                  Wrap(
-                    spacing: 6,
-                    children: item.tags.map((t) => _TagChip(t)).toList(),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // 영양 요약 + 피드백 버튼
-                  Row(
-                    children: [
-                      _NutrPill('${item.kcal.round()}kcal', AppColors.textSecondary),
-                      const SizedBox(width: 6),
-                      _NutrPill('탄 ${item.carb.round()}g', const Color(0xFF5BA4D0)),
-                      const SizedBox(width: 6),
-                      _NutrPill('단 ${item.protein.round()}g', AppColors.green400),
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: onFeedbackTap,
-                        child: const Icon(Icons.thumb_down_outlined, size: 18, color: AppColors.gray200),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                ]),
+              ]),
             ),
           ],
         ),
@@ -488,10 +499,8 @@ class _TagChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(fontSize: 12, color: AppColors.green600, fontWeight: FontWeight.w500),
-    );
+    return Text(text, style: const TextStyle(
+        fontSize: 12, color: AppColors.brandText, fontWeight: FontWeight.w500));
   }
 }
 
@@ -505,10 +514,11 @@ class _NutrPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha:0.1),
-        borderRadius: BorderRadius.circular(20),
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
-      child: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500)),
+      child: Text(label, style: TextStyle(
+          fontSize: 11, color: color, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -537,201 +547,181 @@ class _RecommendDetailSheet extends StatelessWidget {
       minChildSize: 0.5,
       builder: (_, ctrl) => Container(
         decoration: const BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
         ),
         clipBehavior: Clip.hardEdge,
         child: CustomScrollView(
           controller: ctrl,
           slivers: [
-            // ── 드래그 핸들 ──
             SliverToBoxAdapter(
               child: Center(
                 child: Container(
                   margin: const EdgeInsets.only(top: 12),
                   width: 36, height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.gray100,
+                    color: AppColors.lineStrong,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
             ),
 
-            // ── 큰 이미지 ──
+            // 이미지
             SliverToBoxAdapter(
-              child: Stack(
-                children: [
-                  Container(
-                    height: 240,
-                    width: double.infinity,
-                    color: item.placeholderColor,
-                    child: Center(
-                      child: Icon(Icons.restaurant_rounded, size: 80,
-                          color: item.placeholderColor.withValues(alpha:0.5)),
+              child: Stack(children: [
+                Container(
+                  height: 220,
+                  width: double.infinity,
+                  color: item.placeholderColor,
+                  child: Center(child: Icon(Icons.restaurant_rounded, size: 72,
+                      color: item.placeholderColor.withValues(alpha: 0.4))),
+                ),
+                Positioned(
+                  bottom: 0, left: 0, right: 0,
+                  child: Container(
+                    height: 80,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Colors.black.withValues(alpha: 0.2)],
+                      ),
                     ),
                   ),
-                  // 닫기 버튼
-                  Positioned(
-                    top: 12, right: 12,
-                    child: GestureDetector(
-                      onTap: () => Navigator.pop(context),
+                ),
+                Positioned(
+                  top: 12, right: 12,
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 34, height: 34,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSub),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 12, right: 54,
+                  child: StatefulBuilder(
+                    builder: (_, setS) => GestureDetector(
+                      onTap: () { onFavoriteToggle(); setS(() {}); },
                       child: Container(
                         width: 34, height: 34,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha:0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
-                      ),
-                    ),
-                  ),
-                  // 즐겨찾기
-                  Positioned(
-                    top: 12, right: 54,
-                    child: StatefulBuilder(
-                      builder: (_, setS) => GestureDetector(
-                        onTap: () { onFavoriteToggle(); setS(() {}); },
-                        child: Container(
-                          width: 34, height: 34,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha:0.9),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            item.isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                            size: 18,
-                            color: item.isFavorite ? Colors.red : AppColors.gray400,
-                          ),
+                        child: Icon(
+                          item.isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                          size: 18,
+                          color: item.isFavorite ? AppColors.red : AppColors.textMuted,
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ]),
             ),
 
-            // ── 본문 ──
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
               sliver: SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 태그
-                    Wrap(
-                      spacing: 8,
-                      children: item.tags.map((t) => _TagChip(t)).toList(),
-                    ),
-                    const SizedBox(height: 10),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Wrap(spacing: 8, children: item.tags.map((t) => _TagChip(t)).toList()),
+                  const SizedBox(height: 8),
+                  Text(item.name, style: const TextStyle(
+                      fontSize: 22, fontWeight: FontWeight.w800,
+                      color: AppColors.text, letterSpacing: -0.03)),
+                  const SizedBox(height: 14),
 
-                    // 이름
-                    Text(item.name,
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                  // 영양 정보 행
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.brandSoft,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                    ),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                      _NutrStat('칼로리', '${item.kcal.round()}', 'kcal', AppColors.text),
+                      Container(width: 1, height: 32, color: AppColors.brandText.withValues(alpha: 0.2)),
+                      _NutrStat('탄수화물', '${item.carb.round()}', 'g', AppColors.carb),
+                      Container(width: 1, height: 32, color: AppColors.brandText.withValues(alpha: 0.2)),
+                      _NutrStat('단백질', '${item.protein.round()}', 'g', AppColors.protein),
+                      Container(width: 1, height: 32, color: AppColors.brandText.withValues(alpha: 0.2)),
+                      _NutrStat('지방', '${item.fat.round()}', 'g', AppColors.fat),
+                    ]),
+                  ),
+
+                  // 알레르기 경고
+                  if (item.allergenWarning) ...[
                     const SizedBox(height: 12),
-
-                    // 영양 정보 행
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: AppColors.green50,
-                        borderRadius: BorderRadius.circular(12),
+                        color: AppColors.redSoft,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _NutrStat('칼로리', '${item.kcal.round()}', 'kcal', AppColors.textPrimary),
-                          _vDivider(),
-                          _NutrStat('탄수화물', '${item.carb.round()}', 'g', const Color(0xFF5BA4D0)),
-                          _vDivider(),
-                          _NutrStat('단백질', '${item.protein.round()}', 'g', AppColors.green600),
-                          _vDivider(),
-                          _NutrStat('지방', '${item.fat.round()}', 'g', const Color(0xFFE8A838)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 알레르기 경고
-                    if (item.allergenWarning) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF3F3),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFFF5252).withValues(alpha: 0.4)),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(Icons.warning_rounded, size: 18, color: Color(0xFFFF5252)),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    '알레르기 성분 포함 가능',
-                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFFD32F2F)),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${item.allergenNames.join(', ')} 성분이 포함될 수 있습니다.',
-                                    style: const TextStyle(fontSize: 12, color: Color(0xFF9E3333), height: 1.4),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    // 설명
-                    const SizedBox(height: 14),
-                    Text(item.description,
-                        style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.65)),
-                    const SizedBox(height: 28),
-
-                    // 액션 버튼 2개
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.green400,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 50),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                      ),
-                      child: const Text('지금 바로 보러가기', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.textSecondary,
-                        minimumSize: const Size(double.infinity, 50),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        side: const BorderSide(color: AppColors.border),
-                      ),
-                      child: const Text('다시 내일에도 추천하기', style: TextStyle(fontSize: 15)),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // 피드백 링크
-                    Center(
-                      child: TextButton(
-                        onPressed: onFeedback,
-                        child: const Text(
-                          '추천이 마음에 안 드시나요?',
-                          style: TextStyle(fontSize: 13, color: AppColors.gray400, decoration: TextDecoration.underline),
-                        ),
-                      ),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Icon(Icons.warning_rounded, size: 18, color: AppColors.red),
+                        const SizedBox(width: 10),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('알레르기 성분 포함 가능', style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.red)),
+                          const SizedBox(height: 2),
+                          Text('${item.allergenNames.join(', ')} 성분이 포함될 수 있습니다.',
+                              style: const TextStyle(fontSize: 12, color: AppColors.red, height: 1.4)),
+                        ])),
+                      ]),
                     ),
                   ],
-                ),
+
+                  const SizedBox(height: 14),
+                  Text(item.description, style: const TextStyle(
+                      fontSize: 14, color: AppColors.textSub, height: 1.65)),
+                  const SizedBox(height: 24),
+
+                  // CTA 버튼
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: double.infinity, height: 52,
+                      decoration: BoxDecoration(
+                        color: AppColors.brand,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text('지금 바로 보러가기', style: TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: double.infinity, height: 52,
+                      decoration: BoxDecoration(
+                        color: AppColors.lineSoft,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text('다시 내일에도 추천하기', style: TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textSub)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Center(
+                    child: GestureDetector(
+                      onTap: onFeedback,
+                      child: const Text('추천이 마음에 안 드시나요?', style: TextStyle(
+                          fontSize: 13, color: AppColors.textMuted,
+                          decoration: TextDecoration.underline)),
+                    ),
+                  ),
+                ]),
               ),
             ),
           ],
@@ -739,8 +729,6 @@ class _RecommendDetailSheet extends StatelessWidget {
       ),
     );
   }
-
-  Widget _vDivider() => Container(width: 0.5, height: 32, color: AppColors.green100);
 }
 
 class _NutrStat extends StatelessWidget {
@@ -750,20 +738,17 @@ class _NutrStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.green600)),
-        const SizedBox(height: 4),
-        RichText(
-          text: TextSpan(
-            children: [
-              TextSpan(text: value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color)),
-              TextSpan(text: unit,  style: const TextStyle(fontSize: 11, color: AppColors.green600)),
-            ],
-          ),
-        ),
-      ],
-    );
+    return Column(children: [
+      Text(label, style: const TextStyle(
+          fontSize: 10, color: AppColors.brandText, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 4),
+      RichText(text: TextSpan(children: [
+        TextSpan(text: value, style: TextStyle(
+            fontSize: 16, fontWeight: FontWeight.w800, color: color)),
+        TextSpan(text: unit, style: const TextStyle(
+            fontSize: 11, color: AppColors.brandText)),
+      ])),
+    ]);
   }
 }
 
@@ -786,36 +771,30 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
       ),
       padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(context).padding.bottom + 20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 핸들
           Center(
             child: Container(
               width: 36, height: 4,
-              decoration: BoxDecoration(color: AppColors.gray100, borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(
+                  color: AppColors.lineStrong, borderRadius: BorderRadius.circular(2)),
             ),
           ),
           const SizedBox(height: 20),
 
-          // 제목
-          const Text(
-            '추천이 마음에 안 드시나요?',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-          ),
+          const Text('추천이 마음에 안 드시나요?', style: TextStyle(
+              fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text)),
           const SizedBox(height: 4),
-          const Text(
-            '미선택 사유 선택 (중복가능)',
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-          ),
+          const Text('미선택 사유 선택 (중복가능)', style: TextStyle(
+              fontSize: 13, color: AppColors.textSub)),
           const SizedBox(height: 16),
 
-          // 사유 목록
           ...feedbackReasons.map((reason) {
             final isSel = _selected.contains(reason);
             return GestureDetector(
@@ -826,79 +805,71 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
-                  color: isSel ? AppColors.green50 : AppColors.gray50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isSel ? AppColors.green400 : AppColors.border,
-                    width: isSel ? 1.5 : 0.5,
+                  color: isSel ? AppColors.brandSoft : AppColors.lineSoft,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: isSel
+                      ? Border.all(color: AppColors.brand, width: 1.5)
+                      : null,
+                ),
+                child: Row(children: [
+                  Expanded(child: Text(reason, style: TextStyle(
+                      fontSize: 14,
+                      color: isSel ? AppColors.brandText : AppColors.text,
+                      fontWeight: isSel ? FontWeight.w600 : FontWeight.w400))),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 20, height: 20,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSel ? AppColors.brand : Colors.transparent,
+                      border: Border.all(
+                          color: isSel ? AppColors.brand : AppColors.textDisabled,
+                          width: 1.5),
+                    ),
+                    child: isSel
+                        ? const Icon(Icons.check_rounded, size: 12, color: Colors.white)
+                        : null,
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        reason,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isSel ? AppColors.green800 : AppColors.textPrimary,
-                          fontWeight: isSel ? FontWeight.w500 : FontWeight.w400,
-                        ),
-                      ),
-                    ),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      width: 20, height: 20,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isSel ? AppColors.green400 : Colors.transparent,
-                        border: Border.all(
-                          color: isSel ? AppColors.green400 : AppColors.gray200,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: isSel
-                          ? const Icon(Icons.check_rounded, size: 12, color: Colors.white)
-                          : null,
-                    ),
-                  ],
-                ),
+                ]),
               ),
             );
           }),
           const SizedBox(height: 16),
 
-          // 버튼 행
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 48),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    side: const BorderSide(color: AppColors.border),
-                    foregroundColor: AppColors.textSecondary,
+          Row(children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: AppColors.lineSoft,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
-                  child: const Text('건너뛰기'),
+                  alignment: Alignment.center,
+                  child: const Text('건너뛰기', style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textSub)),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  onPressed: () => widget.onSubmit(_selected.toList()),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.green400,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 48),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: GestureDetector(
+                onTap: () => widget.onSubmit(_selected.toList()),
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: AppColors.brand,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
-                  child: const Text('피드백 제출', style: TextStyle(fontWeight: FontWeight.w600)),
+                  alignment: Alignment.center,
+                  child: const Text('피드백 제출', style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
                 ),
               ),
-            ],
-          ),
+            ),
+          ]),
         ],
       ),
     );

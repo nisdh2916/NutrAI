@@ -24,21 +24,19 @@ class _MainTabScreenState extends State<MainTabScreen> {
     super.initState();
     final name = widget.profile.name.isNotEmpty ? widget.profile.name : '00';
     _screens = [
-      HomeScreen(profile: widget.profile), // [0] 홈
-      const CalendarScreen(),              // [1] 기록
-      const SizedBox.shrink(),             // [2] FAB 자리
-      ReportScreen(userName: name),        // [3] 리포트
-      RecommendScreen(userName: name),     // [4] 추천
+      HomeScreen(profile: widget.profile),
+      CalendarScreen(onGoToReport: () => _setTab(3)),
+      const SizedBox.shrink(),
+      ReportScreen(userName: name),
+      RecommendScreen(userName: name),
     ];
   }
 
-  // _currentIndex: 0=홈  1=기록  2=FAB  3=리포트  4=추천
-  // IndexedStack :  0=홈  1=기록          2=리포트  3=추천
   int get _stackIndex {
     switch (_currentIndex) {
       case 0:  return 0;
       case 1:  return 1;
-      case 2:  return 0; // FAB → 홈 유지
+      case 2:  return 0;
       case 3:  return 2;
       case 4:  return 3;
       default: return 0;
@@ -63,10 +61,10 @@ class _MainTabScreenState extends State<MainTabScreen> {
       body: IndexedStack(
         index: _stackIndex,
         children: [
-          _screens[0], // 홈
-          _screens[1], // 기록
-          _screens[3], // 리포트
-          _screens[4], // 추천
+          _screens[0],
+          _screens[1],
+          _screens[3],
+          _screens[4],
         ],
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -79,40 +77,50 @@ class _MainTabScreenState extends State<MainTabScreen> {
     width: 52, height: 52,
     child: FloatingActionButton(
       onPressed: _onFabTap,
-      backgroundColor: AppColors.green400,
-      elevation: 2,
+      backgroundColor: AppColors.brand,
+      elevation: 0,
       shape: const CircleBorder(),
       child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
     ),
   );
 
-  Widget _buildBottomNav() => BottomAppBar(
-    height: 64 + MediaQuery.of(context).padding.bottom,
-    padding: EdgeInsets.zero,
-    color: AppColors.white,
-    elevation: 8,
-    notchMargin: 6,
-    shape: const CircularNotchedRectangle(),
-    child: Row(children: [
-      _NavItem(icon: Icons.home_rounded,              label: '홈',    index: 0, current: _currentIndex, onTap: _setTab),
-      _NavItem(icon: Icons.calendar_month_rounded,    label: '기록',  index: 1, current: _currentIndex, onTap: _setTab),
-      const Expanded(child: SizedBox()),              // FAB 자리
-      _NavItem(icon: Icons.bar_chart_rounded,         label: '리포트',index: 3, current: _currentIndex, onTap: _setTab),
-      _NavItem(icon: Icons.lightbulb_outline_rounded, label: '추천',  index: 4, current: _currentIndex, onTap: _setTab),
-    ]),
+  Widget _buildBottomNav() => Container(
+    decoration: const BoxDecoration(
+      color: AppColors.surface,
+      border: Border(top: BorderSide(color: AppColors.line, width: 1)),
+      boxShadow: [
+        BoxShadow(color: Color(0x0A000000), blurRadius: 12, offset: Offset(0, -4)),
+      ],
+    ),
+    child: SafeArea(
+      top: false,
+      child: SizedBox(
+        height: 60,
+        child: Row(children: [
+          _NavItem(icon: Icons.home_outlined,             iconActive: Icons.home_rounded,              label: '홈',    index: 0, current: _currentIndex, onTap: _setTab),
+          _NavItem(icon: Icons.calendar_month_outlined,   iconActive: Icons.calendar_month_rounded,    label: '기록',  index: 1, current: _currentIndex, onTap: _setTab),
+          const Expanded(child: SizedBox()),
+          _NavItem(icon: Icons.bar_chart_outlined,        iconActive: Icons.bar_chart_rounded,         label: '리포트',index: 3, current: _currentIndex, onTap: _setTab),
+          _NavItem(icon: Icons.lightbulb_outline_rounded, iconActive: Icons.lightbulb_rounded,         label: '추천',  index: 4, current: _currentIndex, onTap: _setTab),
+        ]),
+      ),
+    ),
   );
 
   void _setTab(int i) => setState(() => _currentIndex = i);
 }
 
 class _NavItem extends StatelessWidget {
-  final IconData icon;
+  final IconData icon, iconActive;
   final String label;
   final int index, current;
   final ValueChanged<int> onTap;
 
-  const _NavItem({required this.icon, required this.label,
-      required this.index, required this.current, required this.onTap});
+  const _NavItem({
+    required this.icon, required this.iconActive,
+    required this.label, required this.index,
+    required this.current, required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -122,13 +130,17 @@ class _NavItem extends StatelessWidget {
         onTap: () => onTap(index),
         behavior: HitTestBehavior.opaque,
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, size: 22,
-              color: isActive ? AppColors.green400 : AppColors.gray200),
-          const SizedBox(height: 3),
+          Icon(
+            isActive ? iconActive : icon,
+            size: 24,
+            color: isActive ? AppColors.text : AppColors.textMuted,
+          ),
+          const SizedBox(height: 2),
           Text(label, style: TextStyle(
-            fontSize: 10,
-            color: isActive ? AppColors.green400 : AppColors.gray200,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+            fontSize: 11,
+            color: isActive ? AppColors.text : AppColors.textMuted,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+            letterSpacing: -0.01,
           )),
         ]),
       ),
