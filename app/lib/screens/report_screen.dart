@@ -3,11 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/meal_models.dart';
 import '../theme/app_theme.dart';
 
-// 영양소 색상 상수
-const _kCarb = Color(0xFF5BA4D0);
-const _kProtein = Color(0xFF639922);
-const _kFat = Color(0xFFE8A838);
-
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 리포트 화면 (루트)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -39,7 +34,7 @@ class _ReportScreenState extends State<ReportScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.bg,
       body: NestedScrollView(
         headerSliverBuilder: (_, __) => [_buildAppBar()],
         body: TabBarView(
@@ -62,45 +57,60 @@ class _ReportScreenState extends State<ReportScreen>
 
   SliverAppBar _buildAppBar() {
     return SliverAppBar(
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.bg,
       surfaceTintColor: Colors.transparent,
       pinned: true,
       elevation: 0,
       automaticallyImplyLeading: false,
-      title: Text(
-        '${widget.userName}님의 건강 리포트',
-        style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary),
-      ),
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(44),
-        child: Column(children: [
-          TabBar(
-            controller: _tabCtrl,
-            labelColor: AppColors.green600,
-            unselectedLabelColor: AppColors.gray400,
-            labelStyle:
-                const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            unselectedLabelStyle: const TextStyle(fontSize: 13),
-            indicatorColor: AppColors.green400,
-            indicatorWeight: 2,
-            tabs: const [
-              Tab(text: '일간 리포트'),
-              Tab(text: '주간 리포트'),
-              Tab(text: '월간 리포트')
-            ],
+      titleSpacing: 0,
+      title: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('리포트', style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w600,
+              color: AppColors.textMuted, letterSpacing: -0.01)),
+          const SizedBox(height: 2),
+          Text('${widget.userName}님의 건강 리포트', style: const TextStyle(
+              fontSize: 22, fontWeight: FontWeight.w800,
+              color: AppColors.text, letterSpacing: -0.03)),
+          const SizedBox(height: 12),
+          Container(
+            height: 42,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: AppColors.lineSoft,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: TabBar(
+              controller: _tabCtrl,
+              labelColor: AppColors.text,
+              unselectedLabelColor: AppColors.textMuted,
+              labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                  letterSpacing: -0.01),
+              unselectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              indicator: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(9),
+                boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 2)],
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              tabs: const [Tab(text: '일간'), Tab(text: '주간'), Tab(text: '월간')],
+            ),
           ),
-          Divider(height: 0.5, color: AppColors.border),
         ]),
+      ),
+      toolbarHeight: 130,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 1, color: AppColors.line),
       ),
     );
   }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 공용 날짜 스트립 위젯
+// 공용 날짜 스트립
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 class _WeekStrip extends StatelessWidget {
   final DateTime selected;
@@ -120,8 +130,13 @@ class _WeekStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final today = DateTime.now();
     return Container(
-      color: AppColors.white,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        boxShadow: AppShadows.card,
+      ),
       child: Row(
         children: _days.asMap().entries.map((e) {
           final i = e.key;
@@ -132,32 +147,27 @@ class _WeekStrip extends StatelessWidget {
             child: GestureDetector(
               onTap: () => onTap(d),
               child: Column(children: [
-                Text(_wd[i],
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: isSel ? AppColors.green400 : AppColors.gray400,
-                        fontWeight: FontWeight.w500)),
-                const SizedBox(height: 5),
+                Text(_wd[i], style: TextStyle(
+                    fontSize: 11,
+                    color: isSel ? AppColors.brand : AppColors.textMuted,
+                    fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: 36, height: 36,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isSel ? AppColors.green400 : Colors.transparent,
+                    color: isSel ? AppColors.brand : Colors.transparent,
                     border: isToday && !isSel
-                        ? Border.all(color: AppColors.green400, width: 1.5)
+                        ? Border.all(color: AppColors.brand, width: 1.5)
                         : null,
                   ),
-                  child: Center(
-                      child: Text('${d.day}',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: isSel
-                                  ? Colors.white
-                                  : isToday
-                                      ? AppColors.green400
-                                      : AppColors.textPrimary))),
+                  alignment: Alignment.center,
+                  child: Text('${d.day}', style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w700,
+                      color: isSel ? Colors.white
+                          : isToday ? AppColors.brand
+                          : AppColors.text,
+                      letterSpacing: -0.02)),
                 ),
               ]),
             ),
@@ -180,19 +190,8 @@ class _DailyTab extends StatelessWidget {
 
   static const _weekdayKr = ['', '월', '화', '수', '목', '금', '토', '일'];
   static const _monthKr = [
-    '',
-    '1월',
-    '2월',
-    '3월',
-    '4월',
-    '5월',
-    '6월',
-    '7월',
-    '8월',
-    '9월',
-    '10월',
-    '11월',
-    '12월'
+    '', '1월', '2월', '3월', '4월', '5월', '6월',
+    '7월', '8월', '9월', '10월', '11월', '12월'
   ];
 
   const _DailyTab({required this.selected, required this.onDateChanged});
@@ -209,29 +208,21 @@ class _DailyTab extends StatelessWidget {
 
     return CustomScrollView(
       slivers: [
-        // 날짜 스트립
         SliverToBoxAdapter(
             child: _WeekStrip(selected: selected, onTap: onDateChanged)),
-        SliverToBoxAdapter(
-            child: Divider(height: 0.5, color: AppColors.border)),
 
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
           sliver: SliverList(
               delegate: SliverChildListDelegate([
-            // 날짜 헤더
-            Text(dateStr,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary)),
+            Text(dateStr, style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w600,
+                color: AppColors.textMuted, letterSpacing: -0.01)),
             const SizedBox(height: 14),
 
-            // 끼니 썸네일 3칸
             _MealThumbnailRow(meals: meals),
             const SizedBox(height: 14),
 
-            // 영양소 도넛 카드
             _NutritionCard(
               totalKcal: totalK,
               carb: totalC,
@@ -240,9 +231,7 @@ class _DailyTab extends StatelessWidget {
             ),
             const SizedBox(height: 14),
 
-            // 맞춤 조언 카드
             if (meals.isNotEmpty) _TipCard(meals: meals, totalKcal: totalK),
-
             if (meals.isEmpty) _EmptyReport(),
           ])),
         ),
@@ -256,51 +245,55 @@ class _MealThumbnailRow extends StatelessWidget {
   final List<MealRecord> meals;
   const _MealThumbnailRow({required this.meals});
 
-  static const _labels = ['아침', '점심', '저녁'];
-  static const _times = ['08:30', '12:30', '19:00'];
-  static const _colors = [_kCarb, _kProtein, _kFat];
+  static const _labels  = ['아침', '점심', '저녁'];
+  static const _times   = ['08:30', '12:30', '19:00'];
+  static const _colors  = [AppColors.breakfast, AppColors.lunch, AppColors.dinner];
+  static const _softBgs = [AppColors.breakfastSoft, AppColors.lunchSoft, AppColors.dinnerSoft];
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: List.generate(3, (i) {
         final meal = meals.where((m) => m.label == _labels[i]).firstOrNull;
+        final color = _colors[i];
+        final soft  = _softBgs[i];
         return Expanded(
           child: Padding(
-            padding: EdgeInsets.only(right: i < 2 ? 8 : 0),
-            child: Column(children: [
-              // 이미지 플레이스홀더
-              Container(
-                height: 80,
-                decoration: BoxDecoration(
-                  color: meal != null
-                      ? _colors[i].withOpacity(0.15)
-                      : AppColors.gray50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                      color: meal != null
-                          ? _colors[i].withOpacity(0.3)
-                          : AppColors.border,
-                      width: 0.5),
-                ),
-                child: Center(
+            padding: EdgeInsets.only(right: i < 2 ? 10 : 0),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                boxShadow: AppShadows.card,
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: meal != null ? soft : AppColors.lineSoft,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
                   child: Icon(
                     meal != null ? Icons.restaurant_rounded : Icons.add_rounded,
-                    size: 28,
-                    color: meal != null ? _colors[i] : AppColors.gray200,
+                    size: 18,
+                    color: meal != null ? color : AppColors.textMuted,
                   ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(_labels[i],
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: meal != null ? _colors[i] : AppColors.gray200)),
-              Text(meal != null ? _times[i] : '—',
-                  style:
-                      const TextStyle(fontSize: 10, color: AppColors.gray200)),
-            ]),
+                const SizedBox(height: 8),
+                Text(_labels[i], style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700,
+                    color: meal != null ? color : AppColors.textMuted)),
+                Text(meal != null ? _times[i] : '—',
+                    style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+                if (meal != null) ...[
+                  const SizedBox(height: 4),
+                  Text('${meal.totalKcal.round()}kcal',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                          color: AppColors.textSub)),
+                ],
+              ]),
+            ),
           ),
         );
       }),
@@ -326,53 +319,51 @@ class _NutritionCard extends StatelessWidget {
     final fPct = total > 0 ? (fat / total * 100).round() : 0;
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 0.5),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        boxShadow: AppShadows.card,
       ),
-      child: Row(
-        children: [
-          // 도넛 차트
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('영양소 분석', style: TextStyle(
+            fontSize: 15, fontWeight: FontWeight.w700,
+            color: AppColors.text, letterSpacing: -0.01)),
+        const SizedBox(height: 16),
+        Row(children: [
           SizedBox(
-            width: 120,
-            height: 120,
+            width: 120, height: 120,
             child: Stack(alignment: Alignment.center, children: [
               CustomPaint(
                 size: const Size(120, 120),
                 painter: _DonutPainter(carb: carb, protein: protein, fat: fat),
               ),
               Column(mainAxisSize: MainAxisSize.min, children: [
-                Text('${totalKcal.round()}',
-                    style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
-                const Text('kcal',
-                    style: TextStyle(
-                        fontSize: 10, color: AppColors.textSecondary)),
+                Text('${totalKcal.round()}', style: const TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.w800,
+                    color: AppColors.text, letterSpacing: -0.03,
+                    fontFeatures: [FontFeature.tabularFigures()])),
+                const Text('kcal', style: TextStyle(
+                    fontSize: 10, fontWeight: FontWeight.w600,
+                    color: AppColors.textMuted)),
               ]),
             ]),
           ),
           const SizedBox(width: 20),
-
-          // 우측 수치
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _NutrRow(label: '탄수화물', gram: carb, pct: cPct, color: _kCarb),
-                const SizedBox(height: 12),
-                _NutrRow(
-                    label: '단백질', gram: protein, pct: pPct, color: _kProtein),
-                const SizedBox(height: 12),
-                _NutrRow(label: '지방', gram: fat, pct: fPct, color: _kFat),
+                _NutrRow(label: '탄수화물', gram: carb, pct: cPct, color: AppColors.carb),
+                const SizedBox(height: 14),
+                _NutrRow(label: '단백질',  gram: protein, pct: pPct, color: AppColors.protein),
+                const SizedBox(height: 14),
+                _NutrRow(label: '지방',    gram: fat,     pct: fPct, color: AppColors.fat),
               ],
             ),
           ),
-        ],
-      ),
+        ]),
+      ]),
     );
   }
 }
@@ -382,38 +373,29 @@ class _NutrRow extends StatelessWidget {
   final double gram;
   final int pct;
   final Color color;
-  const _NutrRow(
-      {required this.label,
-      required this.gram,
-      required this.pct,
-      required this.color});
+  const _NutrRow({required this.label, required this.gram,
+      required this.pct, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Container(
-            width: 9,
-            height: 9,
+        Container(width: 8, height: 8,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
-        Text(label,
-            style:
-                const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        Text(label, style: const TextStyle(
+            fontSize: 12, color: AppColors.textSub, fontWeight: FontWeight.w500)),
         const Spacer(),
-        Text('$pct%  ${gram.round()}g',
-            style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary)),
+        Text('$pct%  ${gram.round()}g', style: const TextStyle(
+            fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.text)),
       ]),
-      const SizedBox(height: 4),
+      const SizedBox(height: 5),
       ClipRRect(
         borderRadius: BorderRadius.circular(3),
         child: LinearProgressIndicator(
           value: pct / 100,
           minHeight: 5,
-          backgroundColor: AppColors.gray50,
+          backgroundColor: AppColors.lineSoft,
           valueColor: AlwaysStoppedAnimation<Color>(color),
         ),
       ),
@@ -421,7 +403,7 @@ class _NutrRow extends StatelessWidget {
   }
 }
 
-// ── 맞춤 조언 카드 ─────────────────────────────────
+// ── AI 코치 조언 카드 ──────────────────────────────
 class _TipCard extends StatelessWidget {
   final List<MealRecord> meals;
   final double totalKcal;
@@ -431,12 +413,11 @@ class _TipCard extends StatelessWidget {
     final totalP = meals.fold(0.0, (s, m) => s + m.totalProtein);
     final totalC = meals.fold(0.0, (s, m) => s + m.totalCarb);
     final totalF = meals.fold(0.0, (s, m) => s + m.totalFat);
-    if (totalP < 50)
-      return '오늘 단백질 섭취가 부족해요. 닭가슴살, 두부, 계란 등 단백질이 풍부한 음식을 추가해보세요.';
-    if (totalC > 300) return '탄수화물 섭취가 다소 높아요. 다음 끼니에는 채소 위주의 식단을 선택해보세요.';
-    if (totalF > 80) return '지방 섭취가 목표치를 초과했어요. 튀긴 음식보다 구운 음식을 선택하면 도움이 돼요.';
+    if (totalP < 50)   return '오늘 단백질 섭취가 부족해요. 닭가슴살, 두부, 계란 등 단백질이 풍부한 음식을 추가해보세요.';
+    if (totalC > 300)  return '탄수화물 섭취가 다소 높아요. 다음 끼니에는 채소 위주의 식단을 선택해보세요.';
+    if (totalF > 80)   return '지방 섭취가 목표치를 초과했어요. 튀긴 음식보다 구운 음식을 선택하면 도움이 돼요.';
     if (totalKcal < 1200) return '오늘 칼로리 섭취가 너무 적어요. 균형 잡힌 식사로 기초대사량을 유지해주세요.';
-    return '오늘 식단이 전반적으로 균형 잡혀 있어요! 다른 날도 이렇게 유지해보세요 🎉';
+    return '오늘 식단이 전반적으로 균형 잡혀 있어요! 다른 날도 이렇게 유지해보세요.';
   }
 
   @override
@@ -445,25 +426,30 @@ class _TipCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.green50,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.green100, width: 0.5),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE6F4EA), Color(0xFFF0FAF2)],
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.tips_and_updates_rounded,
-              size: 16, color: AppColors.green600),
-          const SizedBox(width: 6),
-          const Text('맞춤 조언',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.green800)),
+          Container(
+            width: 28, height: 28,
+            decoration: BoxDecoration(
+              color: AppColors.brand,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: const Icon(Icons.tips_and_updates_rounded, size: 14, color: Colors.white),
+          ),
+          const SizedBox(width: 8),
+          const Text('AI 코치', style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.brandText)),
         ]),
-        const SizedBox(height: 8),
-        Text(_tip,
-            style: const TextStyle(
-                fontSize: 13, color: AppColors.green600, height: 1.6)),
+        const SizedBox(height: 10),
+        Text(_tip, style: const TextStyle(
+            fontSize: 13, color: AppColors.brandText, height: 1.6,
+            fontWeight: FontWeight.w500)),
       ]),
     );
   }
@@ -472,46 +458,38 @@ class _TipCard extends StatelessWidget {
 // ── 도넛 CustomPainter ─────────────────────────────
 class _DonutPainter extends CustomPainter {
   final double carb, protein, fat;
-  const _DonutPainter(
-      {required this.carb, required this.protein, required this.fat});
+  const _DonutPainter({required this.carb, required this.protein, required this.fat});
 
   @override
   void paint(Canvas canvas, Size size) {
     final total = carb + protein + fat;
-    if (total == 0) {
-      final p = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 16
-        ..color = AppColors.gray50;
-      canvas.drawCircle(
-          Offset(size.width / 2, size.height / 2), size.width / 2 - 8, p);
-      return;
-    }
     final cx = size.width / 2;
     final cy = size.height / 2;
     final r = size.width / 2 - 8;
     final p = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 16
+      ..strokeWidth = 14
       ..strokeCap = StrokeCap.butt;
 
-    // 배경 트랙
-    p.color = AppColors.gray50;
+    p.color = AppColors.lineSoft;
     canvas.drawCircle(Offset(cx, cy), r, p);
+
+    if (total == 0) return;
 
     const gap = 0.04;
     final segs = [
-      (carb / total, _kCarb),
-      (protein / total, _kProtein),
-      (fat / total, _kFat)
+      (carb / total, AppColors.carb),
+      (protein / total, AppColors.protein),
+      (fat / total, AppColors.fat),
     ];
     double start = -math.pi / 2;
     for (final (ratio, color) in segs) {
       final sweep = ratio * 2 * math.pi - gap;
       if (sweep <= 0) continue;
       p.color = color;
-      canvas.drawArc(Rect.fromCircle(center: Offset(cx, cy), radius: r), start,
-          sweep, false, p);
+      canvas.drawArc(
+          Rect.fromCircle(center: Offset(cx, cy), radius: r),
+          start, sweep, false, p);
       start += ratio * 2 * math.pi;
     }
   }
@@ -538,68 +516,55 @@ class _WeeklyTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final days = _weekDays;
     final data = days
-        .map((d) =>
-            MealSampleData.forDate(d).fold(0.0, (s, m) => s + m.totalKcal))
+        .map((d) => MealSampleData.forDate(d).fold(0.0, (s, m) => s + m.totalKcal))
         .toList();
     final maxK = data.reduce(math.max).clamp(1.0, double.infinity);
     final avgK = data.fold(0.0, (s, v) => s + v) / 7;
     final totalK = data.fold(0.0, (s, v) => s + v);
-    const _wd = ['월', '화', '수', '목', '금', '토', '일'];
+    const wd = ['월', '화', '수', '목', '금', '토', '일'];
 
     return CustomScrollView(slivers: [
       SliverToBoxAdapter(
           child: _WeekStrip(selected: selected, onTap: onDateChanged)),
-      SliverToBoxAdapter(child: Divider(height: 0.5, color: AppColors.border)),
+
       SliverPadding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
         sliver: SliverList(
             delegate: SliverChildListDelegate([
-          // 주간 요약 수치 카드
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border, width: 0.5),
-            ),
-            child: Row(children: [
-              _StatBox(
-                  label: '주간 총 칼로리', value: '${totalK.round()}', unit: 'kcal'),
-              Container(width: 0.5, height: 44, color: AppColors.border),
-              _StatBox(
-                  label: '일 평균 칼로리', value: '${avgK.round()}', unit: 'kcal'),
-              Container(width: 0.5, height: 44, color: AppColors.border),
-              _StatBox(
-                  label: '기록된 날',
-                  value: '${data.where((v) => v > 0).length}',
-                  unit: '/ 7일'),
-            ]),
-          ),
+          // 주간 요약 통계
+          Row(children: [
+            _StatCard(label: '주간 총 칼로리', value: '${totalK.round()}', unit: 'kcal'),
+            const SizedBox(width: 10),
+            _StatCard(label: '일 평균', value: '${avgK.round()}', unit: 'kcal'),
+            const SizedBox(width: 10),
+            _StatCard(
+                label: '기록된 날',
+                value: '${data.where((v) => v > 0).length}',
+                unit: '/ 7일',
+                valueColor: AppColors.brandText),
+          ]),
           const SizedBox(height: 14),
 
-          // 막대 차트 카드
+          // 막대 차트
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border, width: 0.5),
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              boxShadow: AppShadows.card,
             ),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('일별 칼로리',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('일별 칼로리', style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w700,
+                  color: AppColors.text, letterSpacing: -0.01)),
               const SizedBox(height: 16),
               SizedBox(
                 height: 140,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: List.generate(7, (i) {
-                    final isSel = _sameDay(days[i], selected);
-                    final ratio = data[i] / maxK;
+                    final isSel  = _sameDay(days[i], selected);
+                    final ratio  = data[i] / maxK;
                     return Expanded(
                       child: Padding(
                         padding: EdgeInsets.only(right: i < 6 ? 6 : 0),
@@ -607,12 +572,9 @@ class _WeeklyTab extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             if (data[i] > 0)
-                              Text('${data[i].round()}',
-                                  style: TextStyle(
-                                      fontSize: 9,
-                                      color: isSel
-                                          ? AppColors.green600
-                                          : AppColors.gray200)),
+                              Text('${data[i].round()}', style: TextStyle(
+                                  fontSize: 9,
+                                  color: isSel ? AppColors.brandText : AppColors.textMuted)),
                             const SizedBox(height: 3),
                             GestureDetector(
                               onTap: () => onDateChanged(days[i]),
@@ -621,21 +583,19 @@ class _WeeklyTab extends StatelessWidget {
                                 height: ratio * 110,
                                 decoration: BoxDecoration(
                                   color: isSel
-                                      ? AppColors.green400
+                                      ? AppColors.brand
                                       : data[i] > 0
-                                          ? AppColors.green100
-                                          : AppColors.gray50,
+                                          ? AppColors.brandSoft
+                                          : AppColors.lineSoft,
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 6),
-                            Text(_wd[i],
-                                style: TextStyle(
-                                    fontSize: 10,
-                                    color: isSel
-                                        ? AppColors.green400
-                                        : AppColors.gray400)),
+                            Text(wd[i], style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                                color: isSel ? AppColors.brand : AppColors.textMuted)),
                           ],
                         ),
                       ),
@@ -649,19 +609,16 @@ class _WeeklyTab extends StatelessWidget {
 
           // 요일별 끼니 요약
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border, width: 0.5),
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              boxShadow: AppShadows.card,
             ),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('이번 주 식단 요약',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('이번 주 식단 요약', style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w700,
+                  color: AppColors.text, letterSpacing: -0.01)),
               const SizedBox(height: 12),
               ...List.generate(7, (i) {
                 final meals = MealSampleData.forDate(days[i]);
@@ -671,36 +628,29 @@ class _WeeklyTab extends StatelessWidget {
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isSel ? AppColors.green50 : AppColors.gray50,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: isSel ? AppColors.green100 : AppColors.border,
-                        width: 0.5),
+                    color: isSel ? AppColors.brandSoft : AppColors.bgAlt,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: Row(children: [
-                    Text(_wd[i],
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: isSel
-                                ? AppColors.green600
-                                : AppColors.textSecondary)),
+                    Text(wd[i], style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w700,
+                        color: isSel ? AppColors.brandText : AppColors.textSub)),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         meals.map((m) => '${m.label}: ${m.summary}').join('  '),
-                        style: const TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary),
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: isSel ? AppColors.brandText : AppColors.textSub),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Text(
                         '${meals.fold(0.0, (s, m) => s + m.totalKcal).round()}kcal',
-                        style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary)),
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w600,
+                            color: isSel ? AppColors.brandText : AppColors.text)),
                   ]),
                 );
               }),
@@ -715,35 +665,40 @@ class _WeeklyTab extends StatelessWidget {
       a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
-class _StatBox extends StatelessWidget {
+// ── 통계 카드 (주간/월간 공용) ─────────────────────
+class _StatCard extends StatelessWidget {
   final String label, value, unit;
-  const _StatBox(
-      {required this.label, required this.value, required this.unit});
+  final Color? valueColor;
+  const _StatCard({required this.label, required this.value,
+      required this.unit, this.valueColor});
 
   @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(children: [
-        Text(label,
-            style:
-                const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-        const SizedBox(height: 4),
-        RichText(
-            text: TextSpan(children: [
-          TextSpan(
-              text: value,
-              style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary)),
-          TextSpan(
-              text: ' $unit',
-              style: const TextStyle(
-                  fontSize: 10, color: AppColors.textSecondary)),
-        ])),
+  Widget build(BuildContext context) => Expanded(
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(
+            fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 3),
+        Row(crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic, children: [
+          Text(value, style: TextStyle(
+              fontSize: 18, fontWeight: FontWeight.w800,
+              color: valueColor ?? AppColors.text,
+              letterSpacing: -0.02,
+              fontFeatures: const [FontFeature.tabularFigures()])),
+          const SizedBox(width: 2),
+          Text(unit, style: const TextStyle(
+              fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textMuted)),
+        ]),
       ]),
-    );
-  }
+    ),
+  );
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -768,46 +723,31 @@ class _MonthlyTabState extends State<_MonthlyTab> {
   }
 
   List<DateTime?> get _grid {
-    final first = DateTime(_cursor.year, _cursor.month, 1);
+    final first  = DateTime(_cursor.year, _cursor.month, 1);
     final offset = first.weekday - 1;
-    final days = DateUtils.getDaysInMonth(_cursor.year, _cursor.month);
-    final cells = <DateTime?>[
+    final days   = DateUtils.getDaysInMonth(_cursor.year, _cursor.month);
+    final cells  = <DateTime?>[
       ...List.filled(offset, null),
-      ...List.generate(
-          days, (i) => DateTime(_cursor.year, _cursor.month, i + 1)),
+      ...List.generate(days, (i) => DateTime(_cursor.year, _cursor.month, i + 1)),
     ];
     while (cells.length % 7 != 0) cells.add(null);
     return cells;
   }
 
   static const _monthKr = [
-    '',
-    '1월',
-    '2월',
-    '3월',
-    '4월',
-    '5월',
-    '6월',
-    '7월',
-    '8월',
-    '9월',
-    '10월',
-    '11월',
-    '12월'
+    '', '1월', '2월', '3월', '4월', '5월', '6월',
+    '7월', '8월', '9월', '10월', '11월', '12월'
   ];
   static const _wd = ['월', '화', '수', '목', '금', '토', '일'];
 
   @override
   Widget build(BuildContext context) {
-    final today = DateTime.now();
+    final today    = DateTime.now();
     final selMeals = MealSampleData.forDate(widget.selected);
-    final monthTotal = _grid
-        .whereType<DateTime>()
-        .map((d) =>
-            MealSampleData.forDate(d).fold(0.0, (s, m) => s + m.totalKcal))
+    final monthTotal = _grid.whereType<DateTime>()
+        .map((d) => MealSampleData.forDate(d).fold(0.0, (s, m) => s + m.totalKcal))
         .fold(0.0, (s, v) => s + v);
-    final activeDays = _grid
-        .whereType<DateTime>()
+    final activeDays = _grid.whereType<DateTime>()
         .where((d) => MealSampleData.forDate(d).isNotEmpty)
         .length;
 
@@ -815,24 +755,24 @@ class _MonthlyTabState extends State<_MonthlyTab> {
       // 월 이동 헤더
       SliverToBoxAdapter(
         child: Container(
-          color: AppColors.white,
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child:
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            boxShadow: AppShadows.card,
+          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             IconButton(
-              icon: const Icon(Icons.chevron_left_rounded,
-                  color: AppColors.textSecondary),
+              icon: const Icon(Icons.chevron_left_rounded, color: AppColors.textSub),
               onPressed: () => setState(
                   () => _cursor = DateTime(_cursor.year, _cursor.month - 1)),
             ),
             Text('${_monthKr[_cursor.month]}  ${_cursor.year}',
-                style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary)),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
+                    color: AppColors.text)),
             IconButton(
-              icon: const Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary),
+              icon: const Icon(Icons.chevron_right_rounded, color: AppColors.textSub),
               onPressed: () => setState(
                   () => _cursor = DateTime(_cursor.year, _cursor.month + 1)),
             ),
@@ -842,27 +782,20 @@ class _MonthlyTabState extends State<_MonthlyTab> {
 
       // 요일 헤더
       SliverToBoxAdapter(
-        child: Container(
-          color: AppColors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
           child: Row(
-              children: _wd
-                  .map((w) => Expanded(
-                      child: Center(
-                          child: Text(w,
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.gray400,
-                                  fontWeight: FontWeight.w500)))))
-                  .toList()),
+            children: _wd.map((w) => Expanded(
+              child: Center(child: Text(w, style: const TextStyle(
+                  fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w600))),
+            )).toList(),
+          ),
         ),
       ),
-      const SliverToBoxAdapter(child: SizedBox(height: 6)),
 
       // 캘린더 그리드
       SliverToBoxAdapter(
-        child: Container(
-          color: AppColors.white,
+        child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           child: GridView.builder(
             shrinkWrap: true,
@@ -873,152 +806,110 @@ class _MonthlyTabState extends State<_MonthlyTab> {
             itemBuilder: (ctx, i) {
               final d = _grid[i];
               if (d == null) return const SizedBox();
-              final isSel = _same(d, widget.selected);
+              final isSel   = _same(d, widget.selected);
               final isToday = _same(d, today);
-              final hasDot = MealSampleData.forDate(d).isNotEmpty;
+              final hasDot  = MealSampleData.forDate(d).isNotEmpty;
               return GestureDetector(
                 onTap: () => widget.onDateChanged(d),
-                child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color:
-                              isSel ? AppColors.green400 : Colors.transparent,
-                          border: isToday && !isSel
-                              ? Border.all(
-                                  color: AppColors.green400, width: 1.5)
-                              : null,
-                        ),
-                        child: Center(
-                            child: Text('${d.day}',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isSel
-                                        ? Colors.white
-                                        : isToday
-                                            ? AppColors.green400
-                                            : d.month != _cursor.month
-                                                ? AppColors.gray200
-                                                : AppColors.textPrimary))),
-                      ),
-                      const SizedBox(height: 2),
-                      Container(
-                          width: 4,
-                          height: 4,
-                          decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: hasDot
-                                  ? (isSel
-                                      ? Colors.white70
-                                      : AppColors.green400)
-                                  : Colors.transparent)),
-                    ]),
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSel ? AppColors.brand : Colors.transparent,
+                      border: isToday && !isSel
+                          ? Border.all(color: AppColors.brand, width: 1.5)
+                          : null,
+                    ),
+                    child: Center(child: Text('${d.day}', style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600,
+                        color: isSel ? Colors.white
+                            : isToday ? AppColors.brand
+                            : d.month != _cursor.month ? AppColors.textDisabled
+                            : AppColors.text))),
+                  ),
+                  const SizedBox(height: 2),
+                  Container(
+                    width: 4, height: 4,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: hasDot
+                          ? (isSel ? Colors.white70 : AppColors.brand)
+                          : Colors.transparent,
+                    ),
+                  ),
+                ]),
               );
             },
           ),
         ),
       ),
 
-      SliverToBoxAdapter(child: Divider(height: 0.5, color: AppColors.border)),
+      SliverToBoxAdapter(child: Container(height: 1, color: AppColors.line)),
 
       SliverPadding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
         sliver: SliverList(
             delegate: SliverChildListDelegate([
-          // 월간 통계 카드
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border, width: 0.5),
-            ),
-            child: Row(children: [
-              _StatBox(
-                  label: '월 총 칼로리',
-                  value: '${monthTotal.round()}',
-                  unit: 'kcal'),
-              Container(width: 0.5, height: 44, color: AppColors.border),
-              _StatBox(label: '기록한 날', value: '$activeDays', unit: '일'),
-              Container(width: 0.5, height: 44, color: AppColors.border),
-              _StatBox(
-                  label: '일 평균',
-                  value: activeDays > 0
-                      ? '${(monthTotal / activeDays).round()}'
-                      : '0',
-                  unit: 'kcal'),
-            ]),
-          ),
+          // 월간 통계
+          Row(children: [
+            _StatCard(label: '월 총 칼로리', value: '${monthTotal.round()}', unit: 'kcal'),
+            const SizedBox(width: 10),
+            _StatCard(label: '기록한 날', value: '$activeDays', unit: '일'),
+            const SizedBox(width: 10),
+            _StatCard(
+                label: '일 평균',
+                value: activeDays > 0 ? '${(monthTotal / activeDays).round()}' : '0',
+                unit: 'kcal',
+                valueColor: AppColors.brandText),
+          ]),
           const SizedBox(height: 14),
 
           // 선택 날짜 식단 요약
           if (selMeals.isNotEmpty) ...[
             Text(
               '${widget.selected.month}/${widget.selected.day} 식단',
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
+                  color: AppColors.text, letterSpacing: -0.01),
             ),
             const SizedBox(height: 10),
             ...selMeals.map((m) {
-              final colors = {'아침': _kCarb, '점심': _kProtein, '저녁': _kFat};
-              final color = colors[m.label] ?? _kProtein;
+              const colors = {
+                '아침': AppColors.breakfast,
+                '점심': AppColors.lunch,
+                '저녁': AppColors.dinner,
+              };
+              final color = colors[m.label] ?? AppColors.brand;
               return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border, width: 0.5),
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  boxShadow: AppShadows.card,
                 ),
                 child: Row(children: [
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    height: 26, padding: const EdgeInsets.symmetric(horizontal: 8),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(20),
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
                     ),
-                    child: Text(m.label,
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: color)),
+                    alignment: Alignment.center,
+                    child: Text(m.label, style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600, color: color)),
                   ),
                   const SizedBox(width: 10),
-                  Expanded(
-                      child: Text(m.summary,
-                          style: const TextStyle(
-                              fontSize: 13, color: AppColors.textPrimary))),
+                  Expanded(child: Text(m.summary,
+                      style: const TextStyle(fontSize: 13, color: AppColors.text,
+                          fontWeight: FontWeight.w500),
+                      maxLines: 1, overflow: TextOverflow.ellipsis)),
                   Text('${m.totalKcal.round()}kcal',
-                      style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w500)),
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSub,
+                          fontWeight: FontWeight.w600)),
                 ]),
               );
             }),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.bar_chart_rounded,
-                  size: 16, color: AppColors.green400),
-              label: const Text('식단으로 리포트 보러가기',
-                  style: TextStyle(fontSize: 13, color: AppColors.green400)),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 46),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                side: const BorderSide(color: AppColors.green400, width: 1.5),
-              ),
-            ),
           ],
 
           if (selMeals.isEmpty) _EmptyReport(),
@@ -1035,17 +926,18 @@ class _MonthlyTabState extends State<_MonthlyTab> {
 class _EmptyReport extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40),
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 40),
       child: Column(children: [
         Icon(Icons.insert_chart_outlined_rounded,
-            size: 48, color: AppColors.gray100),
-        const SizedBox(height: 12),
-        const Text('아직 식단 기록이 없어요',
-            style: TextStyle(fontSize: 14, color: AppColors.gray400)),
-        const SizedBox(height: 4),
-        const Text('+ 버튼으로 오늘 식사를 기록해보세요',
-            style: TextStyle(fontSize: 12, color: AppColors.gray200)),
+            size: 48, color: AppColors.lineStrong),
+        SizedBox(height: 12),
+        Text('아직 식단 기록이 없어요',
+            style: TextStyle(fontSize: 14, color: AppColors.textMuted,
+                fontWeight: FontWeight.w600)),
+        SizedBox(height: 4),
+        Text('+ 버튼으로 오늘 식사를 기록해보세요',
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
       ]),
     );
   }
