@@ -120,11 +120,31 @@ class AppState extends ChangeNotifier {
     return _mealRepo.getMealsForDate(userId!, date);
   }
 
+  /// 이름으로 음식 조회, 없으면 생성 후 id 반환
+  Future<int> getOrCreateFood({
+    required String name,
+    required double kcal,
+    required double carbG,
+    required double proteinG,
+    required double fatG,
+  }) async {
+    final results = await _foodRepo.searchFoods(name);
+    final exact = results.where((f) => f.foodName == name).firstOrNull;
+    if (exact != null) return exact.id!;
+    final now = DateTime.now().toIso8601String();
+    return _foodRepo.createFood(FoodEntity(
+      foodName: name, kcal: kcal,
+      carbG: carbG, proteinG: proteinG, fatG: fatG,
+      createdAt: now, updatedAt: now,
+    ));
+  }
+
   /// 끼니 + 음식 저장
   Future<void> saveMeal({
     required String mealType,
     required DateTime eatenAt,
     String? memo,
+    String? photoPath,
     required List<({int foodId, double? amountG, double servingCount})> foods,
   }) async {
     if (userId == null) return;
