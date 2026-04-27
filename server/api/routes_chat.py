@@ -2,7 +2,8 @@ import json
 import logging
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from ai.rag_engine import get_recommendation, stream_recommendation
 
@@ -25,15 +26,15 @@ class UserProfile(BaseModel):
 
 class MealHistoryItem(BaseModel):
     meal_type: str = ""
-    foods: list[dict] = []
+    foods: list[dict] = Field(default_factory=list)
     total_kcal: float = 0.0
 
 
 class ChatRequest(BaseModel):
     message: str
-    user_profile: UserProfile = UserProfile()
-    detected_foods: list[str] = []
-    meal_history: list[MealHistoryItem] = []
+    user_profile: UserProfile = Field(default_factory=UserProfile)
+    detected_foods: list[str] = Field(default_factory=list)
+    meal_history: list[MealHistoryItem] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):
@@ -46,11 +47,12 @@ class ChatResponse(BaseModel):
 async def chat(req: ChatRequest) -> ChatResponse:
     try:
         meal_history = [m.model_dump() for m in req.meal_history] if req.meal_history else None
-        result = get_recommendation(
-            user_query=req.message,
-            user_profile=req.user_profile.model_dump(exclude_none=False),
-            detected_foods=req.detected_foods or None,
-            meal_history=meal_history,
+        result = await run_in_threadpool(
+            get_recommendation,
+            req.message,
+            req.user_profile.model_dump(exclude_none=False),
+            req.detected_foods or None,
+            meal_history,
         )
         return ChatResponse(**result)
     except RuntimeError as e:
