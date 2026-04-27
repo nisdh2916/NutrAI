@@ -25,6 +25,9 @@ dependencies:
   # HTTP 통신 (RAG 서버 연동)
   http: ^1.2.0
 
+  # 이미지 선택 (사진 첨부)
+  image_picker: ^1.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

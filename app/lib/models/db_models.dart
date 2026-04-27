@@ -177,6 +177,7 @@ class MealEntity {
   final String mealType;  // 'breakfast' | 'lunch' | 'dinner' | 'snack'
   final String eatenAt;   // ISO8601 문자열
   final String? memo;
+  final String? photoPath;
   final String createdAt;
   final String updatedAt;
 
@@ -187,6 +188,7 @@ class MealEntity {
     required this.mealType,
     required this.eatenAt,
     this.memo,
+    this.photoPath,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -223,6 +225,7 @@ class MealEntity {
     mealType:  m['meal_type'] as String,
     eatenAt:   m['eaten_at'] as String,
     memo:      m['memo'] as String?,
+    photoPath: m['photo_path'] as String?,
     createdAt: m['created_at'] as String,
     updatedAt: m['updated_at'] as String,
   );
@@ -234,6 +237,7 @@ class MealEntity {
     'meal_type':  mealType,
     'eaten_at':   eatenAt,
     'memo':       memo,
+    'photo_path': photoPath,
     'created_at': createdAt,
     'updated_at': updatedAt,
   };
