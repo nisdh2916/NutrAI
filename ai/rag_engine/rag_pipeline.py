@@ -74,7 +74,7 @@ def _get_llm() -> ChatOllama:
         _llm = ChatOllama(
             model=LLM_MODEL,
             base_url=OLLAMA_BASE_URL,
-            temperature=0.3,
+            temperature=0.6,
             num_predict=2048,
             think=False,
             keep_alive="1h",
@@ -101,7 +101,7 @@ SYSTEM_PROMPT = """한국어로만 답변하는 NutrAI 영양 코치입니다.
 반드시 [참고 영양 정보]에 있는 식품 데이터를 바탕으로 추천하세요. 목록에 없는 음식은 추천하지 마세요.
 알레르기 성분이 포함된 음식은 절대 추천하지 마세요.
 질환이 있으면 해당 질환에 적합한 식단을 최우선으로 고려하세요.
-음식명은 일반 음식명만 사용하고 브랜드명·제품명·가공식품은 사용하지 마세요.
+음식명은 반드시 일반 음식명만 사용하세요. 브랜드명·제품명이 포함된 경우 핵심 음식명만 추출하세요. 예: '페이보잇 한끼 차돌짬뽕국밥' → '차돌짬뽕국밥', '호텔컬렉션 베트남쌀국수' → '베트남쌀국수'.
 의료적 확정 표현은 사용하지 말고 권고 표현을 사용하세요.
 수치 계산(칼로리, 남은 열량)은 반드시 [식단 현황]의 수치를 그대로 사용하고 임의로 계산하지 마세요.
 
@@ -135,6 +135,9 @@ def _calc_remaining_kcal(user_profile: dict, meal_history: list[dict] | None) ->
     return max(0.0, float(target) - consumed)
 
 
+_SUPPLEMENT_KEYWORDS = ["영양제", "보충제", "비타민", "건강기능", "영양성분", "미네랄", "오메가"]
+
+
 def _rewrite_queries(
     user_query: str,
     user_profile: dict,
@@ -145,14 +148,23 @@ def _rewrite_queries(
     """
     다중 검색 쿼리 재작성 (최대 4개)
 
-    1. 기본 시간대 쿼리
-    2. 목표 + 시간대
-    3. 칼로리 제약 조건
-    4. 질환/감지 음식 연계
+    영양제/보충제 쿼리는 건강기능식품 전용 쿼리로 별도 처리
+    일반 식사 쿼리: 시간대 / 목표 / 칼로리 제약 / 질환 연계
     """
-    queries: list[str] = []
     goal = user_profile.get("goal", "")
     condition = user_profile.get("condition", "")
+
+    # 영양제/보충제 의도 감지 → 건강기능식품 전용 쿼리
+    if any(kw in user_query for kw in _SUPPLEMENT_KEYWORDS):
+        queries = ["비타민 미네랄 건강기능식품"]
+        if condition:
+            queries.append(f"{condition} 영양 보충 건강기능식품")
+        if goal and goal not in ("일반 건강 관리", ""):
+            queries.append(f"{goal} 영양제 보충제")
+        queries.append("건강기능식품 영양소 보충")
+        return queries[:4]
+
+    queries: list[str] = []
 
     # 1. 기본 쿼리: 시간대가 있으면 시간대 중심, 없으면 원문
     base = f"{meal_time} 메뉴 추천" if meal_time else user_query
@@ -197,6 +209,23 @@ def _format_context(docs: list[str]) -> str:
 
 
 # ── 핵심 검색 로직 ────────────────────────────────
+def _diversify_docs(docs: list[str], max_per_category: int = 2) -> list[str]:
+    """
+    동일 카테고리 문서가 max_per_category개 초과하지 않도록 제한
+    카테고리: 문서 첫 번째 쉼표 이전의 '_' 앞 토큰 (예: '피자_랍스타...' → '피자')
+    """
+    seen: dict[str, int] = {}
+    result = []
+    for doc in docs:
+        first_token = doc.split(",")[0].strip()
+        category = first_token.split("_")[0].strip()
+        cnt = seen.get(category, 0)
+        if cnt < max_per_category:
+            result.append(doc)
+            seen[category] = cnt + 1
+    return result
+
+
 def _search_single(search_query: str, n_results: int) -> tuple[list[str], list[float]]:
     """단일 쿼리 ChromaDB 검색"""
     embed_model = _get_embed_model()
@@ -250,7 +279,13 @@ def _retrieve_multi(
                  if doc not in filtered and not _has_allergen(doc)]
         filtered += extra[:k - len(filtered)]
 
-    retrieved_docs = filtered[:k]
+    # 카테고리 다양성 적용 (동일 카테고리 최대 2개)
+    diverse = _diversify_docs(filtered, max_per_category=2)
+    if len(diverse) < k:
+        already = set(diverse)
+        diverse += [d for d in filtered if d not in already][:k - len(diverse)]
+
+    retrieved_docs = diverse[:k]
     return retrieved_docs, _format_context(retrieved_docs)
 
 
@@ -408,11 +443,13 @@ def _strip_think_streaming(buffer: str, in_think: bool) -> tuple[str, str, bool]
 def _validate_kcal(answer: str, remaining_kcal: float | None = None) -> str:
     """
     칼로리 유효성 검사:
-    - 절대값: 50kcal 미만 또는 2000kcal 초과 → ⚠️
+    - 절대값: 1~49kcal(영양성분 표기의 0은 제외) 또는 2000kcal 초과 → ⚠️
     - 남은 칼로리 기준: remaining_kcal의 120% 초과 → ⚠️(남은 칼로리 초과)
     """
     def _mark(m: re.Match) -> str:
         val = int(m.group(1))
+        if val == 0:
+            return m.group(0)  # 영양성분 표기의 0kcal은 무시
         if val < 50 or val > 2000:
             return f"{val}kcal ⚠️"
         if remaining_kcal is not None and val > remaining_kcal * 1.2:
@@ -422,8 +459,15 @@ def _validate_kcal(answer: str, remaining_kcal: float | None = None) -> str:
 
 
 def _build_allergen_warning(answer: str, allergens: list[str]) -> str:
-    """응답 텍스트에 알레르기 키워드가 포함되면 경고 문자열 반환, 없으면 빈 문자열"""
-    found = list(dict.fromkeys(kw for kw in allergens if kw in answer))
+    """
+    **음식명** 라인만 검사하여 알레르기 경고 반환
+    코칭 메시지에서 알레르기를 언급하는 것은 정상이므로 제외
+    """
+    name_lines = " ".join(
+        line for line in answer.split("\n")
+        if line.strip().startswith("**")
+    )
+    found = list(dict.fromkeys(kw for kw in allergens if kw in name_lines))
     if not found:
         return ""
     return f"> ⚠️ **알레르기 주의**: 추천 내용에 '{', '.join(found)}' 성분이 포함될 수 있습니다. 섭취 전 반드시 확인하세요."
@@ -538,7 +582,7 @@ def stream_recommendation(
         "model": LLM_MODEL,
         "stream": True,
         "think": False,
-        "options": {"temperature": 0.3, "num_predict": 2048},
+        "options": {"temperature": 0.6, "num_predict": 2048},
         "messages": [
             {
                 "role": "user" if m.__class__.__name__ == "HumanMessage" else "system",
@@ -584,8 +628,10 @@ def stream_recommendation(
     kcal_warnings = [
         f"{int(m.group(1))}kcal"
         for m in _KCAL_RE.finditer(full_response)
-        if int(m.group(1)) < 50 or int(m.group(1)) > 2000
-        or (remaining_kcal is not None and int(m.group(1)) > remaining_kcal * 1.2)
+        if int(m.group(1)) != 0 and (
+            int(m.group(1)) < 50 or int(m.group(1)) > 2000
+            or (remaining_kcal is not None and int(m.group(1)) > remaining_kcal * 1.2)
+        )
     ]
     if kcal_warnings:
         yield (
