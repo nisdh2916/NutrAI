@@ -179,7 +179,11 @@ def _call_ollama_json(messages: list[dict], retries: int = 2) -> str:
     raise ValueError(f"JSON parse failed after {retries + 1} attempts: {last_err}")
 
 
-async def _retrieve_docs(queries: list[str], limit: int = 8) -> list[str]:
+async def _retrieve_docs(
+    queries: list[str],
+    limit: int = 8,
+    where: dict | None = None,
+) -> list[str]:
     embed_model = _get_embed_model()
     collection = get_collection()
     docs: list[str] = []
@@ -189,11 +193,10 @@ async def _retrieve_docs(queries: list[str], limit: int = 8) -> list[str]:
         query_embedding = (
             await run_in_threadpool(embed_model.encode, query, convert_to_numpy=True)
         ).tolist()
-        results = await run_in_threadpool(
-            collection.query,
-            query_embeddings=[query_embedding],
-            n_results=4,
-        )
+        query_kwargs: dict = dict(query_embeddings=[query_embedding], n_results=4)
+        if where:
+            query_kwargs["where"] = where
+        results = await run_in_threadpool(collection.query, **query_kwargs)
         for doc in results["documents"][0] if results["documents"] else []:
             if doc in seen_docs:
                 continue
@@ -216,7 +219,9 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
             user_query=f"{req.category} 메뉴 추천",
         )
 
-        docs = await _retrieve_docs(pipeline_ctx.queries)
+        # 건강기능식품 카테고리는 해당 소스만 검색
+        where_filter = {"source": "건강기능식품DB"} if req.category == "건강기능식품" else None
+        docs = await _retrieve_docs(pipeline_ctx.queries, where=where_filter)
         context = format_context_block(pipeline_ctx, docs)
         messages = [
             {

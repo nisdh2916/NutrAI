@@ -320,3 +320,53 @@ answer = post_process(llm_response, user_profile)
 ```
 
 **관련 파일:** `ai/rag_engine/rag_pipeline.py` → `_retrieve()`, `post_process()`, `_strip_think_streaming()`
+
+## 14. 리포트 화면에 샘플 데이터만 표시
+
+**증상:** 리포트 탭(일/주/월)에서 실제 식단 기록과 무관하게 항상 같은 데모 데이터가 표시됨
+
+**원인:** `report_screen.dart`의 모든 탭이 `MealSampleData.forDate(d)` (하드코딩 정적 데이터)를 사용하고, 실제 AppState DB와 연동되지 않음
+
+**해결:**
+```dart
+// 변경 전 - 하드코딩 샘플
+final meals = MealSampleData.forDate(selected);
+
+// 변경 후 - DB 실데이터 (StatefulWidget + initState 로딩)
+final data = await context.read<AppState>().getMealsForDate(date);
+final meals = data.map(_toRecord).toList();
+```
+
+`_toRecord(MealWithFoods)` 변환 헬퍼로 DB 모델 → UI 모델 변환.
+주간 탭은 `getWeeklyKcal()` + `Future.wait(7 getMealsForDate 호출)`,
+월간 탭은 `getMonthlyKcal()` + 날짜 선택 시 `getMealsForDate()` 사용.
+
+**관련 파일:** `app/lib/screens/report_screen.dart` → `_DailyTabState`, `_WeeklyTabState`, `_MonthlyTabState`
+
+## 15. 설정 화면에서 알레르기·질환 편집 불가
+
+**증상:** 온보딩에서 설정한 알레르기/질환을 나중에 변경할 방법이 없음. 설정 화면에 표시만 되고 편집 UI 없음
+
+**원인:** `settings_screen.dart`에 건강 정보 표시 및 편집 UI 미구현
+
+**해결:**
+```dart
+// 설정 화면에 건강 정보 섹션 추가
+// 알레르기 11종 + 질환 7종 멀티셀렉트 바텀시트(_HealthEditSheet)
+showModalBottomSheet(
+  context: context,
+  isScrollControlled: true,
+  builder: (_) => _HealthEditSheet(
+    initialAllergies: allergies,
+    onSave: (a, c) => appState.saveUser(
+      nickname: user.nickname,
+      allergy: a.join(','),
+      condition: c.join(','),
+    ),
+  ),
+);
+```
+
+저장 시 `AppState.saveUser()`의 `copyWith` 로직으로 나머지 프로필 필드는 유지됨.
+
+**관련 파일:** `app/lib/screens/settings_screen.dart` → `_editHealthInfo()`, `_HealthEditSheet`

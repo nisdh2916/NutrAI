@@ -1,12 +1,40 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/db_models.dart';
 import '../models/meal_models.dart';
+import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 
 // 영양소 색상 상수
 const _kCarb = Color(0xFF5BA4D0);
 const _kProtein = Color(0xFF639922);
 const _kFat = Color(0xFFE8A838);
+
+// ── 공용 헬퍼 ───────────────────────────────────────
+MealRecord _toRecord(MealWithFoods mwf) => MealRecord(
+      label: mwf.meal.label,
+      time: mwf.meal.timeDisplay,
+      foods: mwf.foods
+          .map((f) => MealFood(
+                name: f.food.foodName,
+                kcal: f.totalKcal,
+                carb: f.totalCarbG,
+                protein: f.totalProteinG,
+                fat: f.totalFatG,
+              ))
+          .toList(),
+    );
+
+bool _sameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
+String _dateKey(DateTime d) =>
+    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+Widget _buildLoading() => const Center(
+      child: CircularProgressIndicator(color: AppColors.green400),
+    );
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 리포트 화면 (루트)
@@ -126,8 +154,8 @@ class _WeekStrip extends StatelessWidget {
         children: _days.asMap().entries.map((e) {
           final i = e.key;
           final d = e.value;
-          final isSel = _same(d, selected);
-          final isToday = _same(d, today);
+          final isSel = _sameDay(d, selected);
+          final isToday = _sameDay(d, today);
           return Expanded(
             child: GestureDetector(
               onTap: () => onTap(d),
@@ -166,72 +194,79 @@ class _WeekStrip extends StatelessWidget {
       ),
     );
   }
-
-  bool _same(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 일간 리포트 탭
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-class _DailyTab extends StatelessWidget {
+class _DailyTab extends StatefulWidget {
   final DateTime selected;
   final ValueChanged<DateTime> onDateChanged;
-
-  static const _weekdayKr = ['', '월', '화', '수', '목', '금', '토', '일'];
-  static const _monthKr = [
-    '',
-    '1월',
-    '2월',
-    '3월',
-    '4월',
-    '5월',
-    '6월',
-    '7월',
-    '8월',
-    '9월',
-    '10월',
-    '11월',
-    '12월'
-  ];
 
   const _DailyTab({required this.selected, required this.onDateChanged});
 
   @override
+  State<_DailyTab> createState() => _DailyTabState();
+}
+
+class _DailyTabState extends State<_DailyTab> {
+  List<MealWithFoods>? _data;
+
+  static const _weekdayKr = ['', '월', '화', '수', '목', '금', '토', '일'];
+  static const _monthKr = [
+    '', '1월', '2월', '3월', '4월', '5월', '6월',
+    '7월', '8월', '9월', '10월', '11월', '12월'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _load(widget.selected);
+  }
+
+  @override
+  void didUpdateWidget(_DailyTab old) {
+    super.didUpdateWidget(old);
+    if (!_sameDay(old.selected, widget.selected)) _load(widget.selected);
+  }
+
+  Future<void> _load(DateTime date) async {
+    final data = await context.read<AppState>().getMealsForDate(date);
+    if (mounted) setState(() => _data = data);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final meals = MealSampleData.forDate(selected);
+    if (_data == null) return _buildLoading();
+
+    final meals = _data!.map(_toRecord).toList();
     final totalK = meals.fold(0.0, (s, m) => s + m.totalKcal);
     final totalC = meals.fold(0.0, (s, m) => s + m.totalCarb);
     final totalP = meals.fold(0.0, (s, m) => s + m.totalProtein);
     final totalF = meals.fold(0.0, (s, m) => s + m.totalFat);
+    final sel = widget.selected;
     final dateStr =
-        '${selected.year}년 ${_monthKr[selected.month]} ${selected.day}일 ${_weekdayKr[selected.weekday]}요일';
+        '${sel.year}년 ${_monthKr[sel.month]} ${sel.day}일 ${_weekdayKr[sel.weekday]}요일';
 
     return CustomScrollView(
       slivers: [
-        // 날짜 스트립
         SliverToBoxAdapter(
-            child: _WeekStrip(selected: selected, onTap: onDateChanged)),
+            child: _WeekStrip(
+                selected: widget.selected, onTap: widget.onDateChanged)),
         SliverToBoxAdapter(
             child: Divider(height: 0.5, color: AppColors.border)),
-
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           sliver: SliverList(
               delegate: SliverChildListDelegate([
-            // 날짜 헤더
             Text(dateStr,
                 style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textSecondary)),
             const SizedBox(height: 14),
-
-            // 끼니 썸네일 3칸
             _MealThumbnailRow(meals: meals),
             const SizedBox(height: 14),
-
-            // 영양소 도넛 카드
             _NutritionCard(
               totalKcal: totalK,
               carb: totalC,
@@ -239,10 +274,7 @@ class _DailyTab extends StatelessWidget {
               fat: totalF,
             ),
             const SizedBox(height: 14),
-
-            // 맞춤 조언 카드
             if (meals.isNotEmpty) _TipCard(meals: meals, totalKcal: totalK),
-
             if (meals.isEmpty) _EmptyReport(),
           ])),
         ),
@@ -269,17 +301,16 @@ class _MealThumbnailRow extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.only(right: i < 2 ? 8 : 0),
             child: Column(children: [
-              // 이미지 플레이스홀더
               Container(
                 height: 80,
                 decoration: BoxDecoration(
                   color: meal != null
-                      ? _colors[i].withOpacity(0.15)
+                      ? _colors[i].withValues(alpha: 0.15)
                       : AppColors.gray50,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                       color: meal != null
-                          ? _colors[i].withOpacity(0.3)
+                          ? _colors[i].withValues(alpha: 0.3)
                           : AppColors.border,
                       width: 0.5),
                 ),
@@ -334,7 +365,6 @@ class _NutritionCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // 도넛 차트
           SizedBox(
             width: 120,
             height: 120,
@@ -356,8 +386,6 @@ class _NutritionCard extends StatelessWidget {
             ]),
           ),
           const SizedBox(width: 20),
-
-          // 우측 수치
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -495,7 +523,6 @@ class _DonutPainter extends CustomPainter {
       ..strokeWidth = 16
       ..strokeCap = StrokeCap.butt;
 
-    // 배경 트랙
     p.color = AppColors.gray50;
     canvas.drawCircle(Offset(cx, cy), r, p);
 
@@ -524,31 +551,81 @@ class _DonutPainter extends CustomPainter {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 주간 리포트 탭
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-class _WeeklyTab extends StatelessWidget {
+class _WeeklyTab extends StatefulWidget {
   final DateTime selected;
   final ValueChanged<DateTime> onDateChanged;
   const _WeeklyTab({required this.selected, required this.onDateChanged});
 
-  List<DateTime> get _weekDays {
-    final mon = selected.subtract(Duration(days: selected.weekday - 1));
-    return List.generate(7, (i) => mon.add(Duration(days: i)));
+  @override
+  State<_WeeklyTab> createState() => _WeeklyTabState();
+}
+
+class _WeeklyTabState extends State<_WeeklyTab> {
+  Map<String, double>? _kcalMap;
+  List<List<MealRecord>>? _weekMeals;
+
+  DateTime get _monday {
+    final s = widget.selected;
+    return s.subtract(Duration(days: s.weekday - 1));
+  }
+
+  bool _sameWeek(DateTime a, DateTime b) {
+    final ma = a.subtract(Duration(days: a.weekday - 1));
+    final mb = b.subtract(Duration(days: b.weekday - 1));
+    return _sameDay(ma, mb);
   }
 
   @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_WeeklyTab old) {
+    super.didUpdateWidget(old);
+    if (!_sameWeek(old.selected, widget.selected)) _load();
+  }
+
+  Future<void> _load() async {
+    final mon = _monday;
+    final appState = context.read<AppState>();
+    final kcalMap = await appState.getWeeklyKcal(mon);
+    final days = List.generate(7, (i) => mon.add(Duration(days: i)));
+    final mealsList =
+        await Future.wait(days.map((d) => appState.getMealsForDate(d)));
+    if (mounted) {
+      setState(() {
+        _kcalMap = kcalMap;
+        _weekMeals =
+            mealsList.map((l) => l.map(_toRecord).toList()).toList();
+      });
+    }
+  }
+
+  List<DateTime> get _weekDays => List.generate(
+      7, (i) => _monday.add(Duration(days: i)));
+
+  @override
   Widget build(BuildContext context) {
+    if (_kcalMap == null || _weekMeals == null) {
+      return Column(children: [
+        _WeekStrip(selected: widget.selected, onTap: widget.onDateChanged),
+        Divider(height: 0.5, color: AppColors.border),
+        const Expanded(child: Center(child: CircularProgressIndicator(color: AppColors.green400))),
+      ]);
+    }
+
     final days = _weekDays;
-    final data = days
-        .map((d) =>
-            MealSampleData.forDate(d).fold(0.0, (s, m) => s + m.totalKcal))
-        .toList();
-    final maxK = data.reduce(math.max).clamp(1.0, double.infinity);
+    final data = days.map((d) => _kcalMap![_dateKey(d)] ?? 0.0).toList();
+    final maxK = data.isEmpty ? 1.0 : data.reduce(math.max).clamp(1.0, double.infinity);
     final avgK = data.fold(0.0, (s, v) => s + v) / 7;
     final totalK = data.fold(0.0, (s, v) => s + v);
     const _wd = ['월', '화', '수', '목', '금', '토', '일'];
 
     return CustomScrollView(slivers: [
       SliverToBoxAdapter(
-          child: _WeekStrip(selected: selected, onTap: onDateChanged)),
+          child: _WeekStrip(selected: widget.selected, onTap: widget.onDateChanged)),
       SliverToBoxAdapter(child: Divider(height: 0.5, color: AppColors.border)),
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
@@ -598,7 +675,7 @@ class _WeeklyTab extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: List.generate(7, (i) {
-                    final isSel = _sameDay(days[i], selected);
+                    final isSel = _sameDay(days[i], widget.selected);
                     final ratio = data[i] / maxK;
                     return Expanded(
                       child: Padding(
@@ -615,7 +692,7 @@ class _WeeklyTab extends StatelessWidget {
                                           : AppColors.gray200)),
                             const SizedBox(height: 3),
                             GestureDetector(
-                              onTap: () => onDateChanged(days[i]),
+                              onTap: () => widget.onDateChanged(days[i]),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
                                 height: ratio * 110,
@@ -664,8 +741,8 @@ class _WeeklyTab extends StatelessWidget {
                       color: AppColors.textPrimary)),
               const SizedBox(height: 12),
               ...List.generate(7, (i) {
-                final meals = MealSampleData.forDate(days[i]);
-                final isSel = _sameDay(days[i], selected);
+                final meals = _weekMeals![i];
+                final isSel = _sameDay(days[i], widget.selected);
                 if (meals.isEmpty) return const SizedBox.shrink();
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8),
@@ -704,15 +781,13 @@ class _WeeklyTab extends StatelessWidget {
                   ]),
                 );
               }),
+              if (_weekMeals!.every((ml) => ml.isEmpty)) _EmptyReport(),
             ]),
           ),
         ])),
       ),
     ]);
   }
-
-  bool _sameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
 class _StatBox extends StatelessWidget {
@@ -760,11 +835,42 @@ class _MonthlyTab extends StatefulWidget {
 
 class _MonthlyTabState extends State<_MonthlyTab> {
   late DateTime _cursor;
+  Map<String, double>? _monthKcalMap;
+  List<MealWithFoods>? _selMeals;
 
   @override
   void initState() {
     super.initState();
     _cursor = DateTime(widget.selected.year, widget.selected.month);
+    _loadMonth(_cursor);
+    _loadDay(widget.selected);
+  }
+
+  @override
+  void didUpdateWidget(_MonthlyTab old) {
+    super.didUpdateWidget(old);
+    if (!_sameDay(old.selected, widget.selected)) _loadDay(widget.selected);
+  }
+
+  Future<void> _loadMonth(DateTime cursor) async {
+    final map = await context.read<AppState>().getMonthlyKcal(cursor.year, cursor.month);
+    if (mounted && _cursor.year == cursor.year && _cursor.month == cursor.month) {
+      setState(() => _monthKcalMap = map);
+    }
+  }
+
+  Future<void> _loadDay(DateTime date) async {
+    final meals = await context.read<AppState>().getMealsForDate(date);
+    if (mounted) setState(() => _selMeals = meals);
+  }
+
+  void _goMonth(int delta) {
+    final next = DateTime(_cursor.year, _cursor.month + delta);
+    setState(() {
+      _cursor = next;
+      _monthKcalMap = null;
+    });
+    _loadMonth(next);
   }
 
   List<DateTime?> get _grid {
@@ -781,35 +887,22 @@ class _MonthlyTabState extends State<_MonthlyTab> {
   }
 
   static const _monthKr = [
-    '',
-    '1월',
-    '2월',
-    '3월',
-    '4월',
-    '5월',
-    '6월',
-    '7월',
-    '8월',
-    '9월',
-    '10월',
-    '11월',
-    '12월'
+    '', '1월', '2월', '3월', '4월', '5월', '6월',
+    '7월', '8월', '9월', '10월', '11월', '12월'
   ];
   static const _wd = ['월', '화', '수', '목', '금', '토', '일'];
 
   @override
   Widget build(BuildContext context) {
     final today = DateTime.now();
-    final selMeals = MealSampleData.forDate(widget.selected);
-    final monthTotal = _grid
-        .whereType<DateTime>()
-        .map((d) =>
-            MealSampleData.forDate(d).fold(0.0, (s, m) => s + m.totalKcal))
-        .fold(0.0, (s, v) => s + v);
-    final activeDays = _grid
-        .whereType<DateTime>()
-        .where((d) => MealSampleData.forDate(d).isNotEmpty)
-        .length;
+    final selMeals = (_selMeals ?? []).map(_toRecord).toList();
+
+    final monthTotal = _monthKcalMap == null
+        ? 0.0
+        : _monthKcalMap!.values.fold(0.0, (s, v) => s + v);
+    final activeDays = _monthKcalMap == null
+        ? 0
+        : _monthKcalMap!.values.where((v) => v > 0).length;
 
     return CustomScrollView(slivers: [
       // 월 이동 헤더
@@ -822,8 +915,7 @@ class _MonthlyTabState extends State<_MonthlyTab> {
             IconButton(
               icon: const Icon(Icons.chevron_left_rounded,
                   color: AppColors.textSecondary),
-              onPressed: () => setState(
-                  () => _cursor = DateTime(_cursor.year, _cursor.month - 1)),
+              onPressed: () => _goMonth(-1),
             ),
             Text('${_monthKr[_cursor.month]}  ${_cursor.year}',
                 style: const TextStyle(
@@ -833,8 +925,7 @@ class _MonthlyTabState extends State<_MonthlyTab> {
             IconButton(
               icon: const Icon(Icons.chevron_right_rounded,
                   color: AppColors.textSecondary),
-              onPressed: () => setState(
-                  () => _cursor = DateTime(_cursor.year, _cursor.month + 1)),
+              onPressed: () => _goMonth(1),
             ),
           ]),
         ),
@@ -864,63 +955,72 @@ class _MonthlyTabState extends State<_MonthlyTab> {
         child: Container(
           color: AppColors.white,
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7, childAspectRatio: 0.85, mainAxisSpacing: 4),
-            itemCount: _grid.length,
-            itemBuilder: (ctx, i) {
-              final d = _grid[i];
-              if (d == null) return const SizedBox();
-              final isSel = _same(d, widget.selected);
-              final isToday = _same(d, today);
-              final hasDot = MealSampleData.forDate(d).isNotEmpty;
-              return GestureDetector(
-                onTap: () => widget.onDateChanged(d),
-                child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color:
-                              isSel ? AppColors.green400 : Colors.transparent,
-                          border: isToday && !isSel
-                              ? Border.all(
-                                  color: AppColors.green400, width: 1.5)
-                              : null,
-                        ),
-                        child: Center(
-                            child: Text('${d.day}',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isSel
-                                        ? Colors.white
-                                        : isToday
-                                            ? AppColors.green400
-                                            : d.month != _cursor.month
-                                                ? AppColors.gray200
-                                                : AppColors.textPrimary))),
-                      ),
-                      const SizedBox(height: 2),
-                      Container(
-                          width: 4,
-                          height: 4,
-                          decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: hasDot
-                                  ? (isSel
-                                      ? Colors.white70
-                                      : AppColors.green400)
-                                  : Colors.transparent)),
-                    ]),
-              );
-            },
-          ),
+          child: _monthKcalMap == null
+              ? const SizedBox(height: 200, child: Center(child: CircularProgressIndicator(color: AppColors.green400)))
+              : GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 7,
+                          childAspectRatio: 0.85,
+                          mainAxisSpacing: 4),
+                  itemCount: _grid.length,
+                  itemBuilder: (ctx, i) {
+                    final d = _grid[i];
+                    if (d == null) return const SizedBox();
+                    final isSel = _sameDay(d, widget.selected);
+                    final isToday = _sameDay(d, today);
+                    final hasDot = (_monthKcalMap![_dateKey(d)] ?? 0) > 0;
+                    return GestureDetector(
+                      onTap: () {
+                        widget.onDateChanged(d);
+                        _loadDay(d);
+                      },
+                      child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isSel
+                                    ? AppColors.green400
+                                    : Colors.transparent,
+                                border: isToday && !isSel
+                                    ? Border.all(
+                                        color: AppColors.green400, width: 1.5)
+                                    : null,
+                              ),
+                              child: Center(
+                                  child: Text('${d.day}',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: isSel
+                                              ? Colors.white
+                                              : isToday
+                                                  ? AppColors.green400
+                                                  : d.month != _cursor.month
+                                                      ? AppColors.gray200
+                                                      : AppColors.textPrimary))),
+                            ),
+                            const SizedBox(height: 2),
+                            Container(
+                                width: 4,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: hasDot
+                                        ? (isSel
+                                            ? Colors.white70
+                                            : AppColors.green400)
+                                        : Colors.transparent)),
+                          ]),
+                    );
+                  },
+                ),
         ),
       ),
 
@@ -957,7 +1057,10 @@ class _MonthlyTabState extends State<_MonthlyTab> {
           const SizedBox(height: 14),
 
           // 선택 날짜 식단 요약
-          if (selMeals.isNotEmpty) ...[
+          if (_selMeals == null)
+            const Center(child: CircularProgressIndicator(color: AppColors.green400)),
+
+          if (_selMeals != null && selMeals.isNotEmpty) ...[
             Text(
               '${widget.selected.month}/${widget.selected.day} 식단',
               style: const TextStyle(
@@ -983,7 +1086,7 @@ class _MonthlyTabState extends State<_MonthlyTab> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.12),
+                      color: color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(m.label,
@@ -1005,30 +1108,13 @@ class _MonthlyTabState extends State<_MonthlyTab> {
                 ]),
               );
             }),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.bar_chart_rounded,
-                  size: 16, color: AppColors.green400),
-              label: const Text('식단으로 리포트 보러가기',
-                  style: TextStyle(fontSize: 13, color: AppColors.green400)),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 46),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                side: const BorderSide(color: AppColors.green400, width: 1.5),
-              ),
-            ),
           ],
 
-          if (selMeals.isEmpty) _EmptyReport(),
+          if (_selMeals != null && selMeals.isEmpty) _EmptyReport(),
         ])),
       ),
     ]);
   }
-
-  bool _same(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
 // ── 빈 리포트 상태 ─────────────────────────────────
