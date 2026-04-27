@@ -317,7 +317,6 @@ class _WeekBody extends StatelessWidget {
         // ── 주간 날짜 스트립 ──
         SliverToBoxAdapter(
           child: Container(
-            color: AppColors.surface,
             margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
