@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../models/meal_models.dart';
 import '../models/db_models.dart';
@@ -57,9 +59,9 @@ class _FoodDB {
 }
 
 Color _foodColor(String name) {
-  final c = [
-    const Color(0xFFE8D5C4), const Color(0xFFD4E8C4), const Color(0xFFC4D4E8),
-    const Color(0xFFE8C4D4), const Color(0xFFE8E8C4), const Color(0xFFC4E8E8),
+  const c = [
+    Color(0xFFFCD34D), Color(0xFFF87171), Color(0xFFFB923C),
+    Color(0xFF86EFAC), Color(0xFF93C5FD), Color(0xFFC4B5FD),
   ];
   return c[name.hashCode.abs() % c.length];
 }
@@ -95,12 +97,16 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
   // 현재 수정 중인 항목 인덱스 (-1 = 없음)
   int _editingIndex = -1;
 
+  // 선택/촬영된 이미지 경로
+  String? _pickedImagePath;
+  final _picker = ImagePicker();
+
   // 검색
   final TextEditingController _searchCtrl = TextEditingController();
   List<MealFood> _searchResults = [];
 
   static const _mealLabels = ['아침', '점심', '저녁'];
-  static const _mealColors = [Color(0xFF5BA4D0), Color(0xFF639922), Color(0xFFE8A838)];
+  static const _mealColors = [AppColors.breakfast, AppColors.lunch, AppColors.dinner];
 
   @override
   void initState() {
@@ -133,16 +139,36 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
     });
   }
 
-  // ── 사진 촬영/갤러리 ──
-  Future<void> _onPhoto() async {
+  // ── 카메라 촬영 ──
+  Future<void> _onCamera() async {
     HapticFeedback.lightImpact();
-    setState(() => _state = _ScreenState.analyzing);
-    // AI 분석 시뮬레이션 (실제론 YOLO 서버 호출)
-    await Future.delayed(const Duration(milliseconds: 1400));
+    final picked = await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+    if (picked == null) return;
     setState(() {
-      _detectedFoods
-        ..clear()
-        ..addAll(_FoodDB.aiDetected);
+      _pickedImagePath = picked.path;
+      _state = _ScreenState.analyzing;
+    });
+    await Future.delayed(const Duration(milliseconds: 1400));
+    if (!mounted) return;
+    setState(() {
+      _detectedFoods..clear()..addAll(_FoodDB.aiDetected);
+      _state = _ScreenState.confirmed;
+    });
+  }
+
+  // ── 갤러리 선택 ──
+  Future<void> _onGallery() async {
+    HapticFeedback.lightImpact();
+    final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null) return;
+    setState(() {
+      _pickedImagePath = picked.path;
+      _state = _ScreenState.analyzing;
+    });
+    await Future.delayed(const Duration(milliseconds: 1400));
+    if (!mounted) return;
+    setState(() {
+      _detectedFoods..clear()..addAll(_FoodDB.aiDetected);
       _state = _ScreenState.confirmed;
     });
   }
@@ -207,33 +233,24 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
 
     final appState = context.read<AppState>();
 
-    // FoodEntity id 조회 (name으로 매핑)
-    final allFoods = await appState.getAllFoods();
-    final foodIdMap = {for (final f in allFoods) f.foodName: f.id};
-
+    // 음식이 DB에 없으면 자동 삽입 후 id 반환
     final foodArgs = <({int foodId, double? amountG, double servingCount})>[];
     for (final f in _detectedFoods) {
-      final fid = foodIdMap[f.name];
-      if (fid != null) {
-        foodArgs.add((foodId: fid, amountG: null, servingCount: 1.0));
-      }
-    }
-
-    if (foodArgs.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('음식 정보를 찾을 수 없어요. 검색 후 다시 시도해주세요.'),
-            behavior: SnackBarBehavior.floating),
+      final fid = await appState.getOrCreateFood(
+        name: f.name, kcal: f.kcal.toDouble(),
+        carbG: f.carb.toDouble(), proteinG: f.protein.toDouble(), fatG: f.fat.toDouble(),
       );
-      return;
+      foodArgs.add((foodId: fid, amountG: null, servingCount: 1.0));
     }
 
     await appState.saveMeal(
-      mealType: MealEntity.typeFromLabel(_mealLabel),
-      eatenAt:  DateTime.now(),
-      foods:    foodArgs,
+      mealType:  MealEntity.typeFromLabel(_mealLabel),
+      eatenAt:   DateTime.now(),
+      photoPath: _pickedImagePath,
+      foods:     foodArgs,
     );
 
-    if (!context.mounted) return;
+    if (!mounted) return;
     Navigator.pop(context);
   }
 
@@ -244,7 +261,7 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.bg,
       appBar: _buildAppBar(),
       body: Column(children: [
         Expanded(
@@ -260,7 +277,7 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
 
             // ── 초기 상태: 카메라/갤러리 ──
             if (_state == _ScreenState.initial) ...[
-              SliverToBoxAdapter(child: _PhotoButtons(onPhoto: _onPhoto)),
+              SliverToBoxAdapter(child: _PhotoButtons(onCamera: _onCamera, onGallery: _onGallery)),
               SliverToBoxAdapter(child: _SearchBarWidget(
                 controller: _searchCtrl,
                 hintText: '사용자 직접 검색',
@@ -295,10 +312,12 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
 
               // 사진 완료 배너 (작게)
               SliverToBoxAdapter(child: _PhotoDoneBanner(
+                imagePath: _pickedImagePath,
                 onRetake: () => setState(() {
                   _state = _ScreenState.initial;
                   _detectedFoods.clear();
                   _editingIndex = -1;
+                  _pickedImagePath = null;
                 }),
               )),
 
@@ -310,20 +329,20 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: AppColors.green50,
+                        color: AppColors.brandSoft,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Icons.auto_awesome_rounded, size: 13, color: AppColors.green600),
+                        const Icon(Icons.auto_awesome_rounded, size: 13, color: AppColors.brandDark),
                         const SizedBox(width: 4),
                         const Text('AI 분석 결과',
                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                              color: AppColors.green600)),
+                              color: AppColors.brandDark)),
                       ]),
                     ),
                     const Spacer(),
                     Text('총 ${_totalKcal.round()}kcal',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSub,
                           fontWeight: FontWeight.w500)),
                   ]),
                 ),
@@ -366,15 +385,15 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 11),
                       decoration: BoxDecoration(
-                        color: AppColors.white,
+                        color: AppColors.surface,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.border, width: 0.5),
+                        border: Border.all(color: AppColors.line, width: 0.5),
                       ),
                       child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Icon(Icons.add_rounded, size: 16, color: AppColors.green400),
+                        Icon(Icons.add_rounded, size: 16, color: AppColors.brand),
                         SizedBox(width: 6),
                         Text('음식 직접 추가', style: TextStyle(
-                            fontSize: 13, color: AppColors.green400, fontWeight: FontWeight.w500)),
+                            fontSize: 13, color: AppColors.brand, fontWeight: FontWeight.w500)),
                       ]),
                     ),
                   ),
@@ -399,18 +418,18 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
   }
 
   AppBar _buildAppBar() => AppBar(
-    backgroundColor: AppColors.white,
+    backgroundColor: AppColors.surface,
+    surfaceTintColor: Colors.transparent,
     elevation: 0,
     leading: IconButton(
-      icon: const Icon(Icons.close_rounded, color: AppColors.textPrimary),
+      icon: const Icon(Icons.close_rounded, color: AppColors.text),
       onPressed: () => Navigator.pop(context),
     ),
-    title: const Text('음식 추가',
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+    title: const Text('음식 추가'),
     centerTitle: true,
     bottom: PreferredSize(
-      preferredSize: const Size.fromHeight(0.5),
-      child: Divider(height: 0.5, color: AppColors.border),
+      preferredSize: const Size.fromHeight(1),
+      child: Container(height: 1, color: AppColors.line),
     ),
   );
 }
@@ -429,35 +448,37 @@ class _MealSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.white,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      child: Row(children: [
-        const Text('끼니', style: TextStyle(
-            fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-        const SizedBox(width: 16),
-        ...List.generate(labels.length, (i) {
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Padding(
+          padding: EdgeInsets.only(bottom: 10),
+          child: Text('끼니', style: TextStyle(
+              fontSize: 12, fontWeight: FontWeight.w700,
+              color: AppColors.textMuted, letterSpacing: -0.01)),
+        ),
+        Row(children: List.generate(labels.length, (i) {
           final isSel = selected == labels[i];
-          return Padding(
+          return Expanded(child: Padding(
             padding: EdgeInsets.only(right: i < labels.length - 1 ? 8 : 0),
             child: GestureDetector(
               onTap: () => onChanged(labels[i]),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                height: 42,
                 decoration: BoxDecoration(
-                  color: isSel ? colors[i] : AppColors.gray50,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: isSel ? colors[i] : AppColors.border,
-                      width: isSel ? 0 : 0.5),
+                  color: isSel ? colors[i] : AppColors.lineSoft,
+                  borderRadius: BorderRadius.circular(10),
                 ),
+                alignment: Alignment.center,
                 child: Text(labels[i], style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600,
-                    color: isSel ? Colors.white : AppColors.textSecondary)),
+                    fontSize: 14, fontWeight: FontWeight.w700,
+                    letterSpacing: -0.01,
+                    color: isSel ? Colors.white : AppColors.textSub)),
               ),
             ),
-          );
-        }),
+          ));
+        })),
       ]),
     );
   }
@@ -467,21 +488,26 @@ class _MealSelector extends StatelessWidget {
 // 사진 촬영/갤러리 버튼
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 class _PhotoButtons extends StatelessWidget {
-  final VoidCallback onPhoto;
-  const _PhotoButtons({required this.onPhoto});
+  final VoidCallback onCamera;
+  final VoidCallback onGallery;
+  const _PhotoButtons({required this.onCamera, required this.onGallery});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Row(children: [
         Expanded(child: _PhotoBtn(
-          icon: Icons.camera_alt_rounded, label: 'AI 카메라로 촬영',
-          sub: '사진으로 자동 인식', color: AppColors.green400, onTap: onPhoto)),
+          icon: Icons.camera_alt_rounded, label: 'AI 카메라 촬영',
+          sub: '자동 인식', bg: AppColors.brandSoft,
+          iconBg: AppColors.brand, textColor: AppColors.brandText,
+          onTap: onCamera)),
         const SizedBox(width: 10),
         Expanded(child: _PhotoBtn(
           icon: Icons.photo_library_rounded, label: '갤러리에서 선택',
-          sub: '저장된 사진 불러오기', color: const Color(0xFF5BA4D0), onTap: onPhoto)),
+          sub: '사진 불러오기', bg: AppColors.carbSoft,
+          iconBg: AppColors.carb, textColor: AppColors.carb,
+          onTap: onGallery)),
       ]),
     );
   }
@@ -490,27 +516,32 @@ class _PhotoButtons extends StatelessWidget {
 class _PhotoBtn extends StatelessWidget {
   final IconData icon;
   final String label, sub;
-  final Color color;
+  final Color bg, iconBg, textColor;
   final VoidCallback onTap;
   const _PhotoBtn({required this.icon, required this.label,
-      required this.sub, required this.color, required this.onTap});
+      required this.sub, required this.bg, required this.iconBg,
+      required this.textColor, required this.onTap});
 
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
     child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 18),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.25)),
-      ),
+        color: bg, borderRadius: BorderRadius.circular(AppRadius.lg)),
       child: Column(children: [
-        Icon(icon, size: 28, color: color),
+        Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(
+              color: iconBg, borderRadius: BorderRadius.circular(12)),
+          child: Icon(icon, size: 22, color: Colors.white),
+        ),
         const SizedBox(height: 8),
-        Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+        Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+            color: textColor, letterSpacing: -0.01)),
         const SizedBox(height: 2),
-        Text(sub, style: TextStyle(fontSize: 11, color: color.withOpacity(0.7))),
+        Text(sub, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500,
+            color: textColor.withValues(alpha: 0.75))),
       ]),
     ),
   );
@@ -522,26 +553,25 @@ class _PhotoBtn extends StatelessWidget {
 class _AnalyzingWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
     child: Container(
       height: 140,
       decoration: BoxDecoration(
-        color: AppColors.green50,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.green100),
+        color: AppColors.brandSoft,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         SizedBox(
           width: 28, height: 28,
-          child: CircularProgressIndicator(
-              strokeWidth: 2.5, color: AppColors.green400),
+          child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.brand),
         ),
         SizedBox(height: 12),
         Text('AI가 음식을 분석하고 있어요...',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.green600)),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                color: AppColors.brandText, letterSpacing: -0.01)),
         SizedBox(height: 4),
         Text('잠시만 기다려주세요',
-            style: TextStyle(fontSize: 11, color: AppColors.green400)),
+            style: TextStyle(fontSize: 11, color: AppColors.brand)),
       ]),
     ),
   );
@@ -551,34 +581,50 @@ class _AnalyzingWidget extends StatelessWidget {
 // 사진 완료 배너 (작게)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 class _PhotoDoneBanner extends StatelessWidget {
+  final String? imagePath;
   final VoidCallback onRetake;
-  const _PhotoDoneBanner({required this.onRetake});
+  const _PhotoDoneBanner({this.imagePath, required this.onRetake});
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.green50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.green100),
-      ),
-      child: Row(children: [
-        const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.green400),
-        const SizedBox(width: 8),
-        const Expanded(child: Text('사진 분석 완료!',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.green600))),
-        GestureDetector(
-          onTap: onRetake,
-          child: const Row(children: [
-            Icon(Icons.refresh_rounded, size: 15, color: AppColors.green400),
-            SizedBox(width: 3),
-            Text('다시 촬영', style: TextStyle(fontSize: 11, color: AppColors.green400)),
-          ]),
+    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (imagePath != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            child: Image.file(
+              File(imagePath!),
+              width: double.infinity, height: 140, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+          ),
         ),
-      ]),
-    ),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.brandSoft,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Row(children: [
+          const Icon(Icons.check_circle_rounded, size: 20, color: AppColors.brand),
+          const SizedBox(width: 8),
+          const Expanded(child: Text('사진 분석 완료!',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                  color: AppColors.brandText, letterSpacing: -0.01))),
+          GestureDetector(
+            onTap: onRetake,
+            child: const Row(children: [
+              Icon(Icons.refresh_rounded, size: 14, color: AppColors.brandText),
+              SizedBox(width: 2),
+              Text('다시 촬영', style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.brandText)),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
   );
 }
 
@@ -600,36 +646,35 @@ class _DetectedFoodRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      margin: const EdgeInsets.only(bottom: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: isEditing ? AppColors.green50 : AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isEditing ? AppColors.green400 : AppColors.border,
-          width: isEditing ? 1.5 : 0.5,
+        color: isEditing ? AppColors.brandSoft : AppColors.surface,
+        border: Border(
+          bottom: const BorderSide(color: AppColors.lineSoft, width: 1),
+          left: BorderSide(
+              color: isEditing ? AppColors.brand : Colors.transparent, width: 3),
         ),
       ),
       child: Row(children: [
-        // 음식 아이콘
+        // 컬러 박스
         Container(
-          width: 40, height: 40,
+          width: 44, height: 44,
           decoration: BoxDecoration(
             color: _foodColor(food.name),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: Center(child: Icon(Icons.restaurant_rounded, size: 20,
-              color: _foodColor(food.name).withOpacity(0.6))),
         ),
         const SizedBox(width: 12),
 
         // 이름 + 영양 요약
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(food.name, style: const TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              fontSize: 15, fontWeight: FontWeight.w700,
+              color: AppColors.text, letterSpacing: -0.015)),
           const SizedBox(height: 2),
-          Text('${food.kcal.round()}kcal  탄 ${food.carb.round()}g  단 ${food.protein.round()}g',
-              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          Text('${food.kcal.round()}kcal · 탄 ${food.carb.round()}g · 단 ${food.protein.round()}g · 지 ${food.fat.round()}g',
+              style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
         ])),
 
         // 수정 버튼
@@ -639,23 +684,23 @@ class _DetectedFoodRow extends StatelessWidget {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: isEditing ? AppColors.green400 : AppColors.gray50,
+              color: AppColors.lineSoft,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                  color: isEditing ? AppColors.green400 : AppColors.border,
-                  width: 0.5),
             ),
-            child: Text('수정', style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w600,
-                color: isEditing ? Colors.white : AppColors.textSecondary)),
+            child: const Text('수정', style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSub)),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 6),
 
         // 삭제 버튼
         GestureDetector(
           onTap: onRemove,
-          child: const Icon(Icons.close_rounded, size: 18, color: AppColors.gray200),
+          child: Container(
+            width: 28, height: 28,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.close_rounded, size: 16, color: AppColors.textMuted),
+          ),
         ),
       ]),
     );
@@ -699,7 +744,7 @@ class _EditPanel extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(16, 14, 16, 10),
           child: Text('혹시 이 음식이었나요?',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary)),
+                  color: AppColors.text)),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -718,9 +763,9 @@ class _EditPanel extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border, width: 0.5),
+                    border: Border.all(color: AppColors.line, width: 0.5),
                   ),
                   child: Row(children: [
                     Container(
@@ -729,7 +774,7 @@ class _EditPanel extends StatelessWidget {
                           color: _foodColor(food.name),
                           borderRadius: BorderRadius.circular(6)),
                       child: Center(child: Icon(Icons.restaurant_rounded, size: 14,
-                          color: _foodColor(food.name).withOpacity(0.6))),
+                          color: _foodColor(food.name).withValues(alpha: 0.6))),
                     ),
                     const SizedBox(width: 8),
                     Expanded(child: Column(
@@ -738,10 +783,10 @@ class _EditPanel extends StatelessWidget {
                       children: [
                         Text(food.name, style: const TextStyle(
                             fontSize: 12, fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary),
+                            color: AppColors.text),
                           overflow: TextOverflow.ellipsis),
                         Text('${food.kcal.round()}kcal',
-                          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                          style: const TextStyle(fontSize: 10, color: AppColors.textSub)),
                       ],
                     )),
                   ]),
@@ -765,29 +810,34 @@ class _SearchBarWidget extends StatelessWidget {
   const _SearchBarWidget({required this.controller, required this.hintText});
 
   @override
-  Widget build(BuildContext context) => TextField(
-    controller: controller,
-    style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-    decoration: InputDecoration(
-      hintText: hintText,
-      hintStyle: const TextStyle(color: AppColors.gray200, fontSize: 14),
-      prefixIcon: const Icon(Icons.search_rounded, color: AppColors.gray200, size: 20),
-      suffixIcon: controller.text.isNotEmpty
-          ? GestureDetector(
-              onTap: controller.clear,
-              child: const Icon(Icons.close_rounded, size: 18, color: AppColors.gray200))
-          : null,
-      filled: true,
-      fillColor: AppColors.gray50,
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-      border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.green400, width: 1.5)),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+    child: Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppColors.lineSoft,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Row(children: [
+        const Icon(Icons.search_rounded, size: 18, color: AppColors.textMuted),
+        const SizedBox(width: 10),
+        Expanded(child: TextField(
+          controller: controller,
+          style: const TextStyle(fontSize: 14, color: AppColors.text),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+            border: InputBorder.none,
+            isDense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        )),
+        if (controller.text.isNotEmpty)
+          GestureDetector(
+            onTap: controller.clear,
+            child: const Icon(Icons.close_rounded, size: 16, color: AppColors.textMuted)),
+      ]),
     ),
   );
 }
@@ -802,28 +852,28 @@ class _SearchResultTile extends StatelessWidget {
     onTap: onTap,
     child: Container(
       margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border, width: 0.5),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppShadows.card,
       ),
       child: Row(children: [
         Container(
-          width: 32, height: 32,
+          width: 36, height: 36,
           decoration: BoxDecoration(
-              color: _foodColor(food.name), borderRadius: BorderRadius.circular(6)),
-          child: Center(child: Icon(Icons.restaurant_rounded, size: 16,
-              color: _foodColor(food.name).withOpacity(0.6))),
+              color: _foodColor(food.name),
+              borderRadius: BorderRadius.circular(8)),
         ),
         const SizedBox(width: 10),
         Expanded(child: Text(food.name,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
-                color: AppColors.textPrimary))),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
+                color: AppColors.text, letterSpacing: -0.01))),
         Text('${food.kcal.round()}kcal',
-            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                color: AppColors.textMuted)),
         const SizedBox(width: 8),
-        const Icon(Icons.add_circle_outline_rounded, size: 18, color: AppColors.green400),
+        const Icon(Icons.add_circle_outline_rounded, size: 20, color: AppColors.brand),
       ]),
     ),
   );
@@ -850,41 +900,52 @@ class _BottomSaveBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      color: AppColors.white,
-      border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
+    decoration: const BoxDecoration(
+      color: AppColors.surface,
+      border: Border(top: BorderSide(color: AppColors.line, width: 1)),
     ),
-    padding: EdgeInsets.fromLTRB(16, 10, 16,
-        MediaQuery.of(context).padding.bottom + 12),
+    padding: EdgeInsets.fromLTRB(20, 12, 20,
+        MediaQuery.of(context).padding.bottom + 16),
     child: Row(children: [
-      if (_canSave && foodCount > 0) ...[
+      if (_canSave) ...[
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('총 칼로리',
-              style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-          Text('${totalKcal.round()} kcal',
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary)),
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                  color: AppColors.textMuted)),
+          Row(crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text('${totalKcal.round()}',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
+                        color: AppColors.text, letterSpacing: -0.025)),
+                const SizedBox(width: 2),
+                const Text('kcal', style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted)),
+              ]),
         ]),
         const SizedBox(width: 14),
       ],
-      Expanded(child: ElevatedButton(
-        onPressed: _canSave ? onSave : null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _canSave ? AppColors.green400 : AppColors.gray100,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: AppColors.gray100,
-          disabledForegroundColor: AppColors.gray200,
-          minimumSize: const Size(double.infinity, 50),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          elevation: 0,
-        ),
-        child: Text(
-          !_canSave
-              ? '음식을 선택해주세요'
-              : state == _ScreenState.editing
-                  ? '수정 완료 후 추가하기'
-                  : '$mealLabel에 $foodCount개 추가하기',
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      Expanded(child: GestureDetector(
+        onTap: _canSave ? onSave : null,
+        child: Container(
+          height: 52,
+          decoration: BoxDecoration(
+            color: _canSave ? AppColors.brand : AppColors.lineStrong,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            !_canSave
+                ? '음식을 선택해주세요'
+                : state == _ScreenState.editing
+                    ? '수정 완료 후 추가하기'
+                    : '$mealLabel에 $foodCount개 추가',
+            style: TextStyle(
+              fontSize: 15, fontWeight: FontWeight.w800,
+              color: _canSave ? Colors.white : AppColors.textMuted,
+              letterSpacing: -0.015,
+            ),
+          ),
         ),
       )),
     ]),
