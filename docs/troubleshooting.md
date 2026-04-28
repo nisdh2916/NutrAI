@@ -370,3 +370,29 @@ showModalBottomSheet(
 저장 시 `AppState.saveUser()`의 `copyWith` 로직으로 나머지 프로필 필드는 유지됨.
 
 **관련 파일:** `app/lib/screens/settings_screen.dart` → `_editHealthInfo()`, `_HealthEditSheet`
+
+---
+
+## 16. Windows Python 3.12에서 RAG 의존성 누락 시 서버 전체 import 실패
+
+**증상:** `chromadb`, `torch`, `langchain_ollama` 같은 RAG/임베딩 의존성이 설치되지 않은 환경에서 `/health`, `/meals`처럼 RAG와 무관한 API까지 서버 import 단계에서 실패하거나, `/chat`, `/recommend`, `/food/search` 요청이 500으로 응답함.
+
+**원인:** RAG 라우터와 식품 추가 서비스가 모듈 import 시점에 무거운 선택 의존성을 바로 import함. 특히 Windows Python 3.12에서는 `chromadb==1.0.4`의 하위 의존성인 `chroma-hnswlib`가 C++ Build Tools 없이 빌드에 실패할 수 있어 서버 전체 기동을 막음.
+
+**해결:**
+```python
+# 변경 전: 모듈 import 시점에 RAG 의존성 로드
+from ai.rag_engine.rag_pipeline import get_collection, _get_embed_model
+
+# 변경 후: 실제 RAG 기능 호출 시점에 lazy import
+def get_food_search(...):
+    try:
+        from ai.rag_engine.rag_pipeline import get_collection, _get_embed_model
+        ...
+    except ImportError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+```
+
+Windows에서는 서버/RAG 가상환경을 Python 3.11로 만드는 것을 권장함. Python 3.12를 유지해야 한다면 Microsoft C++ Build Tools 설치 후 `pip install -r server/requirements.txt`를 다시 실행.
+
+**관련 파일:** `ai/rag_engine/__init__.py`, `server/api/routes_chat.py`, `server/api/routes_food.py`, `server/api/routes_recommend.py`, `server/api/routes_profile.py`, `server/services/food_add_service.py`, `docs/windows-python-setup.md`

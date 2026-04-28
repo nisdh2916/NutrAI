@@ -7,12 +7,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from ai.rag_engine.rag_pipeline import (
-    LLM_MODEL,
-    OLLAMA_BASE_URL,
-    _get_embed_model,
-    get_collection,
-)
 from server.services.recommendation_pipeline import (
     build_coaching_prefix,
     build_recommendation_context,
@@ -157,6 +151,8 @@ def _extract_json(text: str) -> dict:
 
 
 def _call_ollama_json(messages: list[dict], retries: int = 2) -> str:
+    from ai.rag_engine.rag_pipeline import LLM_MODEL, OLLAMA_BASE_URL
+
     payload = {
         "model": LLM_MODEL,
         "format": "json",
@@ -184,6 +180,8 @@ async def _retrieve_docs(
     limit: int = 8,
     where: dict | None = None,
 ) -> list[str]:
+    from ai.rag_engine.rag_pipeline import _get_embed_model, get_collection
+
     embed_model = _get_embed_model()
     collection = get_collection()
     docs: list[str] = []
@@ -253,7 +251,7 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
             coaching=f"{build_coaching_prefix(pipeline_ctx)} {data.get('coaching', '')}".strip(),
         )
 
-    except RuntimeError as e:
+    except (ImportError, RuntimeError) as e:
         logger.error("Recommendation pipeline error: %s", e)
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:

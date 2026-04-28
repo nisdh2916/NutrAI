@@ -1,12 +1,10 @@
 import json
 import logging
+import os
 import re
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-
-from langchain_ollama import OllamaLLM
-from ai.rag_engine.rag_pipeline import LLM_MODEL, OLLAMA_BASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +72,8 @@ def _extract_json(text: str) -> dict:
 @router.post("/extract", response_model=ExtractedProfile)
 async def extract_profile(req: ExtractRequest) -> ExtractedProfile:
     try:
+        from langchain_ollama import OllamaLLM
+
         # 대화 내용을 텍스트로 변환
         conv_lines = []
         for msg in req.messages:
@@ -84,8 +84,8 @@ async def extract_profile(req: ExtractRequest) -> ExtractedProfile:
         prompt = EXTRACT_PROMPT.format(conversation=conversation)
 
         llm = OllamaLLM(
-            model=LLM_MODEL,
-            base_url=OLLAMA_BASE_URL,
+            model=os.getenv("LLM_MODEL", "qwen3:8b"),
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
             temperature=0.1,
         )
         raw = llm.invoke(prompt)
@@ -104,6 +104,9 @@ async def extract_profile(req: ExtractRequest) -> ExtractedProfile:
             reply=data.get("reply", ""),
         )
 
+    except ImportError as e:
+        logger.error("프로필 추출 의존성 오류: %s", e)
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.exception("프로필 추출 중 오류")
         raise HTTPException(status_code=500, detail=str(e))
