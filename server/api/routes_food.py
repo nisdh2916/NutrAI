@@ -1,13 +1,12 @@
 import re
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from server.api.schemas import (
     FoodAddRequest, FoodBulkAddRequest, FoodAddResponse,
     FoodSearchResponse, FoodSearchResult,
 )
 from server.services.food_add_service import add_foods
-from ai.rag_engine.rag_pipeline import get_collection, _get_embed_model
 
 router = APIRouter(tags=["food"])
 
@@ -15,13 +14,19 @@ router = APIRouter(tags=["food"])
 @router.post("/food/add", response_model=FoodAddResponse)
 def post_food_add(payload: FoodAddRequest) -> FoodAddResponse:
     """식품 단건 추가"""
-    return add_foods([payload])
+    try:
+        return add_foods([payload])
+    except ImportError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
 
 @router.post("/food/bulk", response_model=FoodAddResponse)
 def post_food_bulk(payload: FoodBulkAddRequest) -> FoodAddResponse:
     """식품 일괄 추가"""
-    return add_foods(payload.items)
+    try:
+        return add_foods(payload.items)
+    except ImportError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
 
 def _parse_float(text: str, label: str) -> float:
@@ -70,9 +75,14 @@ def get_food_search(
     k: int = Query(5, ge=1, le=20, description="결과 수"),
 ) -> FoodSearchResponse:
     """ChromaDB에서 음식 시맨틱 검색"""
-    model = _get_embed_model()
-    emb = model.encode(q, convert_to_numpy=True).tolist()
-    collection = get_collection()
-    results = collection.query(query_embeddings=[emb], n_results=k)
-    docs = results["documents"][0] if results["documents"] else []
-    return FoodSearchResponse(results=[_doc_to_result(d) for d in docs])
+    try:
+        from ai.rag_engine.rag_pipeline import get_collection, _get_embed_model
+
+        model = _get_embed_model()
+        emb = model.encode(q, convert_to_numpy=True).tolist()
+        collection = get_collection()
+        results = collection.query(query_embeddings=[emb], n_results=k)
+        docs = results["documents"][0] if results["documents"] else []
+        return FoodSearchResponse(results=[_doc_to_result(d) for d in docs])
+    except ImportError as e:
+        raise HTTPException(status_code=503, detail=str(e))
