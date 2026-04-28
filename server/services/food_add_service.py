@@ -1,21 +1,22 @@
 import uuid
-import chromadb
 from pathlib import Path
-from sentence_transformers import SentenceTransformer
+from typing import Any
 
 from server.api.schemas import FoodAddRequest, FoodAddResponse
 
 CHROMA_DIR = Path(__file__).parent.parent.parent / "ai" / "rag_engine" / "chroma_db"
 EMBED_MODEL = "snunlp/KR-SBERT-V40K-klueNLI-augSTS"
 
-_model: SentenceTransformer | None = None
+_model: Any = None
 _collection = None
 
 
-def _get_model() -> SentenceTransformer:
+def _get_model():
     global _model
     if _model is None:
         import torch
+        from sentence_transformers import SentenceTransformer
+
         device = "cuda" if torch.cuda.is_available() else "cpu"
         _model = SentenceTransformer(EMBED_MODEL, device=device)
     return _model
@@ -24,6 +25,8 @@ def _get_model() -> SentenceTransformer:
 def _get_collection():
     global _collection
     if _collection is None:
+        import chromadb
+
         client = chromadb.PersistentClient(path=str(CHROMA_DIR))
         _collection = client.get_or_create_collection(
             name="nutrition",

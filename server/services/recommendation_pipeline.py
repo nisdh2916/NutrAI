@@ -8,6 +8,28 @@ from typing import Any
 NO_LIMIT_REMAINING_KCAL = 0.0
 KCAL_TOLERANCE = 50.0
 
+ALLERGEN_KEYWORDS: dict[str, list[str]] = {
+    "유제품": ["우유", "치즈", "버터", "요거트", "크림", "유청", "라떼", "아이스크림"],
+    "견과류": ["아몬드", "호두", "캐슈", "땅콩", "잣", "피스타치오", "마카다미아", "견과"],
+    "갑각류": ["새우", "게", "랍스터", "크랩", "대게"],
+    "밀": ["빵", "파스타", "면", "국수", "라면", "우동", "스파게티", "밀가루", "만두"],
+    "글루텐": ["빵", "파스타", "면", "국수", "라면", "우동", "밀가루"],
+    "계란": ["계란", "달걀", "에그", "오믈렛", "마요네즈"],
+    "대두": ["두부", "된장", "간장", "두유", "콩국수", "낫토", "청국장"],
+    "복숭아": ["복숭아", "피치"],
+    "토마토": ["토마토", "케첩"],
+    "고등어": ["고등어"],
+    "조개류": ["조개", "홍합", "굴", "전복", "바지락", "오징어", "낙지", "문어"],
+}
+
+MEAL_TIME_LABELS = {
+    "breakfast": "아침",
+    "lunch": "점심",
+    "dinner": "저녁",
+    "snack": "간식",
+    "meal": "식사",
+}
+
 
 @dataclass(frozen=True)
 class MealStatus:
@@ -154,28 +176,29 @@ def rewrite_queries(
     user_query: str,
 ) -> list[str]:
     queries: list[str] = []
+    meal_label = MEAL_TIME_LABELS.get(meal_time, meal_time)
     if user_query.strip():
         queries.append(user_query.strip())
     if category and category not in ("전체", "all"):
         queries.append(f"{category} 메뉴 추천")
     if goal == "weight_loss":
-        queries.append(f"체중 감량 {meal_time} 메뉴 추천")
+        queries.append(f"체중 감량 {meal_label} 메뉴 추천")
     elif goal == "weight_gain":
-        queries.append(f"증량 고단백 {meal_time} 메뉴 추천")
+        queries.append(f"증량 고단백 {meal_label} 메뉴 추천")
     else:
-        queries.append(f"건강한 {meal_time} 메뉴 추천")
+        queries.append(f"건강한 {meal_label} 메뉴 추천")
 
     if meal_status.remaining_kcal > 0:
-        queries.append(f"남은 칼로리 {meal_status.remaining_kcal:.0f}kcal 이하 {meal_time} 식사")
+        queries.append(f"남은 칼로리 {meal_status.remaining_kcal:.0f}kcal 이하 {meal_label} 식사")
     if meal_status.detected_foods:
-        queries.append(f"{', '.join(meal_status.detected_foods[:3])} 섭취 후 {meal_time} 조절 식단")
+        queries.append(f"{', '.join(meal_status.detected_foods[:3])} 섭취 후 {meal_label} 조절 식단")
 
     if "low_sodium" in constraints:
-        queries.append(f"저염식 {meal_time} 메뉴 예시")
+        queries.append(f"저염식 {meal_label} 메뉴 예시")
     if "low_sugar" in constraints:
-        queries.append(f"저당식 {meal_time} 메뉴 예시")
+        queries.append(f"저당식 {meal_label} 메뉴 예시")
     if "high_protein" in constraints:
-        queries.append(f"고단백 {meal_time} 메뉴 예시")
+        queries.append(f"고단백 {meal_label} 메뉴 예시")
 
     for constraint in constraints:
         if constraint.startswith("condition:"):
@@ -210,7 +233,11 @@ def format_context_block(ctx: RecommendationContext, docs: list[str]) -> str:
 
 def item_has_allergen(name: str, allergy_str: str | None) -> tuple[bool, list[str]]:
     allergens = [item for item in _split_words(allergy_str) if item.lower() not in ("none", "없음")]
-    matched = [allergen for allergen in allergens if allergen and allergen in name]
+    matched = []
+    for allergen in allergens:
+        keywords = ALLERGEN_KEYWORDS.get(allergen, [allergen])
+        if any(keyword and keyword in name for keyword in keywords):
+            matched.append(allergen)
     return bool(matched), matched
 
 
@@ -222,7 +249,7 @@ def validate_and_rank_items(
     count: int,
 ) -> list[dict]:
     valid: list[dict] = []
-    fallback: list[dict] = []
+    calorie_fallback: list[dict] = []
 
     for raw in raw_items:
         name = str(raw.get("name") or raw.get("menu") or "").strip()
@@ -241,14 +268,14 @@ def validate_and_rank_items(
             "allergen_warning": allergen_warning,
             "allergen_names": allergen_names,
         }
-        fallback.append(item)
         if allergen_warning:
             continue
         if remaining_kcal > 0 and kcal > remaining_kcal + KCAL_TOLERANCE:
+            calorie_fallback.append(item)
             continue
         valid.append(item)
 
-    candidates = valid or fallback
+    candidates = valid or calorie_fallback
     return sorted(candidates, key=lambda item: _score_item(item, remaining_kcal), reverse=True)[:count]
 
 
