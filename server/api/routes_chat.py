@@ -5,8 +5,6 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from ai.rag_engine import get_recommendation, stream_recommendation
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -46,6 +44,8 @@ class ChatResponse(BaseModel):
 @router.post("", response_model=ChatResponse)
 async def chat(req: ChatRequest) -> ChatResponse:
     try:
+        from ai.rag_engine import get_recommendation
+
         meal_history = [m.model_dump() for m in req.meal_history] if req.meal_history else None
         result = await run_in_threadpool(
             get_recommendation,
@@ -55,7 +55,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
             meal_history,
         )
         return ChatResponse(**result)
-    except RuntimeError as e:
+    except (ImportError, RuntimeError) as e:
         logger.error("RAG 파이프라인 오류: %s", e)
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
@@ -67,6 +67,8 @@ async def chat(req: ChatRequest) -> ChatResponse:
 async def chat_stream(req: ChatRequest):
     def generate():
         try:
+            from ai.rag_engine import stream_recommendation
+
             meal_history = [m.model_dump() for m in req.meal_history] if req.meal_history else None
             for chunk in stream_recommendation(
                 user_query=req.message,
@@ -75,7 +77,7 @@ async def chat_stream(req: ChatRequest):
                 meal_history=meal_history,
             ):
                 yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
-        except RuntimeError as e:
+        except (ImportError, RuntimeError) as e:
             logger.error("스트리밍 RAG 오류: %s", e)
             yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
         except Exception as e:
