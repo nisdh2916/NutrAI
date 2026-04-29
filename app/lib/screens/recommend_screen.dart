@@ -18,6 +18,14 @@ class RecommendScreen extends StatefulWidget {
 
 const _kCategories = ['전체', '다이어트', '기호별', '질환맞춤', '건강기능식품'];
 
+const _kCategoryMeta = <String, ({IconData icon, String desc, Color color})>{
+  '전체':      (icon: Icons.restaurant_menu_rounded,  desc: '오늘 섭취량과 목표에 맞춘 AI 맞춤 추천',        color: AppColors.brand),
+  '다이어트':  (icon: Icons.monitor_weight_rounded,   desc: '칼로리·지방을 낮춘 체중 관리 식단',             color: Color(0xFF3182F6)),
+  '기호별':    (icon: Icons.favorite_rounded,          desc: '입맛과 선호도 기반 취향 맞춤 메뉴',             color: Color(0xFFFF9500)),
+  '질환맞춤':  (icon: Icons.medical_services_rounded,  desc: '등록된 질환(당뇨·고혈압 등)에 맞는 식단',      color: Color(0xFF8B5CF6)),
+  '건강기능식품':(icon: Icons.medication_rounded,      desc: '건강기능식품 DB 기반 영양 보충 추천',           color: Color(0xFF22A447)),
+};
+
 class _RecommendScreenState extends State<RecommendScreen> {
   String _selectedCategory = '전체';
 
@@ -165,6 +173,7 @@ class _RecommendScreenState extends State<RecommendScreen> {
                 : _RecommendFeed(
                     items: _items,
                     coaching: _coaching,
+                    selectedCategory: _selectedCategory,
                     onCardTap: _onCardTap,
                     onFavoriteToggle: (item) => setState(() => item.isFavorite = !item.isFavorite),
                     onFeedbackTap: _showFeedbackSheet,
@@ -265,6 +274,7 @@ class _RecommendScreenState extends State<RecommendScreen> {
 class _RecommendFeed extends StatelessWidget {
   final List<RecommendItem> items;
   final String coaching;
+  final String selectedCategory;
   final ValueChanged<RecommendItem> onCardTap;
   final ValueChanged<RecommendItem> onFavoriteToggle;
   final ValueChanged<RecommendItem> onFeedbackTap;
@@ -274,6 +284,7 @@ class _RecommendFeed extends StatelessWidget {
   const _RecommendFeed({
     required this.items,
     this.coaching = '',
+    this.selectedCategory = '전체',
     required this.onCardTap,
     required this.onFavoriteToggle,
     required this.onFeedbackTap,
@@ -300,6 +311,9 @@ class _RecommendFeed extends StatelessWidget {
 
     return CustomScrollView(
       slivers: [
+        // 카테고리 설명 배너
+        SliverToBoxAdapter(child: _CategoryBanner(category: selectedCategory)),
+
         // AI 가이드 배너
         if (coaching.isNotEmpty)
           SliverToBoxAdapter(
@@ -365,6 +379,47 @@ class _RecommendFeed extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 카테고리 설명 배너
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+class _CategoryBanner extends StatelessWidget {
+  final String category;
+  const _CategoryBanner({required this.category});
+
+  @override
+  Widget build(BuildContext context) {
+    final meta = _kCategoryMeta[category];
+    if (meta == null || category == '전체') return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: meta.color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: meta.color.withValues(alpha: 0.2), width: 1),
+      ),
+      child: Row(children: [
+        Container(
+          width: 32, height: 32,
+          decoration: BoxDecoration(
+            color: meta.color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(meta.icon, size: 16, color: meta.color),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(category, style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700, color: meta.color)),
+          const SizedBox(height: 2),
+          Text(meta.desc, style: TextStyle(
+              fontSize: 12, color: meta.color.withValues(alpha: 0.8))),
+        ])),
+      ]),
     );
   }
 }
