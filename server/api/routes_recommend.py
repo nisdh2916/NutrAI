@@ -181,26 +181,29 @@ _RETRYABLE = (
 )
 
 
-def _call_ollama_json(messages: list[dict], retries: int = 2) -> str:
+def _call_ollama_json(messages: list[dict], retries: int | None = None) -> str:
     """
     Ollama chat API를 JSON 응답 모드로 호출.
     네트워크/타임아웃/JSON 파싱 오류 모두 exponential backoff로 재시도.
     """
-    from ai.rag_engine.rag_pipeline import LLM_MODEL, OLLAMA_BASE_URL
+    from server.common.llm_config import LLM, JSON_TEMPERATURE, JSON_NUM_PREDICT
+
+    if retries is None:
+        retries = LLM.retries
 
     payload = {
-        "model": LLM_MODEL,
+        "model": LLM.model,
         "format": "json",
         "stream": False,
         "think": False,
-        "options": {"temperature": 0.4, "num_predict": 1024},
+        "options": {"temperature": JSON_TEMPERATURE, "num_predict": JSON_NUM_PREDICT},
         "messages": messages,
     }
     last_err: Exception | None = None
     for attempt in range(retries + 1):
         try:
             resp = _requests.post(
-                f"{OLLAMA_BASE_URL}/api/chat", json=payload, timeout=120
+                f"{LLM.base_url}/api/chat", json=payload, timeout=LLM.timeout_s
             )
             resp.raise_for_status()
             raw = resp.json()["message"]["content"]
