@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import time
 
 import requests as _requests
 from fastapi import APIRouter, HTTPException
@@ -140,6 +141,7 @@ def _build_meal_str(meals: list[dict]) -> str:
 
 
 def _extract_json(text: str) -> dict:
+    """LLM 응답에서 JSON 객체를 안전하게 추출. 실패 시 ValueError."""
     match = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
     if match:
         text = match.group(1)
@@ -150,7 +152,40 @@ def _extract_json(text: str) -> dict:
     return json.loads(text[start : end + 1])
 
 
+def _try_extract_json(text: str) -> dict:
+    """Strict 파싱 실패 시 항목 단위 부분 추출을 시도하는 폴백."""
+    try:
+        return _extract_json(text)
+    except (ValueError, json.JSONDecodeError):
+        # items 배열만이라도 살려본다 — JSON 일부가 잘려도 메뉴 일부는 복구
+        items: list[dict] = []
+        for chunk in re.findall(r"\{[^{}]*\"name\"[^{}]*\}", text, re.DOTALL):
+            try:
+                items.append(json.loads(chunk))
+            except json.JSONDecodeError:
+                continue
+        if items:
+            logger.info("Recovered %d items via fragment parsing", len(items))
+            return {"items": items, "coaching": ""}
+        raise
+
+
+# 재시도 대상 예외 — 네트워크/타임아웃까지 포함
+_RETRYABLE = (
+    _requests.exceptions.Timeout,
+    _requests.exceptions.ConnectionError,
+    _requests.exceptions.HTTPError,
+    ValueError,
+    KeyError,
+    json.JSONDecodeError,
+)
+
+
 def _call_ollama_json(messages: list[dict], retries: int = 2) -> str:
+    """
+    Ollama chat API를 JSON 응답 모드로 호출.
+    네트워크/타임아웃/JSON 파싱 오류 모두 exponential backoff로 재시도.
+    """
     from ai.rag_engine.rag_pipeline import LLM_MODEL, OLLAMA_BASE_URL
 
     payload = {
@@ -161,18 +196,37 @@ def _call_ollama_json(messages: list[dict], retries: int = 2) -> str:
         "options": {"temperature": 0.4, "num_predict": 1024},
         "messages": messages,
     }
-    last_err = None
+    last_err: Exception | None = None
     for attempt in range(retries + 1):
         try:
-            resp = _requests.post(f"{OLLAMA_BASE_URL}/api/chat", json=payload, timeout=120)
+            resp = _requests.post(
+                f"{OLLAMA_BASE_URL}/api/chat", json=payload, timeout=120
+            )
             resp.raise_for_status()
             raw = resp.json()["message"]["content"]
-            _extract_json(raw)
+            _extract_json(raw)  # 파싱 가능한지 검증
             return raw
-        except (ValueError, KeyError, json.JSONDecodeError) as e:
+        except _RETRYABLE as e:
             last_err = e
-            logger.warning("JSON parse failed (%d/%d): %s", attempt + 1, retries + 1, e)
-    raise ValueError(f"JSON parse failed after {retries + 1} attempts: {last_err}")
+            wait = min(2 ** attempt, 8)  # 1s, 2s, 4s, 8s 상한
+            logger.warning(
+                "Ollama call failed (%d/%d): %s — retry in %ds",
+                attempt + 1, retries + 1, type(e).__name__, wait,
+            )
+            if attempt < retries:
+                time.sleep(wait)
+    raise ValueError(f"Ollama call failed after {retries + 1} attempts: {last_err}")
+
+
+def _fallback_response(category: str, reason: str) -> "RecommendResponse":
+    """LLM/네트워크 완전 실패 시 사용자에게 보낼 최소 안내 응답."""
+    return RecommendResponse(
+        items=[],
+        coaching=(
+            f"⚠️ 추천 엔진이 일시적으로 응답하지 않아요 ({reason}). "
+            "잠시 후 새로고침해주세요."
+        ),
+    )
 
 
 async def _retrieve_docs(
@@ -237,8 +291,14 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
             },
         ]
 
-        raw = await run_in_threadpool(_call_ollama_json, messages)
-        data = _extract_json(raw)
+        try:
+            raw = await run_in_threadpool(_call_ollama_json, messages)
+            data = _try_extract_json(raw)
+        except (ValueError, _requests.exceptions.RequestException) as e:
+            # 재시도 모두 실패 → 빈 추천으로 폴백 (5xx 대신 200 + 안내)
+            logger.warning("Recommendation fallback: %s", e)
+            return _fallback_response(req.category, "LLM 응답 실패")
+
         ranked_items = validate_and_rank_items(
             data.get("items", []),
             remaining_kcal=pipeline_ctx.meal_status.remaining_kcal,
