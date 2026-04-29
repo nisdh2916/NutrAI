@@ -58,6 +58,36 @@ class _FoodDB {
   }
 }
 
+// 알레르겐 → 관련 키워드 매핑
+const _allergenKeywords = <String, List<String>>{
+  '유제품':  ['치즈', '우유', '버터', '요거트', '크림', '아이스크림', '라떼'],
+  '견과류':  ['땅콩', '호두', '아몬드', '캐슈', '피스타치오', '견과', '잣'],
+  '갑각류':  ['새우', '게', '랍스터', '크랩', '낙지', '오징어', '문어'],
+  '계란':    ['달걀', '계란', '오믈렛', '스크램블'],
+  '밀/글루텐':['라면', '빵', '국수', '우동', '파스타', '쿠키', '케이크', '떡볶이', '만두'],
+  '대두':    ['두부', '된장', '간장', '청국장', '두유', '순두부', '콩'],
+  '생선':    ['고등어', '연어', '참치', '갈치', '조기', '멸치', '명태', '생선'],
+  '돼지고기':['삼겹살', '제육', '돈까스', '베이컨', '햄', '소시지', '족발', '보쌈'],
+  '닭고기':  ['닭가슴살', '치킨', '닭갈비', '닭볶음', '통닭'],
+  '쇠고기':  ['불고기', '갈비', '스테이크', '육회', '소고기', '한우'],
+  '해산물':  ['조개', '홍합', '전복', '굴', '해물', '해산물'],
+};
+
+// 음식 이름에 해당하는 알레르겐 목록 반환
+List<String> _detectAllergens(String foodName, String? userAllergy) {
+  if (userAllergy == null || userAllergy.isEmpty) return [];
+  final userAllergens = userAllergy.split(',').map((e) => e.trim()).toList();
+  final found = <String>[];
+  for (final allergen in userAllergens) {
+    final keywords = _allergenKeywords[allergen];
+    if (keywords == null) continue;
+    if (keywords.any((kw) => foodName.contains(kw))) {
+      found.add(allergen);
+    }
+  }
+  return found;
+}
+
 Color _foodColor(String name) {
   const c = [
     Color(0xFFFCD34D), Color(0xFFF87171), Color(0xFFFB923C),
@@ -348,6 +378,12 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
                 ),
               ),
 
+              // 알레르기 경고 배너
+              SliverToBoxAdapter(child: _AllergyWarningBanner(
+                foods: _detectedFoods,
+                userAllergy: context.watch<AppState>().user?.allergy,
+              )),
+
               // 탐지된 음식 리스트
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
@@ -355,6 +391,10 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
                   (ctx, i) => _DetectedFoodRow(
                     food:       _detectedFoods[i],
                     isEditing:  _editingIndex == i,
+                    allergens:  _detectAllergens(
+                      _detectedFoods[i].name,
+                      context.read<AppState>().user?.allergy,
+                    ),
                     onEdit:     () => _onEditTap(i),
                     onRemove:   () => _onRemoveFood(i),
                   ),
@@ -634,11 +674,13 @@ class _PhotoDoneBanner extends StatelessWidget {
 class _DetectedFoodRow extends StatelessWidget {
   final MealFood food;
   final bool isEditing;
+  final List<String> allergens;
   final VoidCallback onEdit;
   final VoidCallback onRemove;
 
   const _DetectedFoodRow({
     required this.food, required this.isEditing,
+    required this.allergens,
     required this.onEdit, required this.onRemove,
   });
 
@@ -667,14 +709,40 @@ class _DetectedFoodRow extends StatelessWidget {
         ),
         const SizedBox(width: 12),
 
-        // 이름 + 영양 요약
+        // 이름 + 영양 요약 + 알레르기 뱃지
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(food.name, style: const TextStyle(
-              fontSize: 15, fontWeight: FontWeight.w700,
-              color: AppColors.text, letterSpacing: -0.015)),
+          Row(children: [
+            Flexible(child: Text(food.name, style: const TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w700,
+                color: AppColors.text, letterSpacing: -0.015))),
+            if (allergens.isNotEmpty) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.warning_amber_rounded, size: 11, color: Color(0xFFEF4444)),
+                  const SizedBox(width: 2),
+                  Text('알레르기', style: const TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w700,
+                      color: Color(0xFFEF4444))),
+                ]),
+              ),
+            ],
+          ]),
           const SizedBox(height: 2),
           Text('${food.kcal.round()}kcal · 탄 ${food.carb.round()}g · 단 ${food.protein.round()}g · 지 ${food.fat.round()}g',
               style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+          if (allergens.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text('⚠ ${allergens.join(', ')} 포함',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFFEF4444),
+                      fontWeight: FontWeight.w600)),
+            ),
         ])),
 
         // 수정 버튼
@@ -877,6 +945,51 @@ class _SearchResultTile extends StatelessWidget {
       ]),
     ),
   );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 알레르기 경고 배너
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+class _AllergyWarningBanner extends StatelessWidget {
+  final List<MealFood> foods;
+  final String? userAllergy;
+  const _AllergyWarningBanner({required this.foods, this.userAllergy});
+
+  @override
+  Widget build(BuildContext context) {
+    if (userAllergy == null || userAllergy!.isEmpty || foods.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final triggered = <String>{};
+    for (final f in foods) {
+      triggered.addAll(_detectAllergens(f.name, userAllergy));
+    }
+    if (triggered.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFFECACA), width: 1),
+        ),
+        child: Row(children: [
+          const Icon(Icons.warning_amber_rounded, size: 20, color: Color(0xFFEF4444)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('알레르기 주의!',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                    color: Color(0xFFDC2626))),
+            const SizedBox(height: 2),
+            Text('${triggered.join(', ')} 성분이 포함된 음식이 있어요.',
+                style: const TextStyle(fontSize: 12, color: Color(0xFFEF4444))),
+          ])),
+        ]),
+      ),
+    );
+  }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
