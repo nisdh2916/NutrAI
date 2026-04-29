@@ -5,6 +5,10 @@ import '../repositories/user_repository.dart';
 import '../repositories/meal_repository.dart';
 import '../repositories/food_repository.dart';
 
+/// AppState 로딩 단계.
+/// loading 플래그 + error 문자열 조합 대신 명시적 enum으로 상태 전이를 표현.
+enum LoadingState { idle, loading, success, error }
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // AppState: 앱 전역 상태 (Provider로 제공)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -16,14 +20,17 @@ class AppState extends ChangeNotifier {
   // ── 상태 ────────────────────────────────────────
   UserProfileEntity? _user;
   List<MealWithFoods> _todayMeals = [];
-  bool _loading = false;
+  LoadingState _state = LoadingState.idle;
   String? _error;
 
   // ── Getters ──────────────────────────────────────
   UserProfileEntity? get user      => _user;
   List<MealWithFoods> get todayMeals => _todayMeals;
-  bool get loading    => _loading;
+  LoadingState get state => _state;
+  /// 기존 코드 호환용 — 신규 코드는 `state`를 직접 사용 권장
+  bool get loading    => _state == LoadingState.loading;
   String? get error   => _error;
+  bool get hasError   => _state == LoadingState.error;
 
   int? get userId     => _user?.id;
 
@@ -36,14 +43,15 @@ class AppState extends ChangeNotifier {
   // 앱 초기화 (main에서 호출)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Future<void> init() async {
-    _setLoading(true);
+    _setState(LoadingState.loading);
     try {
       _user = await _userRepo.getFirstUser();
-      if (_user != null) await loadTodayMeals();
+      if (_user != null) await _loadTodayMealsInternal();
+      _error = null;
+      _setState(LoadingState.success);
     } catch (e) {
       _error = e.toString();
-    } finally {
-      _setLoading(false);
+      _setState(LoadingState.error);
     }
   }
 
@@ -108,9 +116,13 @@ class AppState extends ChangeNotifier {
   // 오늘 식단
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Future<void> loadTodayMeals() async {
+  Future<void> _loadTodayMealsInternal() async {
     if (userId == null) return;
     _todayMeals = await _mealRepo.getTodayMeals(userId!);
+  }
+
+  Future<void> loadTodayMeals() async {
+    await _loadTodayMealsInternal();
     notifyListeners();
   }
 
@@ -199,7 +211,7 @@ class AppState extends ChangeNotifier {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Future<void> resetUser() async {
-    _setLoading(true);
+    _setState(LoadingState.loading);
     try {
       // DB 전체 초기화 후 샘플 데이터 재삽입
       await DatabaseHelper.instance.deleteDatabase();
@@ -207,14 +219,17 @@ class AppState extends ChangeNotifier {
       await DatabaseHelper.instance.database;
       _user       = null;
       _todayMeals = [];
-    } finally {
-      _setLoading(false); // notifyListeners 포함 → _RootRouter가 온보딩으로 전환
+      _error      = null;
+      _setState(LoadingState.idle); // notifyListeners 포함 → _RootRouter가 온보딩으로 전환
+    } catch (e) {
+      _error = e.toString();
+      _setState(LoadingState.error);
     }
   }
 
   // ── 내부 ────────────────────────────────────────
-  void _setLoading(bool v) {
-    _loading = v;
+  void _setState(LoadingState s) {
+    _state = s;
     notifyListeners();
   }
 }
