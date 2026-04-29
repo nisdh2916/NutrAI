@@ -31,19 +31,11 @@ _llm: ChatOllama | None = None
 
 
 # ── 알레르기 키워드 매핑 ────────────────────────────
-_ALLERGEN_KEYWORDS: dict[str, list[str]] = {
-    "유제품": ["우유", "치즈", "버터", "요거트", "크림", "유청", "밀크", "라떼", "카푸치노", "아이스크림"],
-    "견과류": ["아몬드", "호두", "캐슈", "땅콩", "잣", "피스타치오", "마카다미아", "헤이즐넛", "피넛", "견과"],
-    "갑각류": ["새우", "게", "랍스터", "크랩", "대게"],
-    "밀":    ["빵", "파스타", "면", "국수", "라면", "우동", "스파게티", "밀가루", "만두", "냉면", "소면"],
-    "글루텐": ["빵", "파스타", "면", "국수", "라면", "우동", "밀가루"],
-    "계란":  ["계란", "달걀", "에그", "오믈렛", "마요네즈"],
-    "대두":  ["두부", "된장", "간장", "두유", "콩국수", "낫토", "청국장"],
-    "복숭아": ["복숭아", "피치"],
-    "토마토": ["토마토", "케첩"],
-    "고등어": ["고등어"],
-    "조개류": ["조개", "홍합", "굴", "전복", "바지락", "오징어", "낙지", "문어"],
-}
+# 단일 출처: server/common/allergens.py
+from server.common.allergens import (
+    ALLERGEN_KEYWORDS as _ALLERGEN_KEYWORDS,
+    extract_allergen_keywords,
+)
 
 # ── 시간대 / 의도 키워드 ──────────────────────────
 _MEAL_TIME_MAP: dict[str, str] = {
@@ -191,14 +183,8 @@ def _rewrite_queries(
 
 # ── 알레르기 유틸 ─────────────────────────────────
 def _extract_allergens(user_profile: dict) -> list[str]:
-    """알레르기 카테고리 → 실제 식재료 키워드 변환"""
-    raw = user_profile.get("allergy", "") or ""
-    categories = [a.strip() for a in raw.replace("，", ",").split(",")
-                  if a.strip() and a.strip() != "없음"]
-    keywords: list[str] = []
-    for cat in categories:
-        keywords.extend(_ALLERGEN_KEYWORDS.get(cat, [cat]))
-    return list(dict.fromkeys(keywords))
+    """알레르기 카테고리 → 실제 식재료 키워드 변환 (server.common.allergens 위임)"""
+    return extract_allergen_keywords(user_profile.get("allergy"))
 
 
 # ── 컨텍스트 포맷 ─────────────────────────────────
