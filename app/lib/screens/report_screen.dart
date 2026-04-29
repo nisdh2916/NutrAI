@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../core/nutrition.dart';
 import '../models/db_models.dart';
 import '../models/meal_models.dart';
 import '../providers/app_state.dart';
@@ -763,8 +764,11 @@ class _WeeklyTabState extends State<_WeeklyTab> {
           ),
           const SizedBox(height: 14),
 
-          // 주간 영양소 평균
-          _WeeklyNutrAvg(weekMeals: _weekMeals!),
+          // 주간 영양소 평균 (사용자 프로필 기반 목표치)
+          _WeeklyNutrAvg(
+            weekMeals: _weekMeals!,
+            goal: calculateNutritionGoal(context.watch<AppState>().user),
+          ),
           const SizedBox(height: 14),
 
           // AI 주간 인사이트
@@ -778,7 +782,8 @@ class _WeeklyTabState extends State<_WeeklyTab> {
 // ── 주간 영양소 평균 카드 ──────────────────────────
 class _WeeklyNutrAvg extends StatelessWidget {
   final List<List<MealRecord>> weekMeals;
-  const _WeeklyNutrAvg({required this.weekMeals});
+  final NutritionGoal goal;
+  const _WeeklyNutrAvg({required this.weekMeals, required this.goal});
 
   @override
   Widget build(BuildContext context) {
@@ -803,14 +808,14 @@ class _WeeklyNutrAvg extends StatelessWidget {
             fontSize: 15, fontWeight: FontWeight.w700,
             color: AppColors.text, letterSpacing: -0.01)),
         const SizedBox(height: 4),
-        Text('기록된 $days일 기준', style: const TextStyle(
-            fontSize: 11, color: AppColors.textMuted)),
+        Text('기록된 $days일 기준 · 목표 ${goal.targetKcal.round()}kcal',
+            style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
         const SizedBox(height: 14),
-        _NutrAvgRow(label: '탄수화물', gram: avgC, goal: 300, color: AppColors.carb),
+        _NutrAvgRow(label: '탄수화물', gram: avgC, goal: goal.carbG,    color: AppColors.carb),
         const SizedBox(height: 12),
-        _NutrAvgRow(label: '단백질',   gram: avgP, goal: 60,  color: AppColors.protein),
+        _NutrAvgRow(label: '단백질',   gram: avgP, goal: goal.proteinG, color: AppColors.protein),
         const SizedBox(height: 12),
-        _NutrAvgRow(label: '지방',     gram: avgF, goal: 65,  color: AppColors.fat),
+        _NutrAvgRow(label: '지방',     gram: avgF, goal: goal.fatG,     color: AppColors.fat),
       ]),
     );
   }

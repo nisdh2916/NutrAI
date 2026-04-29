@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from server.common.allergens import ALLERGEN_KEYWORDS, check_allergen
+from server.common.nutrition import calculate_target_kcal
 
 NO_LIMIT_REMAINING_KCAL = 0.0
 KCAL_TOLERANCE = 50.0
@@ -118,7 +119,9 @@ def build_meal_status(
             total_protein += _as_float(food.get("protein_g"))
             total_fat += _as_float(food.get("fat_g"))
 
-    target = _as_float(profile.get("target_kcal"), default=NO_LIMIT_REMAINING_KCAL)
+    # 명시 target_kcal이 없으면 프로필 기반 자동 계산
+    explicit = _as_float(profile.get("target_kcal"))
+    target = explicit if explicit > 0 else calculate_target_kcal(profile)
     remaining = max(0.0, target - consumed_today) if target > 0 else NO_LIMIT_REMAINING_KCAL
 
     return MealStatus(
