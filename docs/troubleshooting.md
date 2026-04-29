@@ -396,3 +396,71 @@ def get_food_search(...):
 Windows에서는 서버/RAG 가상환경을 Python 3.11로 만드는 것을 권장함. Python 3.12를 유지해야 한다면 Microsoft C++ Build Tools 설치 후 `pip install -r server/requirements.txt`를 다시 실행.
 
 **관련 파일:** `ai/rag_engine/__init__.py`, `server/api/routes_chat.py`, `server/api/routes_food.py`, `server/api/routes_recommend.py`, `server/api/routes_profile.py`, `server/services/food_add_service.py`, `docs/windows-python-setup.md`
+
+---
+
+## 17. 식사 추가 시 알레르기 성분이 포함된 음식인지 알 수 없음
+
+**증상:** 사용자가 알레르기 정보를 등록했지만, 식사 추가 화면에서 AI가 탐지한 음식이 알레르기 성분을 포함하는지 아무런 경고 없이 그냥 추가됨
+
+**원인:** `food_add_screen.dart`에 사용자 알레르기 × 음식 이름 교차 체크 로직이 없었음
+
+**해결:**
+```dart
+// 알레르겐 키워드 매핑 (최상단 상수)
+const _allergenKeywords = <String, List<String>>{
+  '유제품': ['치즈', '우유', '버터', ...],
+  '대두':   ['두부', '된장', '순두부', ...],
+  // ... 11개 알레르겐
+};
+
+// 음식명 × 사용자 알레르기 교차 탐지 헬퍼
+List<String> _detectAllergens(String foodName, String? userAllergy) { ... }
+
+// _DetectedFoodRow에 allergens 파라미터 추가 → 뱃지 + 성분 텍스트 표시
+// _AllergyWarningBanner 위젯 → 알레르기 음식 있을 때 빨간 배너 표시
+```
+
+**관련 파일:** `app/lib/screens/food_add_screen.dart` → `_detectAllergens()`, `_AllergyWarningBanner`, `_DetectedFoodRow`
+
+---
+
+## 18. 추천 화면에서 카테고리를 선택해도 어떤 기준인지 알 수 없음
+
+**증상:** 추천 화면에 '다이어트', '질환맞춤' 등 카테고리 칩이 있지만, 선택해도 어떤 기준으로 필터링되는지 사용자에게 설명이 없음
+
+**원인:** `recommend_screen.dart`에 카테고리별 설명 UI 미구현 (칩만 있고 맥락 설명 없음)
+
+**해결:**
+```dart
+// 카테고리 메타데이터 상수 추가
+const _kCategoryMeta = <String, ({IconData icon, String desc, Color color})>{
+  '다이어트':  (icon: Icons.monitor_weight_rounded, desc: '칼로리·지방을 낮춘 체중 관리 식단', color: Color(0xFF3182F6)),
+  '질환맞춤':  (icon: Icons.medical_services_rounded, desc: '등록된 질환에 맞는 식단', color: Color(0xFF8B5CF6)),
+  // ...
+};
+
+// _CategoryBanner 위젯: 카테고리 선택 시 아이콘+설명 배너 렌더링
+// _RecommendFeed에 selectedCategory 파라미터 추가
+```
+
+**관련 파일:** `app/lib/screens/recommend_screen.dart` → `_kCategoryMeta`, `_CategoryBanner`
+
+---
+
+## 19. 주간/월간 리포트에 영양소 평균·인사이트가 없음
+
+**증상:** 주간 탭은 칼로리 막대 그래프만 있고 탄/단/지 평균이 없음. 월간 탭은 달력+숫자 통계만 있고 AI 코멘트 없음
+
+**원인:** `report_screen.dart`의 주간·월간 탭에 영양소 분석 위젯 미구현
+
+**해결:**
+```dart
+// 주간: _WeeklyNutrAvg — 탄/단/지 일 평균 + 목표 대비 진행 바 (초과 시 빨간 표시)
+// 주간: _WeeklyTipCard — 영양소 패턴 기반 AI 인사이트 메시지
+// 월간: _MonthlyInsightCard — 월 평균 칼로리 평가 + 베스트 데이 하이라이트
+```
+
+목표치: 탄수화물 300g, 단백질 60g, 지방 65g (일반 성인 기준 기본값)
+
+**관련 파일:** `app/lib/screens/report_screen.dart` → `_WeeklyNutrAvg`, `_WeeklyTipCard`, `_MonthlyInsightCard`
