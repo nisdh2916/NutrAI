@@ -761,9 +761,157 @@ class _WeeklyTabState extends State<_WeeklyTab> {
               if (_weekMeals!.every((ml) => ml.isEmpty)) _EmptyReport(),
             ]),
           ),
+          const SizedBox(height: 14),
+
+          // 주간 영양소 평균
+          _WeeklyNutrAvg(weekMeals: _weekMeals!),
+          const SizedBox(height: 14),
+
+          // AI 주간 인사이트
+          _WeeklyTipCard(weekData: data, weekMeals: _weekMeals!),
         ])),
       ),
     ]);
+  }
+}
+
+// ── 주간 영양소 평균 카드 ──────────────────────────
+class _WeeklyNutrAvg extends StatelessWidget {
+  final List<List<MealRecord>> weekMeals;
+  const _WeeklyNutrAvg({required this.weekMeals});
+
+  @override
+  Widget build(BuildContext context) {
+    final days = weekMeals.where((ml) => ml.isNotEmpty).length;
+    if (days == 0) return const SizedBox.shrink();
+    final totalC = weekMeals.fold(0.0, (s, ml) => s + ml.fold(0.0, (ss, m) => ss + m.totalCarb));
+    final totalP = weekMeals.fold(0.0, (s, ml) => s + ml.fold(0.0, (ss, m) => ss + m.totalProtein));
+    final totalF = weekMeals.fold(0.0, (s, ml) => s + ml.fold(0.0, (ss, m) => ss + m.totalFat));
+    final avgC = totalC / days;
+    final avgP = totalP / days;
+    final avgF = totalF / days;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('영양소 일 평균', style: TextStyle(
+            fontSize: 15, fontWeight: FontWeight.w700,
+            color: AppColors.text, letterSpacing: -0.01)),
+        const SizedBox(height: 4),
+        Text('기록된 $days일 기준', style: const TextStyle(
+            fontSize: 11, color: AppColors.textMuted)),
+        const SizedBox(height: 14),
+        _NutrAvgRow(label: '탄수화물', gram: avgC, goal: 300, color: AppColors.carb),
+        const SizedBox(height: 12),
+        _NutrAvgRow(label: '단백질',   gram: avgP, goal: 60,  color: AppColors.protein),
+        const SizedBox(height: 12),
+        _NutrAvgRow(label: '지방',     gram: avgF, goal: 65,  color: AppColors.fat),
+      ]),
+    );
+  }
+}
+
+class _NutrAvgRow extends StatelessWidget {
+  final String label;
+  final double gram, goal;
+  final Color color;
+  const _NutrAvgRow({required this.label, required this.gram,
+      required this.goal, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = (gram / goal).clamp(0.0, 1.0);
+    final over  = gram > goal;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Container(width: 8, height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(
+            fontSize: 12, color: AppColors.textSub, fontWeight: FontWeight.w500)),
+        const Spacer(),
+        Text('${gram.round()}g', style: TextStyle(
+            fontSize: 12, fontWeight: FontWeight.w700,
+            color: over ? const Color(0xFFEF4444) : AppColors.text)),
+        Text(' / ${goal.round()}g', style: const TextStyle(
+            fontSize: 11, color: AppColors.textMuted)),
+      ]),
+      const SizedBox(height: 5),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(3),
+        child: LinearProgressIndicator(
+          value: ratio,
+          minHeight: 5,
+          backgroundColor: AppColors.lineSoft,
+          valueColor: AlwaysStoppedAnimation<Color>(
+              over ? const Color(0xFFEF4444) : color),
+        ),
+      ),
+    ]);
+  }
+}
+
+// ── AI 주간 인사이트 카드 ──────────────────────────
+class _WeeklyTipCard extends StatelessWidget {
+  final List<double> weekData;
+  final List<List<MealRecord>> weekMeals;
+  const _WeeklyTipCard({required this.weekData, required this.weekMeals});
+
+  String get _tip {
+    final recorded = weekData.where((v) => v > 0).length;
+    if (recorded < 3) return '이번 주 기록이 $recorded일뿐이에요. 꾸준한 기록이 정확한 분석의 시작이에요!';
+
+    final avgK = weekData.fold(0.0, (s, v) => s + v) / 7;
+    final avgP = weekMeals.fold(0.0, (s, ml) => s + ml.fold(0.0, (ss, m) => ss + m.totalProtein)) / 7;
+    final avgC = weekMeals.fold(0.0, (s, ml) => s + ml.fold(0.0, (ss, m) => ss + m.totalCarb)) / 7;
+    final avgF = weekMeals.fold(0.0, (s, ml) => s + ml.fold(0.0, (ss, m) => ss + m.totalFat)) / 7;
+
+    if (avgP < 50) return '이번 주 단백질 평균이 ${avgP.round()}g으로 낮아요. 닭가슴살·달걀·두부를 매 끼니 포함해보세요.';
+    if (avgC > 350) return '이번 주 탄수화물 평균이 ${avgC.round()}g으로 높아요. 밥 양을 줄이고 채소 비중을 늘려보세요.';
+    if (avgF > 80) return '이번 주 지방 평균이 ${avgF.round()}g으로 높아요. 튀김류보다 구이·찜 요리를 선택해보세요.';
+    if (avgK < 1200) return '이번 주 평균 칼로리가 ${avgK.round()}kcal로 부족해요. 기초대사량 이상의 식사를 유지해주세요.';
+    return '이번 주 식단이 전반적으로 균형 잡혀 있어요! $recorded일 기록으로 좋은 습관을 만들고 있어요.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recorded = weekData.where((v) => v > 0).length;
+    if (recorded == 0) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE6F4EA), Color(0xFFF0FAF2)],
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 28, height: 28,
+            decoration: BoxDecoration(
+              color: AppColors.brand,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: const Icon(Icons.insights_rounded, size: 14, color: Colors.white),
+          ),
+          const SizedBox(width: 8),
+          const Text('주간 AI 인사이트', style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.brandText)),
+        ]),
+        const SizedBox(height: 10),
+        Text(_tip, style: const TextStyle(
+            fontSize: 13, color: AppColors.brandText, height: 1.6,
+            fontWeight: FontWeight.w500)),
+      ]),
+    );
   }
 }
 
@@ -1052,9 +1200,103 @@ class _MonthlyTabState extends State<_MonthlyTab> {
           ],
 
           if (_selMeals != null && selMeals.isEmpty) _EmptyReport(),
+
+          const SizedBox(height: 14),
+          if (_monthKcalMap != null) _MonthlyInsightCard(
+            kcalMap: _monthKcalMap!,
+            activeDays: activeDays,
+            monthTotal: monthTotal,
+          ),
         ])),
       ),
     ]);
+  }
+}
+
+// ── 월간 AI 인사이트 카드 ──────────────────────────
+class _MonthlyInsightCard extends StatelessWidget {
+  final Map<String, double> kcalMap;
+  final int activeDays;
+  final double monthTotal;
+  const _MonthlyInsightCard({
+    required this.kcalMap,
+    required this.activeDays,
+    required this.monthTotal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (activeDays == 0) return const SizedBox.shrink();
+
+    final avgK = monthTotal / activeDays;
+    // 베스트 데이: 1200~2500 kcal 범위에서 가장 높은 날
+    final bestEntry = kcalMap.entries
+        .where((e) => e.value >= 1200 && e.value <= 2500)
+        .fold<MapEntry<String, double>?>(null, (best, e) =>
+            best == null || e.value > best.value ? e : best);
+
+    String tip;
+    if (activeDays < 7) {
+      tip = '이번 달 $activeDays일 기록했어요. 꾸준히 기록할수록 더 정확한 분석이 가능해요!';
+    } else if (avgK < 1400) {
+      tip = '월 평균 ${avgK.round()}kcal로 섭취가 부족한 편이에요. 식사를 거르지 않고 규칙적으로 드시는 게 중요해요.';
+    } else if (avgK > 2500) {
+      tip = '월 평균 ${avgK.round()}kcal로 목표 칼로리를 초과하고 있어요. 식사량을 조금씩 줄여보세요.';
+    } else {
+      tip = '이번 달 $activeDays일을 꾸준히 기록하셨어요! 월 평균 ${avgK.round()}kcal로 목표 범위 내에 있어요.';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE6F4EA), Color(0xFFF0FAF2)],
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 28, height: 28,
+            decoration: BoxDecoration(
+              color: AppColors.brand,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: const Icon(Icons.emoji_events_rounded, size: 14, color: Colors.white),
+          ),
+          const SizedBox(width: 8),
+          const Text('월간 AI 인사이트', style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.brandText)),
+        ]),
+        const SizedBox(height: 10),
+        Text(tip, style: const TextStyle(
+            fontSize: 13, color: AppColors.brandText, height: 1.6,
+            fontWeight: FontWeight.w500)),
+        if (bestEntry != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.brand.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Row(children: [
+              const Icon(Icons.star_rounded, size: 14, color: AppColors.brand),
+              const SizedBox(width: 6),
+              Text('베스트 데이 ${bestEntry.key}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                      color: AppColors.brandText)),
+              const Spacer(),
+              Text('${bestEntry.value.round()}kcal',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                      color: AppColors.brandText)),
+            ]),
+          ),
+        ],
+      ]),
+    );
   }
 }
 
