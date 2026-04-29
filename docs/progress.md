@@ -1,10 +1,10 @@
 # NutrAI 작업 진행 상황
 
-마지막 업데이트: 2026-04-27
+마지막 업데이트: 2026-04-29
 
 ---
 
-## 현재 브랜치: `feat/rag-improvements`
+## 현재 브랜치: `feat/allergy-warning-and-features`
 
 ---
 
@@ -37,14 +37,40 @@
 - **프로젝트:** `.claude/settings.json` → `"defaultMode": "auto"` 추가
 - **글로벌:** `C:/Users/user/.claude/settings.json` → `"defaultMode": "auto"` 추가 (2026-04-27 완료)
 
+### ✅ 5. 알레르기 경고 표시 (2026-04-29)
+- **파일:** `app/lib/screens/food_add_screen.dart`
+- **내용:** 사용자 알레르기 × 탐지 음식 교차 경고 UI 추가
+  - `_allergenKeywords` 매핑 (11개 알레르겐 × 관련 키워드 목록)
+  - `_detectAllergens()` 헬퍼 함수
+  - `_AllergyWarningBanner` — 알레르기 음식 있을 때 빨간 배너
+  - `_DetectedFoodRow`에 알레르기 뱃지 + 성분 텍스트 표시
+- **트러블슈팅:** `docs/troubleshooting.md` 17번 항목 추가
+
+### ✅ 6. 추천 카테고리 설명 배너 (2026-04-29)
+- **파일:** `app/lib/screens/recommend_screen.dart`
+- **내용:** 카테고리 선택 시 기준 설명 배너 추가
+  - `_kCategoryMeta` — 5개 카테고리별 아이콘·설명·색상 메타데이터
+  - `_CategoryBanner` — 선택된 카테고리 설명 배너 위젯
+  - 백엔드는 이미 `category` 파라미터 처리 중 (변경 없음)
+- **트러블슈팅:** `docs/troubleshooting.md` 18번 항목 추가
+
+### ✅ 7. 주간/월간 리포트 인사이트 강화 (2026-04-29)
+- **파일:** `app/lib/screens/report_screen.dart`
+- **내용:** 주간·월간 탭에 영양소 분석 및 AI 인사이트 추가
+  - `_WeeklyNutrAvg` — 탄/단/지 일 평균 + 목표 대비 진행 바
+  - `_WeeklyTipCard` — 영양소 패턴 기반 AI 주간 인사이트
+  - `_MonthlyInsightCard` — 월 평균 칼로리 평가 + 베스트 데이 하이라이트
+- **트러블슈팅:** `docs/troubleshooting.md` 19번 항목 추가
+
 ---
 
 ## 미완료 / 남은 작업
 
-### ⬜ 5. `feat/rag-improvements` PR 머지
-- **방법:** GitHub에서 직접 PR 생성 및 머지
-  - URL: `https://github.com/nisdh2916/NutrAI/compare/main...feat/rag-improvements`
-- **이유:** `gh` CLI 미설치, branch protection으로 직접 push 불가
+### ⬜ 기술 문서화
+- 알고리즘 흐름도, RAG 파이프라인 설명 (발표용)
+
+### ⬜ 외부 로그인 연동 (선택)
+- 네이버/카카오 OAuth (선택사항)
 
 ---
 
@@ -54,9 +80,11 @@
 |------|------|------|
 | 리포트 DB 연동 | ✅ 완료 | 일/주/월간 탭 모두 |
 | 알레르기 설정 UI | ✅ 완료 | 바텀시트 멀티셀렉트 |
-| 추천 카테고리 세분화 | ⬜ 미완료 | RAG 추천 결과 카테고리 분류 |
-| 주간/월간 리포트 상세 | ⬜ 미완료 | 현재 기본 차트만 표시 |
-| 알레르기 성분 식품 연동 경고 | ⬜ 미완료 | 식품 등록 시 알레르기 경고 표시 |
+| 추천 카테고리 세분화 | ✅ 완료 | 카테고리별 설명 배너 + 백엔드 필터 |
+| 주간/월간 리포트 상세 | ✅ 완료 | 영양소 평균 + AI 인사이트 카드 |
+| 알레르기 성분 식품 연동 경고 | ✅ 완료 | 식품 등록 시 알레르기 경고 표시 |
+| 기술 문서화 | ⬜ 미완료 | 알고리즘 흐름도, 발표용 자료 |
+| 외부 로그인 | ⬜ 미완료 | 선택사항 |
 
 ---
 
