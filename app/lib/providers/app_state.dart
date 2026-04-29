@@ -132,7 +132,9 @@ class AppState extends ChangeNotifier {
     return _mealRepo.getMealsForDate(userId!, date);
   }
 
-  /// 이름으로 음식 조회, 없으면 생성 후 id 반환
+  /// 이름으로 음식 조회, 없으면 생성 후 id 반환.
+  /// 기존 LIKE 검색 후 클라이언트 필터링 패턴 → 단일 정확 이름 쿼리로 단순화
+  /// (food_name에 인덱스가 있으면 O(log n))
   Future<int> getOrCreateFood({
     required String name,
     required double kcal,
@@ -140,8 +142,7 @@ class AppState extends ChangeNotifier {
     required double proteinG,
     required double fatG,
   }) async {
-    final results = await _foodRepo.searchFoods(name);
-    final exact = results.where((f) => f.foodName == name).firstOrNull;
+    final exact = await _foodRepo.getByExactName(name);
     if (exact != null) return exact.id!;
     final now = DateTime.now().toIso8601String();
     return _foodRepo.createFood(FoodEntity(
