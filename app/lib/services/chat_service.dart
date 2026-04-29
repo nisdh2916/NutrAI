@@ -10,6 +10,13 @@ class ChatService {
     defaultValue: 'http://127.0.0.1:8000',
   ); // adb reverse 터널링
 
+  // 타임아웃 상수 — 호출 종류별 명확화
+  static const Duration _streamTimeout   = Duration(seconds: 120);
+  static const Duration _chatTimeout     = Duration(seconds: 180);
+  static const Duration _profileTimeout  = Duration(seconds: 60);
+  static const Duration _searchTimeout   = Duration(seconds: 15);
+  static const Duration _recommendTimeout = Duration(seconds: 120);
+
   static Map<String, dynamic> _buildBody(
     String message,
     UserProfileEntity? user,
@@ -45,7 +52,7 @@ class ChatService {
     final client = http.Client();
     String buffer = '';
     try {
-      final response = await client.send(request).timeout(const Duration(seconds: 120));
+      final response = await client.send(request).timeout(_streamTimeout);
       if (response.statusCode != 200) {
         throw Exception('서버 오류: ${response.statusCode}');
       }
@@ -86,7 +93,7 @@ class ChatService {
       Uri.parse('$_baseUrl/chat'),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
       body: jsonEncode(_buildBody(message, user, detectedFoods, mealHistory: mealHistory)),
-    ).timeout(const Duration(seconds: 180));
+    ).timeout(_chatTimeout);
 
     if (res.statusCode == 200) {
       final json = jsonDecode(utf8.decode(res.bodyBytes));
@@ -107,7 +114,7 @@ class ChatService {
       Uri.parse('$_baseUrl/profile/extract'),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
       body: jsonEncode({'messages': messages}),
-    ).timeout(const Duration(seconds: 60));
+    ).timeout(_profileTimeout);
 
     if (res.statusCode == 200) {
       final json = jsonDecode(utf8.decode(res.bodyBytes));
@@ -136,7 +143,7 @@ class ChatService {
     final res = await http.get(
       Uri.parse('$_baseUrl/food/search?q=${Uri.encodeComponent(query)}&k=1'),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
-    ).timeout(const Duration(seconds: 15));
+    ).timeout(_searchTimeout);
 
     if (res.statusCode == 200) {
       final json = jsonDecode(utf8.decode(res.bodyBytes));
@@ -174,7 +181,7 @@ class ChatService {
       Uri.parse('$_baseUrl/recommend'),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
       body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 120));
+    ).timeout(_recommendTimeout);
 
     if (res.statusCode == 200) {
       final json = jsonDecode(utf8.decode(res.bodyBytes));
