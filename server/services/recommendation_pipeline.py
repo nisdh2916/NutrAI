@@ -81,12 +81,13 @@ def infer_meal_time(text: str, category: str = "") -> str:
 
 def normalize_goal(profile: dict) -> str:
     raw = str(profile.get("goal") or "").strip().lower()
+    # maintenance 먼저 체크 — "체중 유지"가 "체중" 키워드에 걸리지 않도록
+    if any(token in raw for token in ("maintain", "유지")):
+        return "maintenance"
     if any(token in raw for token in ("diet", "loss", "감량", "다이어트", "체중")):
         return "weight_loss"
     if any(token in raw for token in ("gain", "증량", "벌크")):
         return "weight_gain"
-    if any(token in raw for token in ("maintain", "유지")):
-        return "maintenance"
     return raw or "general_health"
 
 
