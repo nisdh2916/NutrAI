@@ -304,7 +304,7 @@ class _DailyTabState extends State<_DailyTab> {
         SliverToBoxAdapter(
             child: _WeekStrip(
                 selected: widget.selected, onTap: widget.onDateChanged)),
-        SliverToBoxAdapter(
+        const SliverToBoxAdapter(
             child: Divider(height: 0.5, color: AppColors.border)),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 144),
@@ -557,8 +557,9 @@ class _TipCard extends StatelessWidget {
     final totalP = meals.fold(0.0, (s, m) => s + m.totalProtein);
     final totalC = meals.fold(0.0, (s, m) => s + m.totalCarb);
     final totalF = meals.fold(0.0, (s, m) => s + m.totalFat);
-    if (totalP < 50)
+    if (totalP < 50) {
       return '오늘 단백질 섭취가 부족해요. 닭가슴살, 두부, 계란 등 단백질이 풍부한 음식을 추가해보세요.';
+    }
     if (totalC > 300) return '탄수화물 섭취가 다소 높아요. 다음 끼니에는 채소 위주의 식단을 선택해보세요.';
     if (totalF > 80) return '지방 섭취가 목표치를 초과했어요. 튀긴 음식보다 구운 음식을 선택하면 도움이 돼요.';
     if (totalKcal < 1200) return '오늘 칼로리 섭취가 너무 적어요. 균형 잡힌 식사로 기초대사량을 유지해주세요.';
@@ -715,7 +716,7 @@ class _WeeklyTabState extends State<_WeeklyTab> {
     if (_kcalMap == null || _weekMeals == null) {
       return Column(children: [
         _WeekStrip(selected: widget.selected, onTap: widget.onDateChanged),
-        Divider(height: 0.5, color: AppColors.border),
+        const Divider(height: 0.5, color: AppColors.border),
         const Expanded(
             child: Center(
                 child: CircularProgressIndicator(color: AppColors.green400))),
@@ -734,7 +735,8 @@ class _WeeklyTabState extends State<_WeeklyTab> {
       SliverToBoxAdapter(
           child: _WeekStrip(
               selected: widget.selected, onTap: widget.onDateChanged)),
-      SliverToBoxAdapter(child: Divider(height: 0.5, color: AppColors.border)),
+      const SliverToBoxAdapter(
+          child: Divider(height: 0.5, color: AppColors.border)),
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 144),
         sliver: SliverList(
@@ -964,11 +966,17 @@ class _WeeklyNutrAvg extends StatelessWidget {
         Text('기록된 $days일 기준 · 목표 ${goal.targetKcal.round()}kcal',
             style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
         const SizedBox(height: 14),
-        _NutrAvgRow(label: '탄수화물', gram: avgC, goal: goal.carbG,    color: AppColors.carb),
+        _NutrAvgRow(
+            label: '탄수화물', gram: avgC, goal: goal.carbG, color: AppColors.carb),
         const SizedBox(height: 12),
-        _NutrAvgRow(label: '단백질',   gram: avgP, goal: goal.proteinG, color: AppColors.protein),
+        _NutrAvgRow(
+            label: '단백질',
+            gram: avgP,
+            goal: goal.proteinG,
+            color: AppColors.protein),
         const SizedBox(height: 12),
-        _NutrAvgRow(label: '지방',     gram: avgF, goal: goal.fatG,     color: AppColors.fat),
+        _NutrAvgRow(
+            label: '지방', gram: avgF, goal: goal.fatG, color: AppColors.fat),
       ]),
     );
   }
@@ -1045,14 +1053,18 @@ class _WeeklyTipCard extends StatelessWidget {
             0.0, (s, ml) => s + ml.fold(0.0, (ss, m) => ss + m.totalFat)) /
         7;
 
-    if (avgP < 50)
+    if (avgP < 50) {
       return '이번 주 단백질 평균이 ${avgP.round()}g으로 낮아요. 닭가슴살·달걀·두부를 매 끼니 포함해보세요.';
-    if (avgC > 350)
+    }
+    if (avgC > 350) {
       return '이번 주 탄수화물 평균이 ${avgC.round()}g으로 높아요. 밥 양을 줄이고 채소 비중을 늘려보세요.';
-    if (avgF > 80)
+    }
+    if (avgF > 80) {
       return '이번 주 지방 평균이 ${avgF.round()}g으로 높아요. 튀김류보다 구이·찜 요리를 선택해보세요.';
-    if (avgK < 1200)
+    }
+    if (avgK < 1200) {
       return '이번 주 평균 칼로리가 ${avgK.round()}kcal로 부족해요. 기초대사량 이상의 식사를 유지해주세요.';
+    }
     return '이번 주 식단이 전반적으로 균형 잡혀 있어요! $recorded일 기록으로 좋은 습관을 만들고 있어요.';
   }
 
@@ -1217,7 +1229,9 @@ class _MonthlyTabState extends State<_MonthlyTab> {
       ...List.generate(
           days, (i) => DateTime(_cursor.year, _cursor.month, i + 1)),
     ];
-    while (cells.length % 7 != 0) cells.add(null);
+    while (cells.length % 7 != 0) {
+      cells.add(null);
+    }
     return cells;
   }
 

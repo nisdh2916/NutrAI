@@ -255,7 +255,8 @@ class _CalendarScreenState extends State<CalendarScreen>
                     ]),
               ]),
               const Spacer(),
-              GestureDetector(
+              InkWell(
+                borderRadius: BorderRadius.circular(AppRadius.pill),
                 onTap: () {
                   setState(() {
                     _selected = _today;
@@ -265,8 +266,8 @@ class _CalendarScreenState extends State<CalendarScreen>
                   _loadRecordedDates();
                 },
                 child: Container(
-                  height: 32,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
                     color: AppColors.brandSoft,
                     borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -370,8 +371,9 @@ class _WeekBody extends StatelessWidget {
                 final isSel = _isSame(d, selected);
                 final isToday = _isSame(d, today);
                 return Expanded(
-                  child: GestureDetector(
+                  child: InkWell(
                     onTap: () => onDayTap(d),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     child: Column(children: [
                       Text(_wd[i],
                           style: TextStyle(
@@ -397,7 +399,7 @@ class _WeekBody extends StatelessWidget {
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
                                 color: isSel
-                                    ? Colors.white
+                                    ? AppColors.surface
                                     : isToday
                                         ? AppColors.brand
                                         : AppColors.text,
@@ -639,7 +641,7 @@ class _MonthBody extends StatelessWidget {
         // ── 날짜 그리드 ──
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+            padding: const EdgeInsets.fromLTRB(6, 0, 6, 16),
             child: GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -655,8 +657,9 @@ class _MonthBody extends StatelessWidget {
                 final isSel = _isSame(d, selected);
                 final isToday = _isSame(d, today);
                 final hasDot = _hasData(d);
-                return GestureDetector(
+                return InkWell(
                   onTap: () => onDayTap(d),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -677,7 +680,7 @@ class _MonthBody extends StatelessWidget {
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: isSel
-                                  ? Colors.white
+                                  ? AppColors.surface
                                   : isToday
                                       ? AppColors.brand
                                       : d.month != monthCursor.month
@@ -694,7 +697,9 @@ class _MonthBody extends StatelessWidget {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: hasDot
-                              ? (isSel ? Colors.white70 : AppColors.brand)
+                              ? (isSel
+                                  ? AppColors.surface.withValues(alpha: 0.72)
+                                  : AppColors.brand)
                               : Colors.transparent,
                         ),
                       ),
@@ -739,7 +744,7 @@ class _TimelineMealRow extends StatelessWidget {
     '아침': AppColors.breakfast,
     '점심': AppColors.lunch,
     '저녁': AppColors.dinner,
-    '간식': Color(0xFF8B5CF6),
+    '간식': AppColors.snack,
   };
 
   const _TimelineMealRow(
@@ -810,7 +815,7 @@ class _TimelineMealCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -935,7 +940,7 @@ class _DaySummarySection extends StatelessWidget {
     '아침': AppColors.breakfast,
     '점심': AppColors.lunch,
     '저녁': AppColors.dinner,
-    '간식': Color(0xFF8B5CF6),
+    '간식': AppColors.snack,
   };
 
   const _DaySummarySection({
@@ -959,7 +964,7 @@ class _DaySummarySection extends StatelessWidget {
 
         ...meals.map((m) {
           final color = _colors[m.meal.label] ?? AppColors.brand;
-          return GestureDetector(
+          return InkWell(
             onTap: () => onMealTap(m),
             child: Container(
               margin: const EdgeInsets.only(bottom: 10),
@@ -998,7 +1003,7 @@ class _DaySummarySection extends StatelessWidget {
         const SizedBox(height: 8),
 
         // 리포트 이동 버튼
-        GestureDetector(
+        InkWell(
           onTap: onGoToReport,
           child: Container(
             width: double.infinity,
@@ -1042,10 +1047,11 @@ class _EmptyDay extends StatelessWidget {
           const Text('아직 기록된 식단이 없어요',
               style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
           const SizedBox(height: 16),
-          GestureDetector(
+          InkWell(
             onTap: onAddMeal,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
             child: Container(
-              height: 40,
+              height: 44,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
                 color: AppColors.brandSoft,
@@ -1080,7 +1086,7 @@ class _MealDetailSheet extends StatelessWidget {
     '아침': AppColors.breakfast,
     '점심': AppColors.lunch,
     '저녁': AppColors.dinner,
-    '간식': Color(0xFF8B5CF6),
+    '간식': AppColors.snack,
   };
 
   const _MealDetailSheet({required this.meal, required this.onDelete});
@@ -1090,6 +1096,9 @@ class _MealDetailSheet extends StatelessWidget {
     final label = meal.meal.label;
     final color = _labelColors[label] ?? AppColors.brand;
     final photoPath = meal.meal.photoPath;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth = (MediaQuery.sizeOf(context).width * dpr).round();
+    final cacheHeight = (180 * dpr).round();
 
     return Container(
       decoration: const BoxDecoration(
@@ -1135,6 +1144,8 @@ class _MealDetailSheet extends StatelessWidget {
                   width: double.infinity,
                   height: 180,
                   fit: BoxFit.cover,
+                  cacheWidth: cacheWidth,
+                  cacheHeight: cacheHeight,
                   errorBuilder: (_, __, ___) => const _PhotoPlaceholder(),
                 ),
               )
@@ -1233,8 +1244,9 @@ class _MealDetailSheet extends StatelessWidget {
             const SizedBox(height: 20),
 
             // ── 삭제 버튼 ──
-            GestureDetector(
+            InkWell(
               onTap: () => _confirmDelete(context),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               child: Container(
                 width: double.infinity,
                 height: 44,

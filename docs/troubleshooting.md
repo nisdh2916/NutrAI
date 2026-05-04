@@ -561,3 +561,57 @@ _AddNavAction(onTap: _onFabTap)
 추가로 하단 액션 주변 콘텐츠가 답답해지지 않도록 홈/기록/추천/리포트 화면의 하단 스크롤 padding을 `100`에서 `144`로 늘렸다.
 
 **관련 파일:** `app/lib/screens/main_tab_screen.dart` → `_buildBottomNav()`, `_AddNavAction`; `app/lib/screens/home_screen.dart`, `app/lib/screens/calendar_screen.dart`, `app/lib/screens/recommend_screen.dart`, `app/lib/screens/report_screen.dart` → 하단 padding
+
+---
+
+## 23. 감사 후 `flutter analyze`/`flutter test`가 음식 추가 화면에서 실패함
+
+**증상:** `/audit` 재점검에서 `food_add_screen.dart`가 컴파일되지 않아 `flutter analyze`와 `flutter test`가 모두 실패함. 동시에 낮은 색상 대비, 작은 터치 타깃, `GestureDetector` 기반 클릭 영역, 원본 크기 이미지 렌더링 문제가 남아 있었음.
+
+**원인:** `_FoodDB.search()`가 삭제된 `all` 목록을 참조하고 있었고, `detectAllergens()`가 `core/allergens.dart`와 `utils/allergy_checker.dart` 양쪽에서 import되어 이름이 충돌함. UI 쪽은 기존 토큰 색상이 작은 텍스트 대비 기준을 일부 만족하지 못했고, 여러 터치 요소가 44px보다 작았으며 `Image.file`에 캐시 크기가 지정되지 않았음.
+
+**해결:**
+```dart
+// 변경 전
+import '../core/allergens.dart';
+import '../utils/allergy_checker.dart';
+
+static List<MealFood> search(String q) {
+  if (q.trim().isEmpty) return [];
+  return all.where((f) => f.name.contains(q.trim())).toList();
+}
+
+GestureDetector(
+  onTap: onRemove,
+  child: Container(width: 28, height: 28),
+);
+
+Image.file(File(photoPath), width: double.infinity, height: 180);
+
+// 변경 후
+import '../core/allergens.dart';
+
+// 사용하지 않는 search() 제거
+
+InkWell(
+  onTap: onRemove,
+  borderRadius: BorderRadius.circular(8),
+  child: Container(width: 44, height: 44),
+);
+
+final dpr = MediaQuery.devicePixelRatioOf(context);
+final cacheWidth = (MediaQuery.sizeOf(context).width * dpr).round();
+final cacheHeight = (180 * dpr).round();
+
+Image.file(
+  File(photoPath),
+  width: double.infinity,
+  height: 180,
+  cacheWidth: cacheWidth,
+  cacheHeight: cacheHeight,
+);
+```
+
+추가로 `AppColors`의 텍스트/브랜드/의미 색상 토큰을 대비 기준에 맞게 어둡게 조정하고, 남은 info lint는 `dart fix --apply`와 수동 중괄호 보정으로 정리함.
+
+**관련 파일:** `app/lib/screens/food_add_screen.dart` → `_FoodDB`, `_DetectedFoodRow`, `_PhotoDoneBanner`, `_AllergyWarningBanner`; `app/lib/screens/calendar_screen.dart` → `_MonthBody`, `_MealDetailSheet`; `app/lib/theme/app_theme.dart` → `AppColors`; `app/lib/screens/user_setup_screen.dart`, `app/lib/screens/settings_screen.dart`, `app/lib/screens/onboarding_chat_screen.dart` → 터치 타깃 보정

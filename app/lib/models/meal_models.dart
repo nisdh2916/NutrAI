@@ -1,9 +1,9 @@
 // ── 음식 단위 ──────────────────────────────────────
 class MealFood {
   final String name;
-  final double carb;    // g
+  final double carb; // g
   final double protein; // g
-  final double fat;     // g
+  final double fat; // g
   final double kcal;
 
   const MealFood({
@@ -18,7 +18,7 @@ class MealFood {
 // ── 끼니 기록 ──────────────────────────────────────
 class MealRecord {
   final String label; // 아침 / 점심 / 저녁
-  final String time;  // "10:00 AM"
+  final String time; // "10:00 AM"
   final List<MealFood> foods;
 
   const MealRecord({
@@ -27,10 +27,10 @@ class MealRecord {
     required this.foods,
   });
 
-  double get totalKcal    => foods.fold(0.0, (s, f) => s + f.kcal);
-  double get totalCarb    => foods.fold(0.0, (s, f) => s + f.carb);
+  double get totalKcal => foods.fold(0.0, (s, f) => s + f.kcal);
+  double get totalCarb => foods.fold(0.0, (s, f) => s + f.carb);
   double get totalProtein => foods.fold(0.0, (s, f) => s + f.protein);
-  double get totalFat     => foods.fold(0.0, (s, f) => s + f.fat);
+  double get totalFat => foods.fold(0.0, (s, f) => s + f.fat);
 
   /// 첫 번째 음식명 + "외 N개" 요약 텍스트
   String get summary {
@@ -58,28 +58,31 @@ class MealSampleData {
     if (date.day % 7 == 0) return [];
 
     return [
-      MealRecord(
-        label: '아침', time: '08:30 AM',
+      const MealRecord(
+        label: '아침',
+        time: '08:30 AM',
         foods: [
-          const MealFood(name: '비빔밥',    carb: 65, protein: 18, fat: 8,  kcal: 410),
-          const MealFood(name: '된장찌개',  carb: 12, protein: 8,  fat: 4,  kcal: 115),
-          const MealFood(name: '제육볶음',  carb: 20, protein: 25, fat: 14, kcal: 310),
+          MealFood(name: '비빔밥', carb: 65, protein: 18, fat: 8, kcal: 410),
+          MealFood(name: '된장찌개', carb: 12, protein: 8, fat: 4, kcal: 115),
+          MealFood(name: '제육볶음', carb: 20, protein: 25, fat: 14, kcal: 310),
         ],
       ),
-      MealRecord(
-        label: '점심', time: '12:30 PM',
+      const MealRecord(
+        label: '점심',
+        time: '12:30 PM',
         foods: [
-          const MealFood(name: '삼겹살',    carb: 5,  protein: 28, fat: 32, kcal: 430),
-          const MealFood(name: '부대찌개',  carb: 30, protein: 18, fat: 12, kcal: 300),
-          const MealFood(name: '공기밥',    carb: 70, protein: 5,  fat: 1,  kcal: 310),
+          MealFood(name: '삼겹살', carb: 5, protein: 28, fat: 32, kcal: 430),
+          MealFood(name: '부대찌개', carb: 30, protein: 18, fat: 12, kcal: 300),
+          MealFood(name: '공기밥', carb: 70, protein: 5, fat: 1, kcal: 310),
         ],
       ),
       if (date.day % 2 == 0)
-        MealRecord(
-          label: '저녁', time: '07:00 PM',
+        const MealRecord(
+          label: '저녁',
+          time: '07:00 PM',
           foods: [
-            const MealFood(name: '한정식',  carb: 80, protein: 30, fat: 15, kcal: 560),
-            const MealFood(name: '미역국',  carb: 8,  protein: 5,  fat: 2,  kcal: 70),
+            MealFood(name: '한정식', carb: 80, protein: 30, fat: 15, kcal: 560),
+            MealFood(name: '미역국', carb: 8, protein: 5, fat: 2, kcal: 70),
           ],
         ),
     ];

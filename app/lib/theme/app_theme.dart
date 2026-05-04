@@ -13,40 +13,40 @@ class AppColors {
   // Text
   static const text = Color(0xFF191F28); // primary
   static const textSub = Color(0xFF4E5968); // secondary
-  static const textMuted = Color(0xFF8B95A1); // tertiary
-  static const textDisabled = Color(0xFFB0B8C1); // disabled
+  static const textMuted = Color(0xFF647080); // tertiary
+  static const textDisabled = Color(0xFF647080); // disabled
 
   // Brand — NutrAI green
-  static const brand = Color(0xFF22A447);
-  static const brandDark = Color(0xFF1E8E3E);
+  static const brand = Color(0xFF158431);
+  static const brandDark = Color(0xFF0F6B2B);
   static const brandSoft = Color(0xFFE6F4EA);
-  static const brandText = Color(0xFF1A7F36);
+  static const brandText = Color(0xFF0F6B2B);
 
   // Semantic accents
-  static const blue = Color(0xFF3182F6);
+  static const blue = Color(0xFF2563EB);
   static const blueSoft = Color(0xFFE8F3FF);
-  static const red = Color(0xFFF04452);
+  static const red = Color(0xFFC81E2C);
   static const redSoft = Color(0xFFFEECEE);
-  static const orange = Color(0xFFFF9500);
+  static const orange = Color(0xFFA95A00);
   static const orangeSoft = Color(0xFFFFF4E5);
   static const yellow = Color(0xFFFFCC00);
 
   // Nutrition semantic
-  static const carb = Color(0xFF3182F6);
+  static const carb = blue;
   static const carbSoft = Color(0xFFE8F3FF);
-  static const protein = Color(0xFF22A447);
+  static const protein = brand;
   static const proteinSoft = Color(0xFFE6F4EA);
-  static const fat = Color(0xFFFF9500);
+  static const fat = orange;
   static const fatSoft = Color(0xFFFFF4E5);
 
   // Meal semantic
-  static const breakfast = Color(0xFF3182F6);
+  static const breakfast = blue;
   static const breakfastSoft = Color(0xFFE8F3FF);
-  static const lunch = Color(0xFF22A447);
+  static const lunch = brand;
   static const lunchSoft = Color(0xFFE6F4EA);
-  static const snack = Color(0xFFFF9500);
+  static const snack = orange;
   static const snackSoft = Color(0xFFFFF4E5);
-  static const dinner = Color(0xFF8B5CF6);
+  static const dinner = Color(0xFF6D3FD0);
   static const dinnerSoft = Color(0xFFF3EEFE);
   static const lateNight = Color(0xFF4E5968);
   static const lateNightSoft = Color(0xFFF2F4F6);
@@ -90,7 +90,7 @@ class AppShadows {
     BoxShadow(color: Color(0x14000000), blurRadius: 24, offset: Offset(0, 8)),
   ];
   static const fab = [
-    BoxShadow(color: Color(0x5922A447), blurRadius: 20, offset: Offset(0, 6)),
+    BoxShadow(color: Color(0x59158431), blurRadius: 20, offset: Offset(0, 6)),
     BoxShadow(color: Color(0x1A000000), blurRadius: 6, offset: Offset(0, 2)),
   ];
   static const card2 = [
