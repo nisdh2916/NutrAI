@@ -35,10 +35,10 @@ _ALLERGEN_KEYWORDS: dict[str, list[str]] = {
     "유제품": ["우유", "치즈", "버터", "요거트", "크림", "유청", "밀크", "라떼", "카푸치노", "아이스크림"],
     "견과류": ["아몬드", "호두", "캐슈", "땅콩", "잣", "피스타치오", "마카다미아", "헤이즐넛", "피넛", "견과"],
     "갑각류": ["새우", "게", "랍스터", "크랩", "대게"],
-    "밀":    ["빵", "파스타", "면", "국수", "라면", "우동", "스파게티", "밀가루", "만두", "냉면", "소면"],
+    "밀":    ["빵", "파스타", "면", "국수", "라면", "우동", "스파게티", "밀가루", "만두", "냉면", "소면", "떡볶이"],
     "글루텐": ["빵", "파스타", "면", "국수", "라면", "우동", "밀가루"],
-    "계란":  ["계란", "달걀", "에그", "오믈렛", "마요네즈"],
-    "대두":  ["두부", "된장", "간장", "두유", "콩국수", "낫토", "청국장"],
+    "계란":  ["계란", "달걀", "에그", "오믈렛", "마요네즈", "스크램블"],
+    "대두":  ["두부", "된장", "간장", "두유", "콩국수", "낫토", "청국장", "순두부", "콩"],
     "복숭아": ["복숭아", "피치"],
     "토마토": ["토마토", "케첩"],
     "고등어": ["고등어"],
@@ -104,6 +104,11 @@ SYSTEM_PROMPT = """한국어로만 답변하는 NutrAI 영양 코치입니다.
 음식명은 반드시 일반 음식명만 사용하세요. 브랜드명·제품명이 포함된 경우 핵심 음식명만 추출하세요. 예: '페이보잇 한끼 차돌짬뽕국밥' → '차돌짬뽕국밥', '호텔컬렉션 베트남쌀국수' → '베트남쌀국수'.
 의료적 확정 표현은 사용하지 말고 권고 표현을 사용하세요.
 수치 계산(칼로리, 남은 열량)은 반드시 [식단 현황]의 수치를 그대로 사용하고 임의로 계산하지 마세요.
+
+[영양 추론 규칙 - 반드시 준수]
+- 당뇨 관련: 혈당을 올리는 것은 탄수화물(당류)이지 단백질이 아닙니다. "단백질이 낮아서 당뇨에 좋다"는 표현은 절대 사용하지 마세요. 당뇨에는 저당·저탄수화물·적정 단백질을 강조하세요.
+- 고혈압 관련: 나트륨(염분) 제한이 핵심입니다. "지방이 낮아서 혈압에 좋다"는 단순화 표현은 피하세요.
+- 추천 이유는 반드시 [참고 영양 정보]의 수치(칼로리·탄수화물·단백질·지방)를 근거로만 작성하세요. 데이터에 없는 효능·효과를 임의로 추가하지 마세요.
 
 반드시 아래 형식으로 추천 메뉴 3개와 코칭 메시지를 답변하세요:
 
@@ -553,28 +558,26 @@ def get_recommendation(
     }
 
 
-def stream_recommendation(
+def _preprocess_query(
     user_query: str,
     user_profile: dict,
-    detected_foods: list[str] | None = None,
-    meal_history: list[dict] | None = None,
-    k: int = 5,
-):
-    """
-    스트리밍 버전
-
-    - 스트리밍 중: <think> 태그 상태 머신으로 실시간 제거 후 yield
-    - 스트리밍 완료 후: 알레르기 경고 / 칼로리 이상 경고를 추가 yield
-    """
-    # 전처리
+    detected_foods: list[str] | None,
+    meal_history: list[dict] | None,
+) -> tuple[float | None, str, list[str]]:
+    """쿼리 전처리: 남은 칼로리 계산 → 시간대 감지 → 다중 쿼리 재작성"""
     remaining_kcal = _calc_remaining_kcal(user_profile, meal_history)
     meal_time = _detect_meal_time(user_query)
     queries = _rewrite_queries(user_query, user_profile, detected_foods, remaining_kcal, meal_time)
+    return remaining_kcal, meal_time, queries
 
-    # 다중 쿼리 검색
-    _, context = _retrieve_multi(queries, user_profile, k)
-    messages = build_messages(context, user_query, user_profile, meal_history=meal_history)
 
+def _stream_ollama_raw(messages: list):
+    """Ollama /api/chat 스트리밍 호출. <think> 태그를 실시간 제거하며 yield.
+
+    Returns (generator, collected_chunks_list) — 호출자가 next()로 소비하며
+    clean_chunks 리스트에 출력된 텍스트가 누적됨.
+    실제로는 generator 함수이므로 yield 방식으로 사용.
+    """
     import json as _json
     import requests as _req
 
@@ -594,7 +597,6 @@ def stream_recommendation(
 
     buffer = ""
     in_think = False
-    clean_chunks: list[str] = []
 
     try:
         with _req.post(f"{OLLAMA_BASE_URL}/api/chat", json=payload, stream=True, timeout=120) as r:
@@ -607,18 +609,39 @@ def stream_recommendation(
                     buffer += text
                     output, buffer, in_think = _strip_think_streaming(buffer, in_think)
                     if output:
-                        clean_chunks.append(output)
                         yield output
                 if data.get("done"):
                     if buffer and not in_think:
-                        clean_chunks.append(buffer)
                         yield buffer
                     break
     except Exception as e:
         yield f"\n\n[오류] LLM 응답 실패: {e}"
-        return
 
-    # 스트리밍 완료 후 후처리 경고 yield
+
+def stream_recommendation(
+    user_query: str,
+    user_profile: dict,
+    detected_foods: list[str] | None = None,
+    meal_history: list[dict] | None = None,
+    k: int = 5,
+):
+    """
+    스트리밍 버전 오케스트레이터.
+
+    전처리 → 검색 → 생성(_stream_ollama_raw) → 후처리 경고 yield
+    """
+    remaining_kcal, _, queries = _preprocess_query(
+        user_query, user_profile, detected_foods, meal_history
+    )
+
+    _, context = _retrieve_multi(queries, user_profile, k)
+    messages = build_messages(context, user_query, user_profile, meal_history=meal_history)
+
+    clean_chunks: list[str] = []
+    for chunk in _stream_ollama_raw(messages):
+        clean_chunks.append(chunk)
+        yield chunk
+
     full_response = "".join(clean_chunks)
     allergens = _extract_allergens(user_profile)
     allergen_warning = _build_allergen_warning(full_response, allergens)

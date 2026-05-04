@@ -464,3 +464,100 @@ const _kCategoryMeta = <String, ({IconData icon, String desc, Color color})>{
 목표치: 탄수화물 300g, 단백질 60g, 지방 65g (일반 성인 기준 기본값)
 
 **관련 파일:** `app/lib/screens/report_screen.dart` → `_WeeklyNutrAvg`, `_WeeklyTipCard`, `_MonthlyInsightCard`
+
+---
+
+## 20. Flutter 위젯 테스트가 AppState Provider 없이 앱을 렌더링함
+
+**증상:** `flutter test` 실행 시 `_RootRouter`가 `context.watch<AppState>()`를 호출하는 단계에서 `ProviderNotFoundException`이 발생함. Provider를 추가한 뒤에도 온보딩 화면의 지연 타이머가 남아 테스트가 종료되지 않음.
+
+**원인:** `widget_test.dart`가 실제 `main()`의 `ChangeNotifierProvider<AppState>` 래핑 없이 `NutrAIApp`만 직접 렌더링함. 또한 사용자 정보가 없는 상태로 앱을 띄우면 온보딩 챗봇의 `Future.delayed()` 타이머가 테스트 종료 시점까지 남을 수 있음.
+
+**해결:**
+```dart
+// 변경 전
+await tester.pumpWidget(const NutrAIApp());
+
+// 변경 후
+class _ReadyAppState extends AppState {
+  @override
+  bool get loading => false;
+
+  @override
+  UserProfileEntity? get user => const UserProfileEntity(
+    nickname: '테스트',
+    createdAt: '2026-05-04T00:00:00',
+    updatedAt: '2026-05-04T00:00:00',
+  );
+}
+
+await tester.pumpWidget(
+  ChangeNotifierProvider<AppState>(
+    create: (_) => _ReadyAppState(),
+    child: const NutrAIApp(),
+  ),
+);
+```
+
+**관련 파일:** `app/test/widget_test.dart` → `앱 기본 렌더링 테스트`
+
+---
+
+## 21. 홈 화면이 데모 식단과 플로팅 AI 버튼으로 실제 상태를 가림
+
+**증상:** 홈 화면이 실제 오늘 식단 대신 하드코딩된 샘플 식단을 보여주고, 별도 AI 코치 FAB가 카드 영역 위에 떠서 작은 화면에서 콘텐츠를 가렸음. 사용자 이름 fallback도 `00`으로 표시되어 추천/리포트 화면의 신뢰도가 떨어졌음.
+
+**원인:** `home_screen.dart`가 `AppState.todayMeals`를 구독하지 않고 자체 샘플 `_meals`를 보유함. AI 코치 진입점은 홈 내부 FAB로 별도 배치되어 부모 탭 FAB와 시각적으로 경쟁했고, 추천/리포트의 기본 사용자명이 개발용 placeholder로 남아 있었음.
+
+**해결:**
+```dart
+// 변경 전
+final List<MealRecord> _meals = const [...];
+floatingActionButton: FloatingActionButton(
+  heroTag: 'home_chat_fab',
+  onPressed: () => Navigator.push(...AiChatScreen()),
+);
+final name = widget.profile.name.isNotEmpty ? widget.profile.name : '00';
+
+// 변경 후
+final appState = context.watch<AppState>();
+final meals = appState.todayMeals.map(_toMealRecord).toList();
+
+IconButton(
+  tooltip: 'AI 코치와 대화',
+  icon: const Icon(Icons.smart_toy_outlined),
+  onPressed: () => Navigator.push(...AiChatScreen()),
+);
+
+final name = widget.profile.name.isNotEmpty ? widget.profile.name : '사용자';
+```
+
+**관련 파일:** `app/lib/screens/home_screen.dart` → `HomeScreen.build()`, `_toMealRecord()`, `_EmptyMealCard`, `_StreakCard`; `app/lib/screens/main_tab_screen.dart` → `_MainTabScreenState.initState()`; `app/lib/screens/recommend_screen.dart` → `RecommendScreen`; `app/lib/screens/report_screen.dart` → `ReportScreen`
+
+---
+
+## 22. 하단바 중앙 추가 버튼이 탭 균형을 깨고 콘텐츠를 덮음
+
+**증상:** 하단바가 `홈`, `기록`, 중앙 `+`, `리포트`, `추천`, `설정`처럼 5개 탭과 중앙 FAB를 동시에 보여주면서 좌우 균형이 맞지 않았음. 중앙 FAB가 바깥으로 떠 있어 홈 화면의 기록 흐름 요일 라벨 같은 콘텐츠를 덮는 문제도 보였음.
+
+**원인:** `main_tab_screen.dart`에서 5개 탭을 유지한 채 중앙 docked FAB를 별도로 띄웠고, 중앙 빈 슬롯 오른쪽에 탭이 3개 몰려 있었다. FAB가 `Scaffold.floatingActionButton`으로 배치되어 body 영역 위를 침범할 수밖에 없는 구조였음.
+
+**해결:**
+```dart
+// 변경 전
+bottomNavigationBar: _buildBottomNav(),
+floatingActionButton: _buildFab(),
+floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
+// 하단바: 홈, 기록, 빈 슬롯, 리포트, 추천, 설정
+
+// 변경 후
+bottomNavigationBar: _buildBottomNav(),
+
+// 하단바: 홈, 기록, 중앙 추가 액션, 리포트, 추천
+_AddNavAction(onTap: _onFabTap)
+```
+
+추가로 하단 액션 주변 콘텐츠가 답답해지지 않도록 홈/기록/추천/리포트 화면의 하단 스크롤 padding을 `100`에서 `144`로 늘렸다.
+
+**관련 파일:** `app/lib/screens/main_tab_screen.dart` → `_buildBottomNav()`, `_AddNavAction`; `app/lib/screens/home_screen.dart`, `app/lib/screens/calendar_screen.dart`, `app/lib/screens/recommend_screen.dart`, `app/lib/screens/report_screen.dart` → 하단 padding
