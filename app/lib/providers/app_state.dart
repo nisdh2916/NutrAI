@@ -7,6 +7,10 @@ import 'meal_state.dart';
 export 'user_state.dart';
 export 'meal_state.dart';
 
+/// AppState 로딩 단계.
+/// loading 플래그 + error 문자열 조합 대신 명시적 enum으로 상태 전이를 표현.
+enum LoadingState { idle, loading, success, error }
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // AppState: 파사드 ChangeNotifier
 // 도메인 로직은 UserState / MealState에 위임.
@@ -15,15 +19,18 @@ class AppState extends ChangeNotifier {
   final _userState = UserState();
   final _mealState = MealState();
 
-  bool _loading = false;
+  LoadingState _state = LoadingState.idle;
   String? _error;
 
   // ── 위임 Getters ─────────────────────────────────
   UserProfileEntity? get user        => _userState.user;
   int? get userId                    => _userState.userId;
   List<MealWithFoods> get todayMeals => _mealState.todayMeals;
-  bool get loading                   => _loading;
+  LoadingState get state             => _state;
+  /// 기존 코드 호환용 — 신규 코드는 `state`를 직접 사용 권장
+  bool get loading                   => _state == LoadingState.loading;
   String? get error                  => _error;
+  bool get hasError                  => _state == LoadingState.error;
 
   double get todayKcal     => _mealState.todayKcal;
   double get todayCarbG    => _mealState.todayCarbG;
@@ -34,14 +41,15 @@ class AppState extends ChangeNotifier {
   // 앱 초기화
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Future<void> init() async {
-    _setLoading(true);
+    _setState(LoadingState.loading);
     try {
       await _userState.load();
       if (userId != null) await _mealState.loadToday(userId!);
+      _error = null;
+      _setState(LoadingState.success);
     } catch (e) {
       _error = e.toString();
-    } finally {
-      _setLoading(false);
+      _setState(LoadingState.error);
     }
   }
 
@@ -155,20 +163,23 @@ class AppState extends ChangeNotifier {
   // 사용자 초기화 (프로필 재설정 / 로그아웃)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Future<void> resetUser() async {
-    _setLoading(true);
+    _setState(LoadingState.loading);
     try {
       await DatabaseHelper.instance.deleteDatabase();
       await DatabaseHelper.instance.database;
       _userState.clear();
       _mealState.clear();
-    } finally {
-      _setLoading(false);
+      _error = null;
+      _setState(LoadingState.idle);
+    } catch (e) {
+      _error = e.toString();
+      _setState(LoadingState.error);
     }
   }
 
   // ── 내부 ────────────────────────────────────────
-  void _setLoading(bool v) {
-    _loading = v;
+  void _setState(LoadingState s) {
+    _state = s;
     notifyListeners();
   }
 }

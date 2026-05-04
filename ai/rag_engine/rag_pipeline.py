@@ -16,10 +16,13 @@ from sentence_transformers import SentenceTransformer
 from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from server.common.llm_config import LLM, CHAT_TEMPERATURE, CHAT_NUM_PREDICT
+
 CHROMA_DIR = Path(__file__).parent / "chroma_db"
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 EMBED_MODEL = "snunlp/KR-SBERT-V40K-klueNLI-augSTS"
-LLM_MODEL = "qwen3:8b"
+# 하위 호환: 기존 import 사용처를 위해 모듈 레벨 alias 유지
+OLLAMA_BASE_URL = LLM.base_url
+LLM_MODEL = LLM.model
 
 # 정규화된 L2 거리 임계값: sqrt(2*(1-cos)) 기준, 1.0 ≈ cosine 유사도 0.5
 SIMILARITY_THRESHOLD = 1.0
@@ -72,12 +75,12 @@ def _get_llm() -> ChatOllama:
     global _llm
     if _llm is None:
         _llm = ChatOllama(
-            model=LLM_MODEL,
-            base_url=OLLAMA_BASE_URL,
-            temperature=0.6,
-            num_predict=2048,
+            model=LLM.model,
+            base_url=LLM.base_url,
+            temperature=CHAT_TEMPERATURE,
+            num_predict=CHAT_NUM_PREDICT,
             think=False,
-            keep_alive="1h",
+            keep_alive=LLM.keep_alive,
         )
     return _llm
 
@@ -196,14 +199,8 @@ def _rewrite_queries(
 
 # ── 알레르기 유틸 ─────────────────────────────────
 def _extract_allergens(user_profile: dict) -> list[str]:
-    """알레르기 카테고리 → 실제 식재료 키워드 변환"""
-    raw = user_profile.get("allergy", "") or ""
-    categories = [a.strip() for a in raw.replace("，", ",").split(",")
-                  if a.strip() and a.strip() != "없음"]
-    keywords: list[str] = []
-    for cat in categories:
-        keywords.extend(_ALLERGEN_KEYWORDS.get(cat, [cat]))
-    return list(dict.fromkeys(keywords))
+    """알레르기 카테고리 → 실제 식재료 키워드 변환 (server.common.allergens 위임)"""
+    return extract_allergen_keywords(user_profile.get("allergy"))
 
 
 # ── 컨텍스트 포맷 ─────────────────────────────────

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import '../core/allergens.dart';
 import '../models/meal_models.dart';
 import '../models/db_models.dart';
 import '../providers/app_state.dart';
@@ -29,6 +30,11 @@ class _FoodDB {
     MealFood(name: '오징어채볶음', carb: 12, protein: 14, fat: 3, kcal: 132),
     MealFood(name: '라면', carb: 70, protein: 9, fat: 14, kcal: 450),
   ];
+
+  static List<MealFood> search(String q) {
+    if (q.trim().isEmpty) return [];
+    return all.where((f) => f.name.contains(q.trim())).toList();
+  }
 }
 
 Color _foodColor(String name) {
@@ -368,7 +374,7 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
                 sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                   (ctx, i) => _DetectedFoodRow(
-                    food: _detectedFoods[i],
+                    food:      _detectedFoods[i],
                     isEditing: _editingIndex == i,
                     allergens: detectAllergens(
                       _detectedFoods[i].name,

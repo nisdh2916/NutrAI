@@ -30,8 +30,7 @@ class MealState {
     required double proteinG,
     required double fatG,
   }) async {
-    final results = await _foodRepo.searchFoods(name);
-    final exact = results.where((f) => f.foodName == name).firstOrNull;
+    final exact = await _foodRepo.getByExactName(name);
     if (exact != null) return exact.id!;
     final now = DateTime.now().toIso8601String();
     return _foodRepo.createFood(FoodEntity(
