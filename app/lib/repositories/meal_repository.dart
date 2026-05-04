@@ -10,7 +10,7 @@ class MealRepository {
 
   /// 끼니 생성 → meal_id 반환
   Future<int> createMeal(MealEntity meal) async {
-    final db  = await _db.database;
+    final db = await _db.database;
     final now = _db.nowIso();
     return db.insert('meal', {
       ...meal.toMap(),
@@ -21,7 +21,7 @@ class MealRepository {
 
   /// meal_food 한 행 추가
   Future<int> addFoodToMeal(MealFoodEntity mf) async {
-    final db  = await _db.database;
+    final db = await _db.database;
     final now = _db.nowIso();
     return db.insert('meal_food', {
       ...mf.toMap(),
@@ -38,16 +38,16 @@ class MealRepository {
     String? memo,
     required List<({int foodId, double? amountG, double servingCount})> foods,
   }) async {
-    final db  = await _db.database;
+    final db = await _db.database;
     final now = _db.nowIso();
 
     return db.transaction((txn) async {
       // 1) meal 삽입
       final mealId = await txn.insert('meal', {
-        'user_id':    userId,
-        'meal_type':  mealType,
-        'eaten_at':   eatenAt.toIso8601String(),
-        'memo':       memo,
+        'user_id': userId,
+        'meal_type': mealType,
+        'eaten_at': eatenAt.toIso8601String(),
+        'memo': memo,
         'created_at': now,
         'updated_at': now,
       });
@@ -55,12 +55,12 @@ class MealRepository {
       // 2) meal_food 삽입
       for (final f in foods) {
         await txn.insert('meal_food', {
-          'meal_id':      mealId,
-          'food_id':      f.foodId,
-          'amount_g':     f.amountG,
-          'serving_count':f.servingCount,
-          'created_at':   now,
-          'updated_at':   now,
+          'meal_id': mealId,
+          'food_id': f.foodId,
+          'amount_g': f.amountG,
+          'serving_count': f.servingCount,
+          'created_at': now,
+          'updated_at': now,
         });
       }
       return mealId;
@@ -83,7 +83,7 @@ class MealRepository {
     final db = await _db.database;
     await db.transaction((txn) async {
       await txn.delete('meal_food', where: 'meal_id = ?', whereArgs: [mealId]);
-      await txn.delete('meal',      where: 'id = ?',      whereArgs: [mealId]);
+      await txn.delete('meal', where: 'id = ?', whereArgs: [mealId]);
     });
   }
 
@@ -93,7 +93,8 @@ class MealRepository {
 
   /// 특정 날짜의 모든 끼니 + 음식 (조인)
   Future<List<MealWithFoods>> getMealsForDate(int userId, DateTime date) async {
-    final dateStr = '${date.year}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}';
+    final dateStr =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final db = await _db.database;
 
     // 해당 날짜 meal 목록
@@ -106,16 +107,17 @@ class MealRepository {
 
     final result = <MealWithFoods>[];
     for (final mr in mealRows) {
-      final meal      = MealEntity.fromMap(mr);
-      final mfJoins   = await _getMealFoodJoins(db, meal.id!);
+      final meal = MealEntity.fromMap(mr);
+      final mfJoins = await _getMealFoodJoins(db, meal.id!);
       result.add(MealWithFoods(meal: meal, foods: mfJoins));
     }
     return result;
   }
 
   /// 주간 (startDate ~ startDate+6일) 날짜별 끼니 합산 칼로리
-  Future<Map<String, double>> getWeeklyKcal(int userId, DateTime startDate) async {
-    final db  = await _db.database;
+  Future<Map<String, double>> getWeeklyKcal(
+      int userId, DateTime startDate) async {
+    final db = await _db.database;
     final end = startDate.add(const Duration(days: 6));
 
     final rows = await db.rawQuery('''
@@ -132,13 +134,16 @@ class MealRepository {
       _dateStr(end),
     ]);
 
-    return {for (final r in rows) r['day'] as String: (r['total'] as num).toDouble()};
+    return {
+      for (final r in rows) r['day'] as String: (r['total'] as num).toDouble()
+    };
   }
 
   /// 월간 날짜별 끼니 합산 칼로리
-  Future<Map<String, double>> getMonthlyKcal(int userId, int year, int month) async {
+  Future<Map<String, double>> getMonthlyKcal(
+      int userId, int year, int month) async {
     final db = await _db.database;
-    final ym = '${year}-${month.toString().padLeft(2, '0')}';
+    final ym = '$year-${month.toString().padLeft(2, '0')}';
 
     final rows = await db.rawQuery('''
       SELECT DATE(m.eaten_at) AS day, SUM(f.kcal * mf.serving_count) AS total
@@ -150,7 +155,9 @@ class MealRepository {
       GROUP BY DATE(m.eaten_at)
     ''', [userId, ym]);
 
-    return {for (final r in rows) r['day'] as String: (r['total'] as num).toDouble()};
+    return {
+      for (final r in rows) r['day'] as String: (r['total'] as num).toDouble()
+    };
   }
 
   /// 오늘 날짜의 끼니 + 음식 전체 (홈 화면용)
@@ -159,7 +166,8 @@ class MealRepository {
   }
 
   /// 날짜 범위 내 기록된 날짜 목록
-  Future<List<String>> getRecordedDates(int userId, DateTime from, DateTime to) async {
+  Future<List<String>> getRecordedDates(
+      int userId, DateTime from, DateTime to) async {
     final db = await _db.database;
     final rows = await db.rawQuery('''
       SELECT DISTINCT DATE(eaten_at) AS day
@@ -199,30 +207,32 @@ class MealRepository {
       WHERE mf.meal_id = ?
     ''', [mealId]);
 
-    return rows.map((r) => MealFoodJoin(
-      mealFood: MealFoodEntity.fromMap({
-        'id':           r['mf_id'],
-        'meal_id':      r['mf_meal_id'],
-        'food_id':      r['mf_food_id'],
-        'amount_g':     r['mf_amount_g'],
-        'serving_count':r['mf_serving_count'],
-        'created_at':   r['mf_created_at'],
-        'updated_at':   r['mf_updated_at'],
-      }),
-      food: FoodEntity.fromMap({
-        'id':         r['f_id'],
-        'food_no':    r['f_food_no'],
-        'food_name':  r['f_food_name'],
-        'kcal':       r['f_kcal'],
-        'carb_g':     r['f_carb_g'],
-        'protein_g':  r['f_protein_g'],
-        'fat_g':      r['f_fat_g'],
-        'created_at': r['f_created_at'],
-        'updated_at': r['f_updated_at'],
-      }),
-    )).toList();
+    return rows
+        .map((r) => MealFoodJoin(
+              mealFood: MealFoodEntity.fromMap({
+                'id': r['mf_id'],
+                'meal_id': r['mf_meal_id'],
+                'food_id': r['mf_food_id'],
+                'amount_g': r['mf_amount_g'],
+                'serving_count': r['mf_serving_count'],
+                'created_at': r['mf_created_at'],
+                'updated_at': r['mf_updated_at'],
+              }),
+              food: FoodEntity.fromMap({
+                'id': r['f_id'],
+                'food_no': r['f_food_no'],
+                'food_name': r['f_food_name'],
+                'kcal': r['f_kcal'],
+                'carb_g': r['f_carb_g'],
+                'protein_g': r['f_protein_g'],
+                'fat_g': r['f_fat_g'],
+                'created_at': r['f_created_at'],
+                'updated_at': r['f_updated_at'],
+              }),
+            ))
+        .toList();
   }
 
   String _dateStr(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }

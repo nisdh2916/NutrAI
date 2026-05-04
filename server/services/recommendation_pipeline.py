@@ -4,23 +4,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from server.common.allergens import ALLERGEN_KEYWORDS, check_allergen
+from server.common.nutrition import calculate_target_kcal
 
 NO_LIMIT_REMAINING_KCAL = 0.0
 KCAL_TOLERANCE = 50.0
-
-ALLERGEN_KEYWORDS: dict[str, list[str]] = {
-    "유제품": ["우유", "치즈", "버터", "요거트", "크림", "유청", "라떼", "아이스크림"],
-    "견과류": ["아몬드", "호두", "캐슈", "땅콩", "잣", "피스타치오", "마카다미아", "견과"],
-    "갑각류": ["새우", "게", "랍스터", "크랩", "대게"],
-    "밀": ["빵", "파스타", "면", "국수", "라면", "우동", "스파게티", "밀가루", "만두"],
-    "글루텐": ["빵", "파스타", "면", "국수", "라면", "우동", "밀가루"],
-    "계란": ["계란", "달걀", "에그", "오믈렛", "마요네즈"],
-    "대두": ["두부", "된장", "간장", "두유", "콩국수", "낫토", "청국장"],
-    "복숭아": ["복숭아", "피치"],
-    "토마토": ["토마토", "케첩"],
-    "고등어": ["고등어"],
-    "조개류": ["조개", "홍합", "굴", "전복", "바지락", "오징어", "낙지", "문어"],
-}
 
 MEAL_TIME_LABELS = {
     "breakfast": "아침",
@@ -132,7 +120,9 @@ def build_meal_status(
             total_protein += _as_float(food.get("protein_g"))
             total_fat += _as_float(food.get("fat_g"))
 
-    target = _as_float(profile.get("target_kcal"), default=NO_LIMIT_REMAINING_KCAL)
+    # 명시 target_kcal이 없으면 프로필 기반 자동 계산
+    explicit = _as_float(profile.get("target_kcal"))
+    target = explicit if explicit > 0 else calculate_target_kcal(profile)
     remaining = max(0.0, target - consumed_today) if target > 0 else NO_LIMIT_REMAINING_KCAL
 
     return MealStatus(
@@ -233,13 +223,8 @@ def format_context_block(ctx: RecommendationContext, docs: list[str]) -> str:
 
 
 def item_has_allergen(name: str, allergy_str: str | None) -> tuple[bool, list[str]]:
-    allergens = [item for item in _split_words(allergy_str) if item.lower() not in ("none", "없음")]
-    matched = []
-    for allergen in allergens:
-        keywords = ALLERGEN_KEYWORDS.get(allergen, [allergen])
-        if any(keyword and keyword in name for keyword in keywords):
-            matched.append(allergen)
-    return bool(matched), matched
+    """Wrapper for backward compatibility — delegates to common.allergens."""
+    return check_allergen(name, allergy_str)
 
 
 def validate_and_rank_items(
