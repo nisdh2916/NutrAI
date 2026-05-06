@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git clone *)",
+      "PowerShell(robocopy \"d:\\\\caps\\\\NutrAI-latest\" \"d:\\\\caps\\\\NutrAI-main\" /E /XD \".git\" /NFL /NDL /NJH /NJS)"
+    ]
+  }
+}
