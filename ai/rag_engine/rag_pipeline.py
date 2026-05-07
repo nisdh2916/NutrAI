@@ -17,6 +17,7 @@ from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from server.common.llm_config import LLM, CHAT_TEMPERATURE, CHAT_NUM_PREDICT
+from server.common.allergens import extract_allergen_keywords
 
 CHROMA_DIR = Path(__file__).parent / "chroma_db"
 EMBED_MODEL = "snunlp/KR-SBERT-V40K-klueNLI-augSTS"
@@ -104,9 +105,14 @@ SYSTEM_PROMPT = """한국어로만 답변하는 NutrAI 영양 코치입니다.
 반드시 [참고 영양 정보]에 있는 식품 데이터를 바탕으로 추천하세요. 목록에 없는 음식은 추천하지 마세요.
 알레르기 성분이 포함된 음식은 절대 추천하지 마세요.
 질환이 있으면 해당 질환에 적합한 식단을 최우선으로 고려하세요.
-음식명은 반드시 일반 음식명만 사용하세요. 브랜드명·제품명이 포함된 경우 핵심 음식명만 추출하세요. 예: '페이보잇 한끼 차돌짬뽕국밥' → '차돌짬뽕국밥', '호텔컬렉션 베트남쌀국수' → '베트남쌀국수'.
 의료적 확정 표현은 사용하지 말고 권고 표현을 사용하세요.
 수치 계산(칼로리, 남은 열량)은 반드시 [식단 현황]의 수치를 그대로 사용하고 임의로 계산하지 마세요.
+
+[음식 선택 우선순위 - 반드시 준수]
+- 밥, 국, 찌개, 구이, 볶음, 나물 등 일반 가정식·한식 위주로 추천하세요.
+- 즉석식품, 가공식품, 냉동식품, 포장 간편식(제품명/브랜드명이 있는 식품)은 절대 추천하지 마세요.
+- [참고 영양 정보]에 브랜드명이 포함된 항목은 건너뛰고 다른 항목을 선택하세요.
+- 추천 음식명은 '된장찌개', '닭가슴살 샐러드', '현미밥' 같은 일반 음식명으로만 표기하세요.
 
 [영양 추론 규칙 - 반드시 준수]
 - 당뇨 관련: 혈당을 올리는 것은 탄수화물(당류)이지 단백질이 아닙니다. "단백질이 낮아서 당뇨에 좋다"는 표현은 절대 사용하지 마세요. 당뇨에는 저당·저탄수화물·적정 단백질을 강조하세요.

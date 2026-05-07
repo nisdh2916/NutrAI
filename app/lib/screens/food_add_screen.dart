@@ -108,12 +108,12 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
   void _onSearch() async {
     final q = _searchCtrl.text;
     if (q.isEmpty) {
-      setState(() => _searchResults = []);
+      if (mounted) setState(() => _searchResults = []);
       return;
     }
     final appState = context.read<AppState>();
     final results = await appState.searchFoods(q);
-    // FoodEntity → MealFood 변환
+    if (!mounted) return;
     setState(() {
       _searchResults = results
           .map((f) => MealFood(
@@ -228,28 +228,37 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
 
     final appState = context.read<AppState>();
 
-    // 음식이 DB에 없으면 자동 삽입 후 id 반환
-    final foodArgs = <({int foodId, double? amountG, double servingCount})>[];
-    for (final f in _detectedFoods) {
-      final fid = await appState.getOrCreateFood(
-        name: f.name,
-        kcal: f.kcal.toDouble(),
-        carbG: f.carb.toDouble(),
-        proteinG: f.protein.toDouble(),
-        fatG: f.fat.toDouble(),
+    try {
+      final foodArgs = <({int foodId, double? amountG, double servingCount})>[];
+      for (final f in _detectedFoods) {
+        final fid = await appState.getOrCreateFood(
+          name: f.name,
+          kcal: f.kcal.toDouble(),
+          carbG: f.carb.toDouble(),
+          proteinG: f.protein.toDouble(),
+          fatG: f.fat.toDouble(),
+        );
+        foodArgs.add((foodId: fid, amountG: null, servingCount: 1.0));
+      }
+
+      await appState.saveMeal(
+        mealType: MealEntity.typeFromLabel(_mealLabel),
+        eatenAt: DateTime.now(),
+        photoPath: _pickedImagePath,
+        foods: foodArgs,
       );
-      foodArgs.add((foodId: fid, amountG: null, servingCount: 1.0));
+
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('저장 실패: $e'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.red),
+      );
     }
-
-    await appState.saveMeal(
-      mealType: MealEntity.typeFromLabel(_mealLabel),
-      eatenAt: DateTime.now(),
-      photoPath: _pickedImagePath,
-      foods: foodArgs,
-    );
-
-    if (!mounted) return;
-    Navigator.pop(context);
   }
 
   double get _totalKcal => _detectedFoods.fold(0.0, (s, f) => s + f.kcal);
@@ -280,7 +289,7 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
               SliverToBoxAdapter(
                   child: _SearchBarWidget(
                 controller: _searchCtrl,
-                hintText: '사용자 직접 검색',
+                hintText: '음식 검색 (결과를 탭하면 추가됩니다)',
               )),
               if (_searchResults.isNotEmpty)
                 SliverPadding(
@@ -300,6 +309,50 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
                     ),
                     childCount: _searchResults.length,
                   )),
+                ),
+              // 검색 결과 없을 때 직접 추가 안내
+              if (_searchResults.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: Material(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(10),
+                      child: InkWell(
+                        onTap: () => setState(() {
+                          _editingIndex = _detectedFoods.length;
+                          _state = _ScreenState.editing;
+                          _detectedFoods.add(const MealFood(
+                              name: '(새 음식)',
+                              carb: 0,
+                              protein: 0,
+                              fat: 0,
+                              kcal: 0));
+                        }),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: AppColors.line, width: 0.5),
+                          ),
+                          child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_rounded,
+                                    size: 16, color: AppColors.brand),
+                                SizedBox(width: 6),
+                                Text('음식 직접 추가',
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        color: AppColors.brand,
+                                        fontWeight: FontWeight.w500)),
+                              ]),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
             ],
 
