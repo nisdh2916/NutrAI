@@ -114,6 +114,12 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 특정 날짜에 해당 meal_type이 이미 존재하는지 확인
+  Future<bool> hasMealTypeForDate(String mealType, DateTime date) async {
+    if (userId == null) return false;
+    return _mealRepo.hasMealTypeForDate(userId!, mealType, date);
+  }
+
   /// 특정 날짜 식단 조회
   Future<List<MealWithFoods>> getMealsForDate(DateTime date) async {
     if (userId == null) return [];

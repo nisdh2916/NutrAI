@@ -25,12 +25,11 @@ class _MainTabScreenState extends State<MainTabScreen> {
     super.initState();
     final name = widget.profile.name.isNotEmpty ? widget.profile.name : '00';
     _screens = [
-      HomeScreen(profile: widget.profile),
+      HomeScreen(profile: widget.profile, onGoToCalendar: () => _setTab(1), onGoToSettings: _navigateToSettings),
       CalendarScreen(onGoToReport: () => _setTab(3)),
       const SizedBox.shrink(),
       ReportScreen(userName: name),
       RecommendScreen(userName: name),
-      const SettingsScreen(),
     ];
   }
 
@@ -41,14 +40,20 @@ class _MainTabScreenState extends State<MainTabScreen> {
       case 2:  return 0;
       case 3:  return 2;
       case 4:  return 3;
-      case 5:  return 4;
       default: return 0;
     }
   }
 
+  void _navigateToSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+  }
+
   void _onFabTap() {
     final hour  = DateTime.now().hour;
-    final label = hour < 10 ? '아침' : hour < 15 ? '점심' : '저녁';
+    final label = hour < 10 ? '아침' : hour < 15 ? '점심' : hour < 21 ? '저녁' : '기타';
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -68,7 +73,6 @@ class _MainTabScreenState extends State<MainTabScreen> {
           _screens[1],
           _screens[3],
           _screens[4],
-          _screens[5],
         ],
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -106,7 +110,6 @@ class _MainTabScreenState extends State<MainTabScreen> {
           const Expanded(child: SizedBox()),
           _NavItem(icon: Icons.bar_chart_outlined,        iconActive: Icons.bar_chart_rounded,         label: '리포트',index: 3, current: _currentIndex, onTap: _setTab),
           _NavItem(icon: Icons.lightbulb_outline_rounded, iconActive: Icons.lightbulb_rounded,         label: '추천',  index: 4, current: _currentIndex, onTap: _setTab),
-          _NavItem(icon: Icons.person_outline_rounded,    iconActive: Icons.person_rounded,            label: '설정',  index: 5, current: _currentIndex, onTap: _setTab),
         ]),
       ),
     ),

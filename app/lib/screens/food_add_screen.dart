@@ -112,7 +112,8 @@ enum _ScreenState {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 class FoodAddScreen extends StatefulWidget {
   final String initialMealLabel;
-  const FoodAddScreen({super.key, this.initialMealLabel = '아침'});
+  final DateTime? initialDate; // null = 오늘
+  const FoodAddScreen({super.key, this.initialMealLabel = '아침', this.initialDate});
 
   @override
   State<FoodAddScreen> createState() => _FoodAddScreenState();
@@ -121,6 +122,7 @@ class FoodAddScreen extends StatefulWidget {
 class _FoodAddScreenState extends State<FoodAddScreen> {
   late String _mealLabel;
   _ScreenState _state = _ScreenState.initial;
+  bool _saving = false;
 
   // AI 분석 결과 목록 (수정 가능)
   final List<MealFood> _detectedFoods = [];
@@ -136,8 +138,8 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   List<MealFood> _searchResults = [];
 
-  static const _mealLabels = ['아침', '점심', '저녁'];
-  static const _mealColors = [AppColors.breakfast, AppColors.lunch, AppColors.dinner];
+  static const _mealLabels = ['아침', '점심', '저녁', '기타'];
+  static const _mealColors = [AppColors.breakfast, AppColors.lunch, AppColors.dinner, AppColors.snack];
 
   @override
   void initState() {
@@ -152,7 +154,7 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
     super.dispose();
   }
 
-  // ── DB 검색 ──
+  // ── DB 검색 (DB 결과 없으면 내장 목록으로 폴백) ──
   void _onSearch() async {
     final q = _searchCtrl.text;
     if (q.isEmpty) {
@@ -160,14 +162,18 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
       return;
     }
     final appState = context.read<AppState>();
-    final results  = await appState.searchFoods(q);
-    // FoodEntity → MealFood 변환
-    setState(() {
-      _searchResults = results.map((f) => MealFood(
-        name: f.foodName, carb: f.carbG,
-        protein: f.proteinG, fat: f.fatG, kcal: f.kcal,
-      )).toList();
-    });
+    final dbResults = await appState.searchFoods(q);
+    if (dbResults.isNotEmpty) {
+      setState(() {
+        _searchResults = dbResults.map((f) => MealFood(
+          name: f.foodName, carb: f.carbG,
+          protein: f.proteinG, fat: f.fatG, kcal: f.kcal,
+        )).toList();
+      });
+    } else {
+      // 내장 음식 목록에서 검색
+      setState(() => _searchResults = _FoodDB.search(q));
+    }
   }
 
   // ── 카메라 촬영 ──
@@ -262,27 +268,78 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
       return;
     }
 
-    final appState = context.read<AppState>();
+    // 영양정보가 모두 0인 항목 자동 제거
+    final validFoods = _detectedFoods.where(
+      (f) => !(f.kcal == 0 && f.carb == 0 && f.protein == 0 && f.fat == 0),
+    ).toList();
 
-    // 음식이 DB에 없으면 자동 삽입 후 id 반환
-    final foodArgs = <({int foodId, double? amountG, double servingCount})>[];
-    for (final f in _detectedFoods) {
-      final fid = await appState.getOrCreateFood(
-        name: f.name, kcal: f.kcal.toDouble(),
-        carbG: f.carb.toDouble(), proteinG: f.protein.toDouble(), fatG: f.fat.toDouble(),
+    if (validFoods.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('영양정보가 없는 음식만 있어요. 음식을 검색해서 추가해주세요.'),
+            behavior: SnackBarBehavior.floating),
       );
-      foodArgs.add((foodId: fid, amountG: null, servingCount: 1.0));
+      return;
     }
 
-    await appState.saveMeal(
-      mealType:  MealEntity.typeFromLabel(_mealLabel),
-      eatenAt:   DateTime.now(),
-      photoPath: _pickedImagePath,
-      foods:     foodArgs,
-    );
+    setState(() => _saving = true);
+    try {
+      final appState = context.read<AppState>();
+      final mealType = MealEntity.typeFromLabel(_mealLabel);
+      // Fix 1: 선택된 날짜 사용 (캘린더에서 다른 날짜 선택 시 반영)
+      final eatenAt = widget.initialDate ?? DateTime.now();
 
-    if (!mounted) return;
-    Navigator.pop(context);
+      // Fix 2: 아침/점심/저녁은 하루 한 번만 허용
+      if (mealType != 'snack') {
+        final exists = await appState.hasMealTypeForDate(mealType, eatenAt);
+        if (!mounted) return;
+        if (exists) {
+          setState(() => _saving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$_mealLabel 식단이 이미 기록되어 있어요. 기존 기록을 삭제 후 다시 추가해주세요.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+      }
+
+      // Fix 3: 같은 이름 메뉴 중복 시 servingCount 합산
+      final Map<String, ({MealFood food, double count})> merged = {};
+      for (final f in validFoods) {
+        if (merged.containsKey(f.name)) {
+          merged[f.name] = (food: merged[f.name]!.food, count: merged[f.name]!.count + 1.0);
+        } else {
+          merged[f.name] = (food: f, count: 1.0);
+        }
+      }
+
+      final foodArgs = <({int foodId, double? amountG, double servingCount})>[];
+      for (final entry in merged.values) {
+        final fid = await appState.getOrCreateFood(
+          name: entry.food.name, kcal: entry.food.kcal.toDouble(),
+          carbG: entry.food.carb.toDouble(), proteinG: entry.food.protein.toDouble(),
+          fatG: entry.food.fat.toDouble(),
+        );
+        foodArgs.add((foodId: fid, amountG: null, servingCount: entry.count));
+      }
+
+      await appState.saveMeal(
+        mealType:  mealType,
+        eatenAt:   eatenAt,
+        photoPath: _pickedImagePath,
+        foods:     foodArgs,
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('저장 실패: $e'), behavior: SnackBarBehavior.floating),
+      );
+    }
   }
 
   double get _totalKcal =>
@@ -311,7 +368,7 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
               SliverToBoxAdapter(child: _PhotoButtons(onCamera: _onCamera, onGallery: _onGallery)),
               SliverToBoxAdapter(child: _SearchBarWidget(
                 controller: _searchCtrl,
-                hintText: '사용자 직접 검색',
+                hintText: '음식 검색 (예: 비빔밥, 닭가슴살)',
               )),
               if (_searchResults.isNotEmpty)
                 SliverPadding(
@@ -330,7 +387,14 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
                     ),
                     childCount: _searchResults.length,
                   )),
-                ),
+                )
+              else
+                SliverToBoxAdapter(child: _QuickFoodGrid(
+                  onSelect: (food) => setState(() {
+                    _detectedFoods.add(food);
+                    _state = _ScreenState.confirmed;
+                  }),
+                )),
             ],
 
             // ── 분석 중 ──
@@ -452,6 +516,7 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
           foodCount:  _detectedFoods.length,
           totalKcal:  _totalKcal,
           mealLabel:  _mealLabel,
+          saving:     _saving,
           onSave:     _onSave,
         ),
       ]),
@@ -1001,11 +1066,12 @@ class _BottomSaveBar extends StatelessWidget {
   final int foodCount;
   final double totalKcal;
   final String mealLabel;
+  final bool saving;
   final VoidCallback onSave;
 
   const _BottomSaveBar({
     required this.state, required this.foodCount, required this.totalKcal,
-    required this.mealLabel, required this.onSave,
+    required this.mealLabel, required this.saving, required this.onSave,
   });
 
   bool get _canSave =>
@@ -1021,7 +1087,7 @@ class _BottomSaveBar extends StatelessWidget {
     padding: EdgeInsets.fromLTRB(20, 12, 20,
         MediaQuery.of(context).padding.bottom + 16),
     child: Row(children: [
-      if (_canSave) ...[
+      if (_canSave && !saving) ...[
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('총 칼로리',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
@@ -1040,7 +1106,15 @@ class _BottomSaveBar extends StatelessWidget {
         const SizedBox(width: 14),
       ],
       Expanded(child: GestureDetector(
-        onTap: _canSave ? onSave : null,
+        onTap: (!_canSave || saving)
+            ? (!saving ? () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('아래 목록에서 음식을 선택하거나 검색해주세요'),
+                  behavior: SnackBarBehavior.floating,
+                  duration: Duration(seconds: 2),
+                ),
+              ) : null)
+            : onSave,
         child: Container(
           height: 52,
           decoration: BoxDecoration(
@@ -1048,20 +1122,107 @@ class _BottomSaveBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           alignment: Alignment.center,
-          child: Text(
-            !_canSave
-                ? '음식을 선택해주세요'
-                : state == _ScreenState.editing
-                    ? '수정 완료 후 추가하기'
-                    : '$mealLabel에 $foodCount개 추가',
-            style: TextStyle(
-              fontSize: 15, fontWeight: FontWeight.w800,
-              color: _canSave ? Colors.white : AppColors.textMuted,
-              letterSpacing: -0.015,
-            ),
-          ),
+          child: saving
+              ? const SizedBox(
+                  width: 22, height: 22,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2.5, color: Colors.white),
+                )
+              : Text(
+                  !_canSave
+                      ? '음식을 선택하면 기록할 수 있어요'
+                      : state == _ScreenState.editing
+                          ? '수정 완료 후 추가하기'
+                          : '$mealLabel에 $foodCount개 추가',
+                  style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w800,
+                    color: _canSave ? Colors.white : AppColors.textMuted,
+                    letterSpacing: -0.015,
+                  ),
+                ),
         ),
       )),
     ]),
   );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 빠른 음식 선택 그리드 (초기 상태)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+class _QuickFoodGrid extends StatelessWidget {
+  final ValueChanged<MealFood> onSelect;
+  const _QuickFoodGrid({required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    final foods = _FoodDB.all;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.bolt_rounded, size: 16, color: AppColors.brand),
+          const SizedBox(width: 4),
+          const Text('빠른 선택',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                  color: AppColors.text)),
+          const SizedBox(width: 6),
+          const Text('탭하면 바로 추가돼요',
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+        ]),
+        const SizedBox(height: 12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 2.6,
+          ),
+          itemCount: foods.length,
+          itemBuilder: (ctx, i) {
+            final food = foods[i];
+            return GestureDetector(
+              onTap: () => onSelect(food),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.line, width: 0.5),
+                  boxShadow: AppShadows.card,
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 30, height: 30,
+                    decoration: BoxDecoration(
+                      color: _foodColor(food.name),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(food.name,
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600,
+                              color: AppColors.text),
+                          overflow: TextOverflow.ellipsis),
+                      Text('${food.kcal.round()}kcal',
+                          style: const TextStyle(
+                              fontSize: 10, color: AppColors.textMuted)),
+                    ],
+                  )),
+                  const Icon(Icons.add_circle_outline_rounded,
+                      size: 16, color: AppColors.brand),
+                ]),
+              ),
+            );
+          },
+        ),
+      ]),
+    );
+  }
 }

@@ -1,48 +1,76 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/user_profile.dart';
 import '../models/meal_models.dart';
+import '../models/db_models.dart';
+import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
-import 'settings_screen.dart';
 import 'ai_chat_screen.dart';
+import 'food_add_screen.dart';
 
 // ── 홈 화면 ──────────────────────────────────────
 class HomeScreen extends StatelessWidget {
   final UserProfile profile;
+  final VoidCallback? onGoToCalendar;
+  final VoidCallback? onGoToSettings;
 
-  HomeScreen({super.key, required this.profile});
+  const HomeScreen({super.key, required this.profile, this.onGoToCalendar, this.onGoToSettings});
 
-  final List<MealRecord> _meals = const [
-    MealRecord(
-      label: '아침', time: '10:00',
-      foods: [
-        MealFood(name: '비빔밥',   carb: 65, protein: 18, fat: 8,  kcal: 410),
-        MealFood(name: '김밥',     carb: 48, protein: 12, fat: 6,  kcal: 300),
-        MealFood(name: '제육볶음', carb: 20, protein: 25, fat: 14, kcal: 310),
-      ],
-    ),
-    MealRecord(
-      label: '점심', time: '12:30',
-      foods: [
-        MealFood(name: '현미밥 1/2공기',  carb: 32, protein: 3,  fat: 1,  kcal: 150),
-        MealFood(name: '닭가슴살 샐러드', carb: 12, protein: 35, fat: 12, kcal: 300),
-      ],
-    ),
-  ];
+  static void _showMealDetail(BuildContext context, MealWithFoods meal) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MealDetailSheet(
+        meal: meal,
+        onDelete: () async {
+          await context.read<AppState>().deleteMeal(meal.meal.id!);
+          if (context.mounted) Navigator.pop(context);
+        },
+      ),
+    );
+  }
 
-  double get _totalKcal    => _meals.fold(0, (s, m) => s + m.totalKcal);
-  double get _totalCarb    => _meals.fold(0, (s, m) => s + m.totalCarb);
-  double get _totalProtein => _meals.fold(0, (s, m) => s + m.totalProtein);
-  double get _totalFat     => _meals.fold(0, (s, m) => s + m.totalFat);
-  double get _goalKcal     => profile.bmr?.roundToDouble() ?? 2000;
+  static MealRecord _toMealRecord(MealWithFoods m) {
+    DateTime? dt;
+    try { dt = DateTime.parse(m.meal.eatenAt); } catch (_) {}
+    final timeStr = dt != null
+        ? '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}'
+        : '';
+    return MealRecord(
+      label: m.meal.label,
+      time: timeStr,
+      foods: m.foods.map((f) => MealFood(
+        name: f.food.foodName,
+        carb: f.totalCarbG,
+        protein: f.totalProteinG,
+        fat: f.totalFatG,
+        kcal: f.totalKcal,
+      )).toList(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final state        = context.watch<AppState>();
+    final mealRecords  = state.todayMeals.map(_toMealRecord).toList();
+
+    final totalKcal    = state.todayKcal;
+    final totalCarb    = state.todayCarbG;
+    final totalProtein = state.todayProteinG;
+    final totalFat     = state.todayFatG;
+    final goalKcal     = profile.bmr?.roundToDouble() ?? 2000;
+
+    final recordedLabels  = mealRecords.map((m) => m.label).toSet();
+    const standardMeals   = ['아침', '점심', '저녁'];
+    final unrecordedMeals = standardMeals.where((m) => !recordedLabels.contains(m)).toList();
+
     final name    = profile.name.isNotEmpty ? profile.name : '사용자';
     final now     = DateTime.now();
     final weekday = ['월', '화', '수', '목', '금', '토', '일'][now.weekday - 1];
     final dateStr = '${now.month}월 ${now.day}일 $weekday요일';
-    final todayIdx = now.weekday - 1; // 0=월 … 6=일
+    final todayIdx = now.weekday - 1;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -52,9 +80,8 @@ class HomeScreen extends StatelessWidget {
           SliverToBoxAdapter(
             child: Container(
               color: AppColors.bg,
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 12, 20, 20),
               child: Row(children: [
-                // 아바타
                 Container(
                   width: 40, height: 40,
                   decoration: BoxDecoration(
@@ -83,10 +110,7 @@ class HomeScreen extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.notifications_none_rounded,
                       color: AppColors.textSub, size: 22),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                  ),
+                  onPressed: onGoToSettings,
                 ),
               ]),
             ),
@@ -99,11 +123,11 @@ class HomeScreen extends StatelessWidget {
 
                 // ── DailyOverviewCard ──
                 _DailyOverviewCard(
-                  totalKcal:    _totalKcal,
-                  goalKcal:     _goalKcal,
-                  totalCarb:    _totalCarb,
-                  totalProtein: _totalProtein,
-                  totalFat:     _totalFat,
+                  totalKcal:    totalKcal,
+                  goalKcal:     goalKcal,
+                  totalCarb:    totalCarb,
+                  totalProtein: totalProtein,
+                  totalFat:     totalFat,
                 ),
                 const SizedBox(height: 12),
 
@@ -112,16 +136,32 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 28),
 
                 // ── 오늘 식단 섹션 헤더 ──
-                _SectionHeader(title: '오늘 식단', action: '전체보기', onAction: () {}),
+                _SectionHeader(title: '오늘 식단', action: '전체보기', onAction: onGoToCalendar),
 
-                // ── 끼니 카드 ──
-                ..._meals.map((m) => Padding(
+                // ── 기록된 끼니 카드 ──
+                ...state.todayMeals.map((m) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: _MealCard(meal: m),
+                  child: _MealCard(
+                    meal: _toMealRecord(m),
+                    onMoreTap: () => _showMealDetail(context, m),
+                  ),
                 )),
 
-                // ── 빈 끼니 (저녁) ──
-                _EmptyMealCard(type: '저녁', recordedCount: _meals.length),
+                // ── 미기록 끼니 카드 ──
+                ...unrecordedMeals.map((type) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _EmptyMealCard(
+                    type: type,
+                    recordedCount: mealRecords.length,
+                    onRecord: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        fullscreenDialog: true,
+                        builder: (_) => FoodAddScreen(initialMealLabel: type),
+                      ),
+                    ),
+                  ),
+                )),
                 const SizedBox(height: 12),
 
                 // ── 연속 기록 카드 ──
@@ -195,7 +235,6 @@ class _DailyOverviewCard extends StatelessWidget {
       ),
       clipBehavior: Clip.hardEdge,
       child: Column(children: [
-        // 상단 3색 그래디언트 줄
         Container(
           height: 3,
           decoration: const BoxDecoration(
@@ -207,7 +246,6 @@ class _DailyOverviewCard extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.all(20),
           child: Column(children: [
-            // 도넛 + 영양소 행
             Row(children: [
               SizedBox(
                 width: 112, height: 112,
@@ -261,7 +299,6 @@ class _DailyOverviewCard extends StatelessWidget {
               child: Divider(height: 1, color: AppColors.lineSoft),
             ),
 
-            // 남은 칼로리 + 달성률 칩
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -299,40 +336,77 @@ class _DailyOverviewCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // 저녁 예측 가이드
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.brandSoft,
-                borderRadius: BorderRadius.circular(AppRadius.md),
-              ),
-              child: Row(children: [
-                Container(
-                  width: 28, height: 28,
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.lightbulb_outline_rounded,
-                      size: 16, color: AppColors.brand),
+            if (totalKcal > goalKcal)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(color: const Color(0xFFFECACA)),
                 ),
-                const SizedBox(width: 10),
-                Expanded(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '저녁은 ${dinnerGuide}kcal 이하를 추천해요',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
-                          color: AppColors.brandText, letterSpacing: -0.01),
+                child: Row(children: [
+                  Container(
+                    width: 28, height: 28,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(height: 1),
-                    const Text('단백질이 살짝 부족해요 · 닭가슴살 추천',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500,
-                            color: AppColors.brandText, height: 1.3)),
-                  ],
-                )),
-              ]),
-            ),
+                    child: const Icon(Icons.warning_amber_rounded,
+                        size: 16, color: Color(0xFFEF4444)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '권장 칼로리를 초과했어요!',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                            color: Color(0xFFDC2626), letterSpacing: -0.01),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        '목표보다 ${(totalKcal - goalKcal).round()}kcal 더 섭취했어요',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500,
+                            color: Color(0xFFEF4444), height: 1.3),
+                      ),
+                    ],
+                  )),
+                ]),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.brandSoft,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 28, height: 28,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.lightbulb_outline_rounded,
+                        size: 16, color: AppColors.brand),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '저녁은 ${dinnerGuide}kcal 이하를 추천해요',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                            color: AppColors.brandText, letterSpacing: -0.01),
+                      ),
+                      const SizedBox(height: 1),
+                      const Text('단백질이 살짝 부족해요 · 닭가슴살 추천',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500,
+                              color: AppColors.brandText, height: 1.3)),
+                    ],
+                  )),
+                ]),
+              ),
           ]),
         ),
       ]),
@@ -528,18 +602,25 @@ class _SectionHeader extends StatelessWidget {
 // ── 끼니 카드 ─────────────────────────────────────
 class _MealCard extends StatelessWidget {
   final MealRecord meal;
-  const _MealCard({required this.meal});
+  final VoidCallback? onMoreTap;
+  const _MealCard({required this.meal, this.onMoreTap});
 
   static Color _chipColor(String label) {
-    if (label == '아침') return AppColors.breakfast;
-    if (label == '점심') return AppColors.lunch;
-    return AppColors.dinner;
+    switch (label) {
+      case '아침': return AppColors.breakfast;
+      case '점심': return AppColors.lunch;
+      case '저녁': return AppColors.dinner;
+      default:    return AppColors.snack;
+    }
   }
 
   static Color _chipBg(String label) {
-    if (label == '아침') return AppColors.breakfastSoft;
-    if (label == '점심') return AppColors.lunchSoft;
-    return AppColors.dinnerSoft;
+    switch (label) {
+      case '아침': return AppColors.breakfastSoft;
+      case '점심': return AppColors.lunchSoft;
+      case '저녁': return AppColors.dinnerSoft;
+      default:    return AppColors.snackSoft;
+    }
   }
 
   static Color _foodBoxColor(String name) {
@@ -567,7 +648,6 @@ class _MealCard extends StatelessWidget {
         boxShadow: AppShadows.card,
       ),
       child: Column(children: [
-        // 헤더
         Row(children: [
           Container(
             height: 26,
@@ -592,12 +672,18 @@ class _MealCard extends StatelessWidget {
                     color: AppColors.textMuted)),
           ])),
           const SizedBox(width: 8),
-          const Icon(Icons.more_horiz_rounded,
-              size: 18, color: AppColors.textMuted),
+          GestureDetector(
+            onTap: onMoreTap,
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Icon(Icons.more_horiz_rounded,
+                  size: 18, color: AppColors.textMuted),
+            ),
+          ),
         ]),
         const SizedBox(height: 14),
 
-        // 음식 목록
         ...meal.foods.map((f) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(children: [
@@ -627,7 +713,6 @@ class _MealCard extends StatelessWidget {
           ]),
         )),
 
-        // 매크로 미니 바
         if (macroSum > 0) ...[
           const SizedBox(height: 14),
           ClipRRect(
@@ -648,21 +733,23 @@ class _MealCard extends StatelessWidget {
 class _EmptyMealCard extends StatelessWidget {
   final String type;
   final int recordedCount;
-  const _EmptyMealCard({required this.type, required this.recordedCount});
+  final VoidCallback? onRecord;
+  const _EmptyMealCard({required this.type, required this.recordedCount, this.onRecord});
 
   @override
   Widget build(BuildContext context) {
     const total = 3;
+    final remaining = total - recordedCount;
+    final msg = remaining == 1 ? '$type만 기록하면 오늘 완성!' : '$type 식단을 기록해볼까요?';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0x0A22A447), // brandSoft 25%
+        color: const Color(0x0A22A447),
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.brand, width: 1.5,
-            style: BorderStyle.solid),
+        border: Border.all(color: AppColors.brand, width: 1.5),
       ),
       child: Column(children: [
-        // 진행 도트
         Row(children: [
           Row(children: List.generate(total, (i) => Container(
             width: 18, height: 4, margin: const EdgeInsets.only(right: 3),
@@ -696,19 +783,15 @@ class _EmptyMealCard extends StatelessWidget {
                       fontSize: 11, fontWeight: FontWeight.w600,
                       color: AppColors.brandText)),
                 ),
-                const SizedBox(width: 6),
-                const Text('18:00 예정',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                        color: AppColors.brandText, height: 1)),
               ]),
               const SizedBox(height: 4),
-              const Text('저녁만 기록하면 오늘 완성!',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+              Text(msg,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
                       color: AppColors.text, letterSpacing: -0.01)),
             ],
           )),
           GestureDetector(
-            onTap: () {},
+            onTap: onRecord,
             child: Container(
               height: 36,
               padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -734,9 +817,203 @@ class _EmptyMealCard extends StatelessWidget {
   }
 }
 
+// ── 식단 상세 바텀시트 ────────────────────────────
+class _MealDetailSheet extends StatelessWidget {
+  final MealWithFoods meal;
+  final VoidCallback onDelete;
+
+  static const _labelColors = {
+    '아침': AppColors.breakfast,
+    '점심': AppColors.lunch,
+    '저녁': AppColors.dinner,
+    '기타': AppColors.snack,
+  };
+
+  static Color _foodBoxColor(String name) {
+    const palette = [
+      Color(0xFFFCD34D), Color(0xFFF87171), Color(0xFFFB923C),
+      Color(0xFF86EFAC), Color(0xFF93C5FD), Color(0xFFC4B5FD),
+    ];
+    return palette[name.hashCode.abs() % palette.length];
+  }
+
+  const _MealDetailSheet({required this.meal, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = meal.meal.label;
+    final color = _labelColors[label] ?? AppColors.brand;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+          24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                    color: AppColors.lineStrong, borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            Row(children: [
+              Container(
+                height: 26,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                alignment: Alignment.center,
+                child: Text(label, style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+              ),
+              const SizedBox(width: 10),
+              Text(meal.meal.timeDisplay,
+                  style: const TextStyle(fontSize: 14, color: AppColors.textSub)),
+            ]),
+            const SizedBox(height: 16),
+
+            const Text('음식 목록',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.text)),
+            const SizedBox(height: 8),
+            ...meal.foods.map((f) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                Container(
+                  width: 32, height: 32,
+                  decoration: BoxDecoration(
+                    color: _foodBoxColor(f.food.foodName),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(f.food.foodName,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text)),
+                  Text(
+                    '탄 ${f.totalCarbG.round()}g  단 ${f.totalProteinG.round()}g  지 ${f.totalFatG.round()}g',
+                    style: const TextStyle(fontSize: 11, color: AppColors.textSub),
+                  ),
+                ])),
+                Text('${f.totalKcal.round()}kcal',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text)),
+              ]),
+            )),
+
+            const SizedBox(height: 8),
+            Container(height: 1, color: AppColors.line),
+            const SizedBox(height: 14),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: AppColors.brandSoft,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: Column(children: [
+                const Text('총 칼로리',
+                    style: TextStyle(fontSize: 11, color: AppColors.textSub)),
+                const SizedBox(height: 4),
+                Text('${meal.totalKcal.round()} kcal',
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800,
+                        color: AppColors.brandDark)),
+              ]),
+            ),
+            const SizedBox(height: 10),
+
+            Row(children: [
+              _NutrBox(label: '탄수화물', value: '${meal.totalCarbG.round()}g',    color: AppColors.carb),
+              const SizedBox(width: 8),
+              _NutrBox(label: '단백질',  value: '${meal.totalProteinG.round()}g', color: AppColors.protein),
+              const SizedBox(width: 8),
+              _NutrBox(label: '지방',    value: '${meal.totalFatG.round()}g',     color: AppColors.fat),
+            ]),
+            const SizedBox(height: 20),
+
+            GestureDetector(
+              onTap: () => _confirmDelete(context),
+              child: Container(
+                width: double.infinity, height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.lineSoft,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                alignment: Alignment.center,
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.delete_outline_rounded, size: 16, color: AppColors.textMuted),
+                  SizedBox(width: 6),
+                  Text('이 식사 기록 삭제',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                          color: AppColors.textMuted)),
+                ]),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('식사 기록 삭제'),
+        content: const Text('이 식사 기록을 삭제할까요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              onDelete();
+            },
+            child: const Text('삭제', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NutrBox extends StatelessWidget {
+  final String label, value;
+  final Color color;
+  const _NutrBox({required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(children: [
+        Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 4),
+        Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: color)),
+      ]),
+    ),
+  );
+}
+
 // ── 연속 기록 카드 ────────────────────────────────
 class _StreakCard extends StatelessWidget {
-  final int todayIndex; // 0=월 … 6=일
+  final int todayIndex;
   const _StreakCard({required this.todayIndex});
 
   static const _days = ['월', '화', '수', '목', '금', '토', '일'];
