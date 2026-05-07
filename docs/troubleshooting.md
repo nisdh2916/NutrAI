@@ -615,3 +615,37 @@ Image.file(
 추가로 `AppColors`의 텍스트/브랜드/의미 색상 토큰을 대비 기준에 맞게 어둡게 조정하고, 남은 info lint는 `dart fix --apply`와 수동 중괄호 보정으로 정리함.
 
 **관련 파일:** `app/lib/screens/food_add_screen.dart` → `_FoodDB`, `_DetectedFoodRow`, `_PhotoDoneBanner`, `_AllergyWarningBanner`; `app/lib/screens/calendar_screen.dart` → `_MonthBody`, `_MealDetailSheet`; `app/lib/theme/app_theme.dart` → `AppColors`; `app/lib/screens/user_setup_screen.dart`, `app/lib/screens/settings_screen.dart`, `app/lib/screens/onboarding_chat_screen.dart` → 터치 타깃 보정
+
+---
+
+## 24. 김영서 브랜치 병합 후 Flutter 분석이 실패함
+
+**증상:** `origin/team/kim-youngseo` 병합 직후 `flutter analyze`에서 `home_screen.dart`, `food_add_screen.dart`, `app_state.dart`, `main_tab_screen.dart`의 문법 오류와 정의되지 않은 참조 오류가 발생함.
+
+**원인:** 자동 병합이 신동하 브랜치의 AppState 파사드 구조와 김영서 브랜치의 기존 Repository 기반 구조를 같은 파일 안에 섞었고, 홈/음식 추가 화면에는 중복 위젯 블록이 남았음. `.gitignore`도 한쪽 규칙만 선택되어 로컬 로그와 Chroma 벡터 저장소가 untracked로 다시 노출됨.
+
+**해결:**
+```bash
+# 변경 전
+git merge origin/team/kim-youngseo
+# app_state.dart/home_screen.dart/food_add_screen.dart에 자동 병합 잔여 코드 발생
+# flutter analyze: Undefined name, duplicate named argument, expected token 오류
+
+# 변경 후
+git restore --source=origin/team/kim-youngseo -- \
+  app/lib/providers/app_state.dart \
+  app/lib/repositories/meal_repository.dart \
+  app/lib/screens/food_add_screen.dart \
+  app/lib/screens/home_screen.dart \
+  app/lib/screens/main_tab_screen.dart \
+  app/lib/theme/app_theme.dart
+
+# .gitignore는 양쪽 규칙을 합쳐 로컬 산출물을 계속 제외
+*_out.txt
+*_err.txt
+ai/rag_engine/chroma_db/
+```
+
+추가로 남은 analyzer info는 `const` 보정과 문자열 보간 정리 후 `dart format`으로 정리함.
+
+**관련 파일:** `app/lib/providers/app_state.dart` → `AppState`; `app/lib/screens/home_screen.dart` → `HomeScreen.build()`; `app/lib/screens/food_add_screen.dart` → `_FoodDB`, `_BottomActionBar`, `_QuickFoodGrid`; `app/lib/screens/main_tab_screen.dart` → `_MainTabScreenState`; `.gitignore` → 로컬 산출물 제외 규칙

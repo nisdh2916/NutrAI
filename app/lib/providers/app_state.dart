@@ -1,61 +1,56 @@
 import 'package:flutter/foundation.dart';
 import '../models/db_models.dart';
 import '../database/database_helper.dart';
-import 'user_state.dart';
-import 'meal_state.dart';
-
-export 'user_state.dart';
-export 'meal_state.dart';
-
-/// AppState 로딩 단계.
-/// loading 플래그 + error 문자열 조합 대신 명시적 enum으로 상태 전이를 표현.
-enum LoadingState { idle, loading, success, error }
+import '../repositories/user_repository.dart';
+import '../repositories/meal_repository.dart';
+import '../repositories/food_repository.dart';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// AppState: 파사드 ChangeNotifier
-// 도메인 로직은 UserState / MealState에 위임.
+// AppState: 앱 전역 상태 (Provider로 제공)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 class AppState extends ChangeNotifier {
-  final _userState = UserState();
-  final _mealState = MealState();
+  final _userRepo = UserRepository();
+  final _mealRepo = MealRepository();
+  final _foodRepo = FoodRepository();
 
-  LoadingState _state = LoadingState.idle;
+  // ── 상태 ────────────────────────────────────────
+  UserProfileEntity? _user;
+  List<MealWithFoods> _todayMeals = [];
+  bool _loading = false;
   String? _error;
 
-  // ── 위임 Getters ─────────────────────────────────
-  UserProfileEntity? get user        => _userState.user;
-  int? get userId                    => _userState.userId;
-  List<MealWithFoods> get todayMeals => _mealState.todayMeals;
-  LoadingState get state             => _state;
-  /// 기존 코드 호환용 — 신규 코드는 `state`를 직접 사용 권장
-  bool get loading                   => _state == LoadingState.loading;
-  String? get error                  => _error;
-  bool get hasError                  => _state == LoadingState.error;
+  // ── Getters ──────────────────────────────────────
+  UserProfileEntity? get user      => _user;
+  List<MealWithFoods> get todayMeals => _todayMeals;
+  bool get loading    => _loading;
+  String? get error   => _error;
 
-  double get todayKcal     => _mealState.todayKcal;
-  double get todayCarbG    => _mealState.todayCarbG;
-  double get todayProteinG => _mealState.todayProteinG;
-  double get todayFatG     => _mealState.todayFatG;
+  int? get userId     => _user?.id;
+
+  double get todayKcal    => _todayMeals.fold(0.0, (s, m) => s + m.totalKcal);
+  double get todayCarbG   => _todayMeals.fold(0.0, (s, m) => s + m.totalCarbG);
+  double get todayProteinG=> _todayMeals.fold(0.0, (s, m) => s + m.totalProteinG);
+  double get todayFatG    => _todayMeals.fold(0.0, (s, m) => s + m.totalFatG);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 앱 초기화
+  // 앱 초기화 (main에서 호출)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Future<void> init() async {
-    _setState(LoadingState.loading);
+    _setLoading(true);
     try {
-      await _userState.load();
-      if (userId != null) await _mealState.loadToday(userId!);
-      _error = null;
-      _setState(LoadingState.success);
+      _user = await _userRepo.getFirstUser();
+      if (_user != null) await loadTodayMeals();
     } catch (e) {
       _error = e.toString();
-      _setState(LoadingState.error);
+    } finally {
+      _setLoading(false);
     }
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 사용자
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   Future<void> saveUser({
     required String nickname,
     String? gender,
@@ -68,46 +63,89 @@ class AppState extends ChangeNotifier {
     String? allergy,
     String? condition,
   }) async {
-    await _userState.save(
-      nickname:      nickname,
-      gender:        gender,
-      age:           age,
-      heightCm:      heightCm,
-      weightKg:      weightKg,
-      activityLevel: activityLevel,
-      targetKcal:    targetKcal,
-      goal:          goal,
-      allergy:       allergy,
-      condition:     condition,
-    );
+    final now = DateTime.now().toIso8601String();
+
+    if (_user == null) {
+      // 신규 생성
+      final newUser = UserProfileEntity(
+        nickname:      nickname,
+        gender:        gender,
+        age:           age,
+        heightCm:      heightCm,
+        weightKg:      weightKg,
+        activityLevel: activityLevel,
+        targetKcal:    targetKcal,
+        goal:          goal,
+        allergy:       allergy,
+        condition:     condition,
+        createdAt:     now,
+        updatedAt:     now,
+      );
+      final id = await _userRepo.createUser(newUser);
+      _user = await _userRepo.getUserById(id);
+    } else {
+      // 수정
+      final updated = _user!.copyWith(
+        nickname:      nickname,
+        gender:        gender,
+        age:           age,
+        heightCm:      heightCm,
+        weightKg:      weightKg,
+        activityLevel: activityLevel,
+        targetKcal:    targetKcal,
+        goal:          goal,
+        allergy:       allergy,
+        condition:     condition,
+        updatedAt:     now,
+      );
+      await _userRepo.updateUser(updated);
+      _user = updated;
+    }
     notifyListeners();
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 오늘 식단
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   Future<void> loadTodayMeals() async {
     if (userId == null) return;
-    await _mealState.loadToday(userId!);
+    _todayMeals = await _mealRepo.getTodayMeals(userId!);
     notifyListeners();
   }
 
-  Future<List<MealWithFoods>> getMealsForDate(DateTime date) async {
-    if (userId == null) return [];
-    return _mealState.getMealsForDate(userId!, date);
+  /// 특정 날짜에 해당 meal_type이 이미 존재하는지 확인
+  Future<bool> hasMealTypeForDate(String mealType, DateTime date) async {
+    if (userId == null) return false;
+    return _mealRepo.hasMealTypeForDate(userId!, mealType, date);
   }
 
+  /// 특정 날짜 식단 조회
+  Future<List<MealWithFoods>> getMealsForDate(DateTime date) async {
+    if (userId == null) return [];
+    return _mealRepo.getMealsForDate(userId!, date);
+  }
+
+  /// 이름으로 음식 조회, 없으면 생성 후 id 반환
   Future<int> getOrCreateFood({
     required String name,
     required double kcal,
     required double carbG,
     required double proteinG,
     required double fatG,
-  }) => _mealState.getOrCreateFood(
-    name: name, kcal: kcal,
-    carbG: carbG, proteinG: proteinG, fatG: fatG,
-  );
+  }) async {
+    final results = await _foodRepo.searchFoods(name);
+    final exact = results.where((f) => f.foodName == name).firstOrNull;
+    if (exact != null) return exact.id!;
+    final now = DateTime.now().toIso8601String();
+    return _foodRepo.createFood(FoodEntity(
+      foodName: name, kcal: kcal,
+      carbG: carbG, proteinG: proteinG, fatG: fatG,
+      createdAt: now, updatedAt: now,
+    ));
+  }
 
+  /// 끼니 + 음식 저장
   Future<void> saveMeal({
     required String mealType,
     required DateTime eatenAt,
@@ -116,70 +154,73 @@ class AppState extends ChangeNotifier {
     required List<({int foodId, double? amountG, double servingCount})> foods,
   }) async {
     if (userId == null) return;
-    await _mealState.saveMeal(
+    await _mealRepo.saveMealWithFoods(
       userId:   userId!,
       mealType: mealType,
       eatenAt:  eatenAt,
       memo:     memo,
       foods:    foods,
     );
-    notifyListeners();
+    await loadTodayMeals();
   }
 
+  /// 끼니 삭제
   Future<void> deleteMeal(int mealId) async {
-    if (userId == null) return;
-    await _mealState.deleteMeal(mealId, userId!);
-    notifyListeners();
+    await _mealRepo.deleteMeal(mealId);
+    await loadTodayMeals();
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 주간 / 월간 칼로리 (리포트용)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   Future<Map<String, double>> getWeeklyKcal(DateTime startOfWeek) async {
     if (userId == null) return {};
-    return _mealState.getWeeklyKcal(userId!, startOfWeek);
+    return _mealRepo.getWeeklyKcal(userId!, startOfWeek);
   }
 
   Future<Map<String, double>> getMonthlyKcal(int year, int month) async {
     if (userId == null) return {};
-    return _mealState.getMonthlyKcal(userId!, year, month);
+    return _mealRepo.getMonthlyKcal(userId!, year, month);
   }
 
   Future<List<String>> getRecordedDates(DateTime from, DateTime to) async {
     if (userId == null) return [];
-    return _mealState.getRecordedDates(userId!, from, to);
+    return _mealRepo.getRecordedDates(userId!, from, to);
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 음식 검색
+  // 음식 검색 (FoodAddScreen에서 사용)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   Future<List<FoodEntity>> searchFoods(String query) =>
-      _mealState.searchFoods(query);
+      _foodRepo.searchFoods(query);
 
   Future<List<FoodEntity>> getAllFoods() =>
-      _mealState.getAllFoods();
+      _foodRepo.getAllFoods();
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 사용자 초기화 (프로필 재설정 / 로그아웃)
+  // 설정 화면에서 호출 → _RootRouter가 온보딩으로 전환
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   Future<void> resetUser() async {
-    _setState(LoadingState.loading);
+    _setLoading(true);
     try {
+      // DB 전체 초기화 후 샘플 데이터 재삽입
       await DatabaseHelper.instance.deleteDatabase();
+      // deleteDatabase 후 _db가 null이 되므로 재초기화
       await DatabaseHelper.instance.database;
-      _userState.clear();
-      _mealState.clear();
-      _error = null;
-      _setState(LoadingState.idle);
-    } catch (e) {
-      _error = e.toString();
-      _setState(LoadingState.error);
+      _user       = null;
+      _todayMeals = [];
+    } finally {
+      _setLoading(false); // notifyListeners 포함 → _RootRouter가 온보딩으로 전환
     }
   }
 
   // ── 내부 ────────────────────────────────────────
-  void _setState(LoadingState s) {
-    _state = s;
+  void _setLoading(bool v) {
+    _loading = v;
     notifyListeners();
   }
 }

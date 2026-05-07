@@ -56,3 +56,7 @@ app.*.map.json
 
 # Generated local vector stores
 ai/rag_engine/chroma_db/
+
+app/build/
+android/.gradle/
+.metadata
