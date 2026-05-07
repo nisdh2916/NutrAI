@@ -46,6 +46,8 @@ class AppColors {
   static const lunchSoft     = Color(0xFFE6F4EA);
   static const dinner        = Color(0xFF8B5CF6);
   static const dinnerSoft    = Color(0xFFF3EEFE);
+  static const snack         = Color(0xFFFF9500);
+  static const snackSoft     = Color(0xFFFFF4E5);
 
   // Legacy aliases (used in existing code — map to new tokens)
   static const white          = surface;
