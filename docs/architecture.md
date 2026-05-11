@@ -2,6 +2,8 @@
 
 캡스톤 발표용 기술 문서. 데이터 흐름·알고리즘·핵심 의사결정 정리.
 
+마지막 업데이트: 2026-05-11
+
 ---
 
 ## 1. 전체 시스템 구조
@@ -105,12 +107,23 @@ flowchart LR
   D -- 없음 --> F[일반 표시]
 ```
 
+**알레르기 단일 소스 원칙**
+
+알레르겐 키워드 매핑은 `ai/allergens.py` 한 곳에서만 정의하고, 서버와 앱이 각각 import합니다.
+
+```
+ai/allergens.py          ← ALLERGEN_KEYWORDS 정의 (단일 소스)
+    ↓ import                   ↓ GET /allergens API
+rag_pipeline.py          AllergenService (앱 싱글톤)
+recommendation_pipeline.py      ↓ 캐시 or fallback
+```
+
 **3-tier 검증 (서버 측과 합치면)**
 | 단계 | 위치 | 역할 |
 |---|---|---|
 | 1. RAG 검색 필터 | `_retrieve_multi` | 알레르기 음식이 LLM에 안 들어가게 |
 | 2. LLM 응답 검증 | `_build_allergen_warning` | LLM 환각 방지 |
-| 3. 앱 표시 검증 | `_detectAllergens` | 사용자가 직접 등록할 때 경고 |
+| 3. 앱 표시 검증 | `AllergenService.detect()` | 사용자가 직접 등록할 때 경고 |
 
 ---
 
@@ -195,7 +208,71 @@ erDiagram
 
 ---
 
-## 6. 핵심 의사결정 요약
+## 6. 영양 데이터 소스 및 ChromaDB 구조
+
+### 데이터 출처
+
+| 데이터셋 | 건수 | 출처 |
+|---|---|---|
+| 음식 영양성분 | 15,558건 (중복 제거) | 식품영양성분 데이터베이스 (K-FCDB) |
+| 건강기능식품 | 4,380건 | 식품영양성분 데이터베이스 (K-FCDB) |
+| 프랜차이즈 | 별도 수집 | 수동 입력 |
+
+출처: **식품영양성분 데이터베이스 / Korean Food Composition Database system (K-FCDB)**
+
+### ChromaDB 메타데이터 구조
+
+각 문서에는 벡터와 함께 아래 메타데이터가 저장됩니다. `where` 필터로 카테고리별 검색 범위를 제한합니다.
+
+```python
+{
+  "name": "비빔밥",
+  "category": "밥류",
+  "source": "K-FCDB_음식DB",
+  "is_morning": True,   # 아침 식사 적합
+  "is_lunch": True,     # 점심 식사 적합
+  "is_dinner": True,    # 저녁 식사 적합
+  "is_snack": False,
+  "is_diet": False,     # 다이어트 태그
+  "is_diabetes": False, # 당뇨 적합
+  "is_hypertension": False,  # 고혈압 적합
+  "is_supplement": False,    # 건강기능식품
+}
+```
+
+### 카테고리별 검색 전략
+
+추천 화면의 카테고리 선택에 따라 두 가지 메커니즘이 동시에 적용됩니다.
+
+```mermaid
+flowchart TD
+  Cat[카테고리 선택] --> WF[where 필터<br/>_build_where_filter]
+  Cat --> CQ[특화 쿼리 생성<br/>_category_queries]
+
+  WF --> |다이어트| F1["is_diet=True AND is_lunch=True"]
+  WF --> |질환맞춤/당뇨| F2["is_diabetes=True"]
+  WF --> |건강기능식품| F3["is_supplement=True"]
+  WF --> |기호별/전체| F4["is_lunch=True (시간대만)"]
+
+  CQ --> |다이어트| Q1["저칼로리 고단백 체중 감량 점심 식단"]
+  CQ --> |질환맞춤/당뇨| Q2["당뇨 맞춤 식단 가이드라인"]
+  CQ --> |기호별/weight_loss| Q3["저칼로리 포만감 점심 메뉴"]
+  CQ --> |건강기능식품| Q4["비타민 미네랄 건강기능식품"]
+
+  F1 & Q1 --> Search[ChromaDB 벡터 검색]
+  F2 & Q2 --> Search
+  F3 & Q4 --> Search
+  F4 & Q3 --> Search
+```
+
+**왜 필터와 쿼리를 동시에 쓰나?**
+- `where` 필터만 쓰면 메타데이터 기반이라 의미적 유사도를 무시함
+- 특화 쿼리만 쓰면 다른 카테고리 문서가 결과에 섞임
+- 둘을 함께 적용하면 **범위(필터) + 관련도(벡터 유사도)** 를 동시에 보장
+
+---
+
+## 7. 핵심 의사결정 요약
 
 | 항목 | 선택 | 이유 |
 |---|---|---|
