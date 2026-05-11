@@ -6,6 +6,7 @@ import 'theme/app_theme.dart';
 import 'screens/onboarding_chat_screen.dart';
 import 'screens/main_tab_screen.dart';
 import 'models/user_profile.dart';
+import 'services/allergen_service.dart';
 
 // ── 개발 중 DB 리셋 플래그 ──────────────────────────
 // true  → 앱 실행할 때마다 DB를 초기화해서 온보딩부터 시작
@@ -19,6 +20,9 @@ void main() async {
   if (kResetDbOnStart) {
     await DatabaseHelper.instance.deleteDatabase();
   }
+
+  // 알레르겐 목록을 서버에서 받아 캐시 (실패 시 fallback 사용)
+  await AllergenService.instance.init();
 
   runApp(
     ChangeNotifierProvider(

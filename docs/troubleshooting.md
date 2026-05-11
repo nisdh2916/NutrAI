@@ -467,6 +467,7 @@ const _kCategoryMeta = <String, ({IconData icon, String desc, Color color})>{
 
 ---
 
+<<<<<<< HEAD
 ## 20. Flutter 위젯 테스트가 AppState Provider 없이 앱을 렌더링함
 
 **증상:** `flutter test` 실행 시 `_RootRouter`가 `context.watch<AppState>()`를 호출하는 단계에서 `ProviderNotFoundException`이 발생함. Provider를 추가한 뒤에도 온보딩 화면의 지연 타이머가 남아 테스트가 종료되지 않음.
@@ -649,3 +650,51 @@ ai/rag_engine/chroma_db/
 추가로 남은 analyzer info는 `const` 보정과 문자열 보간 정리 후 `dart format`으로 정리함.
 
 **관련 파일:** `app/lib/providers/app_state.dart` → `AppState`; `app/lib/screens/home_screen.dart` → `HomeScreen.build()`; `app/lib/screens/food_add_screen.dart` → `_FoodDB`, `_BottomActionBar`, `_QuickFoodGrid`; `app/lib/screens/main_tab_screen.dart` → `_MainTabScreenState`; `.gitignore` → 로컬 산출물 제외 규칙
+
+---
+
+## 25. 알레르겐 키워드 매핑이 앱·서버 3곳에 중복 정의되어 내용 불일치
+
+**증상:** `food_add_screen.dart`에서 경고가 뜨는 음식이 서버 RAG 추천 결과에는 그대로 포함됨. 앱·서버의 키워드 목록이 달라서 발생.
+
+**원인:** `_allergenKeywords`(Dart), `_ALLERGEN_KEYWORDS`(rag_pipeline.py), `ALLERGEN_KEYWORDS`(recommendation_pipeline.py) 3개가 각자 독립적으로 정의되어 있었고, 일부 키워드(`떡볶이`, `스크램블`, `순두부` 등)가 특정 파일에만 존재했음.
+
+**해결:**
+```
+# 단일 소스로 통합
+ai/allergens.py  ← ALLERGEN_KEYWORDS, ALLERGEN_CATEGORIES 정의
+
+# 서버 두 파일은 import로 교체
+from ai.allergens import ALLERGEN_KEYWORDS
+
+# 앱은 AllergenService 싱글톤 (서버 GET /allergens fetch + fallback)
+app/lib/services/allergen_service.dart
+```
+
+**관련 파일:** `ai/allergens.py`, `ai/rag_engine/rag_pipeline.py`, `server/services/recommendation_pipeline.py`, `server/api/routes_allergens.py`, `app/lib/services/allergen_service.dart`
+
+---
+
+## 26. nutrition_service.py가 3개 음식만 하드코딩하여 나머지 음식은 동일한 generic 값 반환
+
+**증상:** `/nutrition` 엔드포인트에 임의 음식을 전달하면 모두 250kcal/탄30g/단10g/지8g으로 계산됨.
+
+**원인:** `FOOD_NUTRITION` dict에 `김치찌개`, `쌀밥`, `닭가슴살` 3종만 하드코딩.
+
+**해결:**
+```python
+# 변경 전
+FOOD_NUTRITION = {"김치찌개": ..., "쌀밥": ..., "닭가슴살": ...}
+base = FOOD_NUTRITION.get(item.food_name, _GENERIC)
+
+# 변경 후
+def _lookup_chromadb(food_name: str) -> dict | None:
+    # ChromaDB 벡터 검색 → 정규식으로 kcal/carb/protein/fat 파싱
+    # SIMILARITY_THRESHOLD 초과 시 None 반환
+    ...
+
+def _get_nutrition(food_name: str) -> dict:
+    return _lookup_chromadb(food_name) or _GENERIC
+```
+
+**관련 파일:** `server/services/nutrition_service.py` → `_get_nutrition()`, `_lookup_chromadb()`
