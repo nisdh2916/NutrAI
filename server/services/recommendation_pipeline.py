@@ -4,23 +4,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from server.common.allergens import ALLERGEN_KEYWORDS, check_allergen
+from server.common.nutrition import calculate_target_kcal
 
 NO_LIMIT_REMAINING_KCAL = 0.0
 KCAL_TOLERANCE = 50.0
-
-ALLERGEN_KEYWORDS: dict[str, list[str]] = {
-    "유제품": ["우유", "치즈", "버터", "요거트", "크림", "유청", "라떼", "아이스크림"],
-    "견과류": ["아몬드", "호두", "캐슈", "땅콩", "잣", "피스타치오", "마카다미아", "견과"],
-    "갑각류": ["새우", "게", "랍스터", "크랩", "대게"],
-    "밀": ["빵", "파스타", "면", "국수", "라면", "우동", "스파게티", "밀가루", "만두"],
-    "글루텐": ["빵", "파스타", "면", "국수", "라면", "우동", "밀가루"],
-    "계란": ["계란", "달걀", "에그", "오믈렛", "마요네즈"],
-    "대두": ["두부", "된장", "간장", "두유", "콩국수", "낫토", "청국장"],
-    "복숭아": ["복숭아", "피치"],
-    "토마토": ["토마토", "케첩"],
-    "고등어": ["고등어"],
-    "조개류": ["조개", "홍합", "굴", "전복", "바지락", "오징어", "낙지", "문어"],
-}
 
 MEAL_TIME_LABELS = {
     "breakfast": "아침",
@@ -132,7 +120,9 @@ def build_meal_status(
             total_protein += _as_float(food.get("protein_g"))
             total_fat += _as_float(food.get("fat_g"))
 
-    target = _as_float(profile.get("target_kcal"), default=NO_LIMIT_REMAINING_KCAL)
+    # 명시 target_kcal이 없으면 프로필 기반 자동 계산
+    explicit = _as_float(profile.get("target_kcal"))
+    target = explicit if explicit > 0 else calculate_target_kcal(profile)
     remaining = max(0.0, target - consumed_today) if target > 0 else NO_LIMIT_REMAINING_KCAL
 
     return MealStatus(
@@ -168,6 +158,33 @@ def build_recommendation_context(
     )
 
 
+def _category_queries(category: str, goal: str, constraints: list[str], meal_label: str) -> list[str]:
+    """카테고리별 특화 쿼리 생성 — 카테고리 이름을 그대로 쓰지 않고 의미 있는 검색어로 변환"""
+    if category in ("전체", "all", ""):
+        return []
+    if category == "다이어트":
+        return [f"저칼로리 고단백 체중 감량 {meal_label} 식단", "다이어트 식단 가이드라인"]
+    if category == "기호별":
+        # 사용자 goal 기반 맞춤 쿼리 — "기호별" 키워드 대신 실제 목표로 검색
+        if goal == "weight_loss":
+            return [f"저칼로리 포만감 {meal_label} 메뉴", "다이어트 추천 식품"]
+        if goal == "weight_gain":
+            return [f"고단백 고칼로리 {meal_label} 메뉴", "근육 증가 식단"]
+        return [f"균형 잡힌 {meal_label} 메뉴", "건강한 한식 식단"]
+    if category == "질환맞춤":
+        # constraints에서 condition 추출하여 구체적 쿼리 생성
+        condition_queries = [
+            f"{c.split(':', 1)[1]} 맞춤 식단 가이드라인"
+            for c in constraints if c.startswith("condition:")
+        ]
+        if condition_queries:
+            return condition_queries + [f"질환자 {meal_label} 추천 식단"]
+        return [f"저염 저당 건강 {meal_label} 식단", "질환 맞춤 식단 가이드라인"]
+    if category == "건강기능식품":
+        return ["비타민 미네랄 건강기능식품", "영양제 보충 건강기능식품"]
+    return [f"{category} {meal_label} 메뉴 추천"]
+
+
 def rewrite_queries(
     goal: str,
     constraints: list[str],
@@ -178,16 +195,21 @@ def rewrite_queries(
 ) -> list[str]:
     queries: list[str] = []
     meal_label = MEAL_TIME_LABELS.get(meal_time, meal_time)
+
     if user_query.strip():
         queries.append(user_query.strip())
-    if category and category not in ("전체", "all"):
-        queries.append(f"{category} 메뉴 추천")
-    if goal == "weight_loss":
-        queries.append(f"체중 감량 {meal_label} 메뉴 추천")
-    elif goal == "weight_gain":
-        queries.append(f"증량 고단백 {meal_label} 메뉴 추천")
-    else:
-        queries.append(f"건강한 {meal_label} 메뉴 추천")
+
+    # 카테고리별 특화 쿼리
+    queries.extend(_category_queries(category, goal, constraints, meal_label))
+
+    # goal 기반 기본 쿼리 (카테고리가 이미 다루지 않은 경우)
+    if category in ("전체", "all", "기호별", ""):
+        if goal == "weight_loss":
+            queries.append(f"체중 감량 {meal_label} 메뉴 추천")
+        elif goal == "weight_gain":
+            queries.append(f"증량 고단백 {meal_label} 메뉴 추천")
+        else:
+            queries.append(f"건강한 {meal_label} 메뉴 추천")
 
     if meal_status.remaining_kcal > 0:
         queries.append(f"남은 칼로리 {meal_status.remaining_kcal:.0f}kcal 이하 {meal_label} 식사")
@@ -233,13 +255,8 @@ def format_context_block(ctx: RecommendationContext, docs: list[str]) -> str:
 
 
 def item_has_allergen(name: str, allergy_str: str | None) -> tuple[bool, list[str]]:
-    allergens = [item for item in _split_words(allergy_str) if item.lower() not in ("none", "없음")]
-    matched = []
-    for allergen in allergens:
-        keywords = ALLERGEN_KEYWORDS.get(allergen, [allergen])
-        if any(keyword and keyword in name for keyword in keywords):
-            matched.append(allergen)
-    return bool(matched), matched
+    """Wrapper for backward compatibility — delegates to common.allergens."""
+    return check_allergen(name, allergy_str)
 
 
 def validate_and_rank_items(

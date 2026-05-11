@@ -195,13 +195,13 @@ class MealEntity {
 
   // meal_type → 한국어 라벨
   String get label {
-    const m = {'breakfast': '아침', 'lunch': '점심', 'dinner': '저녁', 'snack': '간식'};
+    const m = {'breakfast': '아침', 'lunch': '점심', 'snack': '간식', 'dinner': '저녁', 'late_night': '야식'};
     return m[mealType] ?? mealType;
   }
 
   // 한국어 라벨 → meal_type
   static String typeFromLabel(String label) {
-    const m = {'아침': 'breakfast', '점심': 'lunch', '저녁': 'dinner', '간식': 'snack'};
+    const m = {'아침': 'breakfast', '점심': 'lunch', '간식': 'snack', '저녁': 'dinner', '야식': 'late_night'};
     return m[label] ?? 'breakfast';
   }
 

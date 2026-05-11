@@ -3,6 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
+from server.api.routes_allergens import router as allergens_router
 from server.api.routes_detect import router as detect_router
 from server.api.routes_health import router as health_router
 from server.api.routes_meals import router as meals_router
@@ -42,6 +43,7 @@ def _warmup():
 app = FastAPI(title="NutrAI API", version="0.1.0", lifespan=lifespan)
 
 app.include_router(health_router)
+app.include_router(allergens_router)
 app.include_router(detect_router)
 app.include_router(nutrition_router)
 app.include_router(meals_router)

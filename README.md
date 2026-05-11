@@ -1,7 +1,7 @@
-#  NutrAI (nutrition + AI)
+# NutrAI
+
 > **Shoot for your health, NutrAI for your diet.**
-> 
-> **"식단 기록의 번거로움을 혁신으로, NutrAI가 스마트한 건강 관리를 현실화합니다."**
+> 식단 기록의 번거로움을 줄이고, 개인 맞춤형 영양 관리를 더 쉽게 만드는 AI 식단 관리 서비스입니다.
 
 <div align="center">
   <br/>
@@ -10,18 +10,40 @@
 
 ---
 
-##  목차
-1. [팀 소개](#-팀-소개)
-2. [프로젝트 소개](#-프로젝트-소개)
-3. [주요 기능](#-주요-기능)
-4. [기술 스택](#-기술-스택)
-5. [시스템 아키텍처](#-시스템-아키텍처)
-6. [협업 컨벤션](#-협업-컨벤션)
-7. [설치 및 실행 방법](#-설치-및-실행-방법)
+## 목차
+
+1. [프로젝트 소개](#프로젝트-소개)
+2. [팀 소개](#팀-소개)
+3. [주요 기능](#주요-기능)
+4. [시스템 아키텍처](#시스템-아키텍처)
+5. [기술 스택](#기술-스택)
+6. [설치 및 실행](#설치-및-실행)
+7. [프로젝트 구조](#프로젝트-구조)
+8. [협업 규칙](#협업-규칙)
 
 ---
 
-## 팀 소개 (Team Moonshot)
+## 프로젝트 소개
+
+NutrAI는 사용자가 매일 먹는 음식을 더 쉽게 기록하고, 기록된 식단을 바탕으로 영양 정보를 확인하며, 개인 건강 상태에 맞는 AI 피드백을 받을 수 있도록 돕는 서비스입니다.
+
+### 해결하려는 문제
+
+- 식단 관리는 꾸준한 기록이 중요하지만, 음식명과 영양 정보를 직접 입력하는 과정이 번거롭습니다.
+- 사용자는 칼로리뿐 아니라 탄수화물, 단백질, 지방, 당류, 나트륨 등 건강 상태에 영향을 주는 정보를 함께 확인해야 합니다.
+- 당뇨, 고혈압, 알레르기처럼 식단 제약이 있는 사용자는 일반적인 추천보다 개인화된 안내가 필요합니다.
+
+### 제공하는 가치
+
+- 사진 기반 음식 인식과 수동 입력을 함께 제공해 식단 기록 진입 장벽을 낮춥니다.
+- 한국 식품 영양 데이터와 앱 내 기록을 연결해 사용자가 섭취량을 빠르게 확인할 수 있게 합니다.
+- RAG 기반 AI 챗봇으로 사용자 프로필과 식단 기록을 반영한 맞춤형 영양 조언을 제공합니다.
+
+---
+
+## 팀 소개
+
+**Team Moonshot**
 
 | 이름 | 직책 | 역할 | 담당 업무 |
 | :---: | :---: | :--- | :--- |
@@ -30,199 +52,274 @@
 | **신동하** | 팀원 | **AI / Data** | YOLOv11 모델 학습, 영양 DB 전처리, RAG 엔진 최적화 |
 | **이호연** | 팀원 | **BackEnd** | FastAPI 서버 구축, DB 설계, API 명세서 작성 |
 | **최영수** | 팀원 | **AI / Data** | YOLOv11 모델 학습, 영양 DB 전처리, RAG 엔진 최적화 |
----
-
-##  프로젝트 소개
-
-### 1. 기획 배경
-- **Pain Point**: 식단 관리의 핵심은 '기록'이지만, 수기 입력의 번거로움과 부정확한 영양 정보로 인해 다이어터와 당뇨 환자들이 쉽게 중도 포기하는 문제가 발생합니다.
-- **Solution**: 사진 촬영 한 번으로 식단을 자동 인식하고, 공신력 있는 DB를 바탕으로 정밀한 분석과 개인 맞춤형 AI 피드백을 제공하여 지속 가능한 식단 관리를 돕습니다.
-- 
-### 2. 주요 타겟
--  **만성질환자** : 식단 기록이 필수적인 당뇨 및 고혈압 환자.
--  **헬스 및 자기관리를 위한 사용자** : 체계적인 영양 섭취와 데이터 기반 성장을 원하는 사용자.
 
 ---
 
-##  주요 기능 (Features)
+## 주요 기능
 
-<details>
-<summary><b> AI 식단 자동 기록 (Smart Capture)</b></summary>
-<br/>
+### 1. 사용자 온보딩 및 프로필 관리
 
-- **YOLOv11** 객체 탐지 기술을 활용하여 이미지 내 음식의 종류와 수량을 실시간으로 분석합니다.
-- 한국식품영양성분표 DB와 연동하여 칼로리 및 탄단지 즉시 분석.
-</details>
+- 사용자의 이름, 성별, 나이, 키, 몸무게 등 기본 정보를 등록합니다.
+- 건강 목표와 개인 상태를 바탕으로 이후 추천과 챗봇 응답에 활용합니다.
+- 앱 실행 시 기존 사용자 정보가 있으면 메인 화면으로, 없으면 온보딩 화면으로 이동합니다.
 
-<details>
-<summary><b> 지능형 대시보드 (Dashboard)</b></summary>
-<br/>
+### 2. 식단 기록
 
-- 오늘 남은 권장 섭취량 시각화.
-- 일별/주별 기록 추이를 통한 건강 상태 트래킹.
-</details>
+- 아침, 점심, 저녁, 간식, 야식 단위로 식단을 기록합니다.
+- 음식명, 칼로리, 탄수화물, 단백질, 지방 등 주요 영양 정보를 관리합니다.
+- 로컬 SQLite 저장소를 통해 앱 내 기록을 유지합니다.
 
-<details>
-<summary><b> 맞춤형 AI 코칭 (RAG Engine)</b></summary>
-<br/>
+### 3. 음식 인식 및 영양 분석
 
-- 사용자 건강 데이터(키, 몸무게, 활동량) 기반 맞춤 영양 가이드.
-- **RAG(검색 증강 생성)** 를 통해 최신 영양학 근거에 기반한 챗봇 답변 제공.
-</details>
+- 이미지 기반 음식 탐지를 위한 YOLOv11 연동 구조를 제공합니다.
+- 서버의 음식/영양 API를 통해 음식 데이터와 영양 정보를 조회합니다.
+- 추후 모델 성능과 데이터셋 확장에 따라 자동 기록 정확도를 높일 수 있습니다.
 
----
+### 4. 맞춤 추천
 
-## 🛠 기술 스택
+- 사용자 프로필과 식단 기록을 기반으로 추천 파이프라인을 실행합니다.
+- 알레르기 및 건강 상태를 고려해 주의가 필요한 음식을 안내합니다.
+- 추천 결과는 앱 화면과 서버 API 양쪽에서 검증 가능한 형태로 제공합니다.
 
-###  Frontend
-<p align="left">
-  <img src="https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=Flutter&logoColor=white">
-  <img src="https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=Dart&logoColor=white">
-</p>
+### 5. AI 채팅
 
-###  Backend
-<p align="left">
-  <img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=FastAPI&logoColor=white">
-  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=Python&logoColor=white">
-  <img src="https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=MySQL&logoColor=white">
-</p>
-
-###  AI & Data
-<p align="left">
-  <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=PyTorch&logoColor=white">
-  <img src="https://img.shields.io/badge/YOLOv11-FF6F00?style=for-the-badge&logo=fastapi&logoColor=white">
-  <img src="https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=OpenAI&logoColor=white">
-</p>
-
-###  DevOps & Tools
-<p align="left">
-  <img src="https://img.shields.io/badge/GitHub%20Actions-2088FF?style=for-the-badge&logo=GitHub%20Actions&logoColor=white">
-  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=Docker&logoColor=white">
-  <img src="https://img.shields.io/badge/Notion-000000?style=for-the-badge&logo=Notion&logoColor=white">
-</p>
+- FastAPI 서버와 RAG 엔진을 연결해 영양 상담형 챗봇을 제공합니다.
+- LangChain, Ollama, ChromaDB 기반으로 영양 데이터 검색과 답변 생성을 수행합니다.
+- 앱에서는 채팅 화면을 통해 사용자가 자연어로 질문할 수 있습니다.
 
 ---
 
-##  시스템 아키텍처
+## 시스템 아키텍처
 
 ```mermaid
 graph TD
-    User((사용자)) --> App[Flutter App]
-    App --> Server[FastAPI Server]
-    Server --> YOLO[YOLOv11 Detection]
-    Server --> DB[(MySQL)]
-    Server --> RAG[RAG + GPT Engine]
-    YOLO --> Server
-    DB --> Server
-    Server --> App
+    User["사용자"] --> App["Flutter App"]
+    App --> LocalDB["SQLite Local DB"]
+    App --> Server["FastAPI Server"]
+    Server --> API["API Routers"]
+    API --> Services["Domain Services"]
+    Services --> Store["Memory/SQLite Store"]
+    Services --> Nutrition["Nutrition Data"]
+    Services --> Detect["YOLOv11 Detection"]
+    Services --> RAG["RAG Engine"]
+    RAG --> Chroma["ChromaDB"]
+    RAG --> Ollama["Ollama LLM"]
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-##  협업 컨벤션 (Convention)
-
-<details>
-<summary><b> Git Commit Message 규칙</b></summary>
-<br/>
-
-> **"태그: 상세 내용"** 형식을 준수합니다. (예: `feat: 로그인 기능 추가`)
-
-| 태그 | 의미 |
-| :--- | :--- |
-| `feat` | 새로운 기능 추가 |
-| `fix` | 버그 수정 |
-| `docs` | 문서 수정 (README 등) |
-| `design` | UI 디자인 변경 |
-| `chore` | 빌드 업무, 패키지 설정 수정 |
-| `refactor` | 코드 리팩토링 |
-</details>
-
-<details>
-<summary><b> Branch 전략</b></summary>
-<br/>
-
-- `main`: 배포 가능한 최종 코드
-- `develop`: 개발 중인 코드들이 모이는 곳
-- `feat/app`: 앱 관련 기능 개발
-- `feat/server`: 서버 API 개발
-- `feat/ai`: AI 모델 학습 및 데이터 처리
-</details>
 
 ---
 
-##  설치 및 실행 방법 (Installation)
+## 기술 스택
+
+### Frontend
+
+- Flutter
+- Dart
+- Provider
+- sqflite
+- http
+- image_picker
+
+### Backend
+
+- Python 3.11 권장
+- FastAPI
+- Uvicorn
+- Pydantic
+- httpx
+
+### AI & Data
+
+- YOLOv11
+- LangChain
+- LangChain Ollama
+- ChromaDB
+- Pandas
+- 한국 식품 영양 데이터
+
+### Tools
+
+- Git / GitHub
+- Figma
+- Android Emulator
+
+---
+
+## 설치 및 실행
 
 ### 1. 프로젝트 클론
+
 ```bash
 git clone https://github.com/nisdh2916/NutrAI.git
 cd NutrAI
 ```
 
-### 2. Frontend (Flutter) 실행
-```Bash
-cd app
-flutter pub get
-flutter run
-```
-### 3. Backend (FastAPI) 실행
-```bash
-# 프로젝트 루트(NutrAI/)에서 실행
+### 2. 백엔드 실행
+
+Windows PowerShell 기준:
+
+```powershell
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
 pip install -r server/requirements.txt
-uvicorn server.main:app --reload
+python -m uvicorn server.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 4. API 동작 확인
+서버 상태 확인:
+
 ```bash
 curl http://127.0.0.1:8000/health
 ```
 
-###  프로젝트 구조
-```Plaintext
-NutrAI/
-├── .github/                # GitHub Actions CI/CD 워크플로우
-├── app/                    # Flutter 프론트엔드 (Dart)
-│   ├── android/            # 안드로이드 네이티브 설정
-│   ├── lib/
-│   │   ├── core/           # 공통 유틸, 테마, 라우터
-│   │   ├── features/       # 기능별 모듈 (촬영, 분석, 추천, 리포트)
-│   │   ├── models/         # 데이터 모델 (User, Meal 등)
-│   │   └── data/           # SQLite 로컬 캐시 처리
-│   └── pubspec.yaml        # Flutter 패키지 관리
-├── server/                 # FastAPI 백엔드 (Python)
-│   ├── api/                # API 엔드포인트 (/chat, /detect 등) 
-│   ├── core/               # 인증(JWT) 및 서버 설정
-│   ├── db/                 # MySQL 연결 및 ORM 설정
-│   ├── services/           # 비즈니스 로직 (영양 분석, 추천 알고리즘)
-│   └── requirements.txt    # 서버 라이브러리 목록
-├── ai/                     # AI 모델 및 추론 로직
-│   ├── models/             # YOLOv11 가중치 파일 (.pt, .tflite)
-│   ├── scripts/            # 모델 학습 및 데이터 전처리 스크립트
-│   └── rag_engine/         # GPT-OSS + RAG 관련 프롬프트 및 벡터 DB
-├── docs/                   # 기획서, 보고서 및 테스트 케이스
-│   ├── planning/           # 아이디어 기획서 및 시스템 설계서
-│   ├── designs/            # 피그마(Figma) 링크 및 UI 설계도
-│   ├── test_cases/         # 단위/통합 테스트 명세서 (TC-MealLog-01 등)
-│   └── img/                # 문서용 이미지 폴더
-├── data/                   # 데이터셋 및 영양 DB
-│   ├── dataset/            # 한국 음식 이미지 샘플 (라벨링 데이터)
-│   └── nutrition_db/       # 한국식품영양성분표(KFDA) CSV/SQL
-├── .gitignore              # 깃 제외 목록 (API Key, 가상환경 등) 
-└── README.md               # 프로젝트 메인 대문
+정상 응답 예시:
+
+```json
+{
+  "status": "ok",
+  "version": "0.1.0"
+}
 ```
+
+### 3. Android 에뮬레이터 포트 연결
+
+앱이 Android 에뮬레이터에서 로컬 백엔드에 접근하려면 포트 리버스가 필요합니다.
+
+```powershell
+adb reverse tcp:8000 tcp:8000
+```
+
+프로젝트 루트의 `start.bat`을 실행하면 백엔드 실행과 `adb reverse`를 한 번에 처리할 수 있습니다.
+
+### 4. Flutter 앱 실행
+
+```bash
+cd app
+flutter pub get
+flutter run
+```
+
+연결된 디바이스 확인:
+
+```bash
+flutter devices
+```
+
+### 5. 검증 명령
+
+백엔드 테스트:
+
+```bash
+python -m pytest server/tests
+```
+
+Flutter 정적 분석 및 테스트:
+
+```bash
+cd app
+flutter analyze
+flutter test
+```
+
+---
+
+## API 개요
+
+서버는 `server/main.py`에서 다음 라우터를 등록합니다.
+
+| 영역 | 설명 |
+| :--- | :--- |
+| `/health` | 서버 상태 확인 |
+| `/detect` | 음식 이미지 탐지 |
+| `/nutrition` | 영양 정보 조회 |
+| `/meals` | 식단 기록 관리 |
+| `/chat` | AI 채팅 |
+| `/food` | 음식 추가 및 검색 |
+| `/recommend` | 맞춤 추천 |
+| `/profile` | 사용자 프로필 |
+
+상세 요청/응답 구조는 `server/api/schemas.py`와 각 `server/api/routes_*.py` 파일을 기준으로 확인합니다.
+
+---
+
+## 프로젝트 구조
+
+```plaintext
+NutrAI/
+├── app/                         # Flutter 앱
+│   ├── android/                 # Android 설정
+│   ├── ios/                     # iOS 설정
+│   ├── lib/
+│   │   ├── database/            # 로컬 SQLite 헬퍼
+│   │   ├── models/              # 앱 데이터 모델
+│   │   ├── providers/           # 앱 상태 관리
+│   │   ├── repositories/        # 데이터 접근 계층
+│   │   ├── screens/             # 주요 화면
+│   │   ├── services/            # 서버 통신 서비스
+│   │   ├── theme/               # 앱 테마
+│   │   └── utils/               # 알레르기 검사, 채팅 파서 등
+│   └── pubspec.yaml
+├── server/                      # FastAPI 백엔드
+│   ├── api/                     # API 라우터와 스키마
+│   ├── db/                      # 메모리/SQLite 저장소
+│   ├── scripts/                 # 스모크 테스트 및 검증 스크립트
+│   ├── services/                # 탐지, 식단, 영양, 추천 서비스
+│   ├── tests/                   # 백엔드 테스트
+│   ├── main.py                  # FastAPI 앱 진입점
+│   └── requirements.txt
+├── ai/                          # AI 및 RAG 로직
+│   ├── models/                  # 모델 파일 위치
+│   ├── rag_engine/              # RAG 파이프라인과 영양 데이터
+│   └── scripts/                 # 데이터 구축/추가 스크립트
+├── data/                        # 영양 DB 및 데이터셋
+├── docs/                        # 설계, 진행 상황, 트러블슈팅 문서
+├── SQL/                         # SQL 관련 자료
+├── start.bat                    # Windows 개발 실행 보조 스크립트
+└── README.md
+```
+
+---
+
+## 협업 규칙
+
+### 커밋 메시지
+
+`태그: 변경 내용` 형식을 사용합니다.
+
+| 태그 | 의미 |
+| :--- | :--- |
+| `feat` | 새로운 기능 추가 |
+| `fix` | 버그 수정 |
+| `docs` | 문서 수정 |
+| `design` | UI 디자인 변경 |
+| `chore` | 빌드, 설정, 패키지 작업 |
+| `refactor` | 동작 변경 없는 코드 구조 개선 |
+| `test` | 테스트 추가 또는 수정 |
+
+커밋 메시지에는 `Co-Authored-By: Codex`를 추가하지 않습니다.
+
+### 브랜치
+
+기본 브랜치:
+
+- `main`: 안정 버전 기준 브랜치
+- `feat/*`: 기능 개발 브랜치
+- `fix/*`: 버그 수정 브랜치
+- `docs/*`: 문서 수정 브랜치
+
+팀원별 시작 브랜치:
+
+- `team/kim-youngseo`
+- `team/kim-seohyeon`
+- `team/shin-dongha`
+- `team/lee-hoyeon`
+- `team/choi-youngsu`
+
+### 문서화
+
+- 구조 변경이나 주요 결정은 `docs/architecture.md`, `docs/progress.md` 등에 기록합니다.
+- 버그를 수정한 경우 `docs/troubleshooting.md`에 증상, 원인, 해결, 관련 파일을 남깁니다.
+- API 계약이나 추천 파이프라인을 바꾼 경우 관련 테스트 또는 스모크 스크립트도 함께 확인합니다.
+
+---
 
 <div align="center">
 Copyright © 2026 <b>Team Moonshot</b>. All rights reserved.

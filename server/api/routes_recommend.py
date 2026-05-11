@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import time
 
 import requests as _requests
 from fastapi import APIRouter, HTTPException
@@ -140,6 +141,7 @@ def _build_meal_str(meals: list[dict]) -> str:
 
 
 def _extract_json(text: str) -> dict:
+    """LLM 응답에서 JSON 객체를 안전하게 추출. 실패 시 ValueError."""
     match = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
     if match:
         text = match.group(1)
@@ -150,29 +152,133 @@ def _extract_json(text: str) -> dict:
     return json.loads(text[start : end + 1])
 
 
-def _call_ollama_json(messages: list[dict], retries: int = 2) -> str:
-    from ai.rag_engine.rag_pipeline import LLM_MODEL, OLLAMA_BASE_URL
+def _try_extract_json(text: str) -> dict:
+    """Strict 파싱 실패 시 항목 단위 부분 추출을 시도하는 폴백."""
+    try:
+        return _extract_json(text)
+    except (ValueError, json.JSONDecodeError):
+        # items 배열만이라도 살려본다 — JSON 일부가 잘려도 메뉴 일부는 복구
+        items: list[dict] = []
+        for chunk in re.findall(r"\{[^{}]*\"name\"[^{}]*\}", text, re.DOTALL):
+            try:
+                items.append(json.loads(chunk))
+            except json.JSONDecodeError:
+                continue
+        if items:
+            logger.info("Recovered %d items via fragment parsing", len(items))
+            return {"items": items, "coaching": ""}
+        raise
+
+
+# 재시도 대상 예외 — 네트워크/타임아웃까지 포함
+_RETRYABLE = (
+    _requests.exceptions.Timeout,
+    _requests.exceptions.ConnectionError,
+    _requests.exceptions.HTTPError,
+    ValueError,
+    KeyError,
+    json.JSONDecodeError,
+)
+
+
+def _call_ollama_json(messages: list[dict], retries: int | None = None) -> str:
+    """
+    Ollama chat API를 JSON 응답 모드로 호출.
+    네트워크/타임아웃/JSON 파싱 오류 모두 exponential backoff로 재시도.
+    """
+    from server.common.llm_config import LLM, JSON_TEMPERATURE, JSON_NUM_PREDICT
+
+    if retries is None:
+        retries = LLM.retries
 
     payload = {
-        "model": LLM_MODEL,
+        "model": LLM.model,
         "format": "json",
         "stream": False,
         "think": False,
-        "options": {"temperature": 0.4, "num_predict": 1024},
+        "options": {"temperature": JSON_TEMPERATURE, "num_predict": JSON_NUM_PREDICT},
         "messages": messages,
     }
-    last_err = None
+    last_err: Exception | None = None
     for attempt in range(retries + 1):
         try:
-            resp = _requests.post(f"{OLLAMA_BASE_URL}/api/chat", json=payload, timeout=120)
+            resp = _requests.post(
+                f"{LLM.base_url}/api/chat", json=payload, timeout=LLM.timeout_s
+            )
             resp.raise_for_status()
             raw = resp.json()["message"]["content"]
-            _extract_json(raw)
+            _extract_json(raw)  # 파싱 가능한지 검증
             return raw
-        except (ValueError, KeyError, json.JSONDecodeError) as e:
+        except _RETRYABLE as e:
             last_err = e
-            logger.warning("JSON parse failed (%d/%d): %s", attempt + 1, retries + 1, e)
-    raise ValueError(f"JSON parse failed after {retries + 1} attempts: {last_err}")
+            wait = min(2 ** attempt, 8)  # 1s, 2s, 4s, 8s 상한
+            logger.warning(
+                "Ollama call failed (%d/%d): %s — retry in %ds",
+                attempt + 1, retries + 1, type(e).__name__, wait,
+            )
+            if attempt < retries:
+                time.sleep(wait)
+    raise ValueError(f"Ollama call failed after {retries + 1} attempts: {last_err}")
+
+
+def _fallback_response(category: str, reason: str) -> "RecommendResponse":
+    """LLM/네트워크 완전 실패 시 사용자에게 보낼 최소 안내 응답."""
+    return RecommendResponse(
+        items=[],
+        coaching=(
+            f"⚠️ 추천 엔진이 일시적으로 응답하지 않아요 ({reason}). "
+            "잠시 후 새로고침해주세요."
+        ),
+    )
+
+
+_SIMILARITY_THRESHOLD = 1.0   # L2 거리 상한 (≈ cosine 0.5)
+_MAX_PER_CATEGORY = 2         # 동일 카테고리 문서 최대 허용 수
+
+# meal_time(pipeline) → is_* 메타데이터 필드 매핑
+_MEAL_TIME_FLAG: dict[str, str] = {
+    "breakfast": "is_morning",
+    "lunch": "is_lunch",
+    "dinner": "is_dinner",
+    "snack": "is_snack",
+}
+
+
+def _build_where_filter(category: str, meal_time: str, condition: str | None = None) -> dict | None:
+    """
+    ChromaDB where 필터 생성.
+    - 건강기능식품: is_supplement=True
+    - 다이어트: is_diet=True
+    - 질환맞춤: 질환 종류에 따라 is_diabetes / is_hypertension, 없으면 가이드라인 포함
+    - 기호별/전체: meal_time 기반 필터만 적용
+    """
+    if category == "건강기능식품":
+        return {"is_supplement": {"$eq": True}}
+    if category == "다이어트":
+        goal_filter: dict = {"is_diet": {"$eq": True}}
+        meal_flag = _MEAL_TIME_FLAG.get(meal_time)
+        if meal_flag:
+            return {"$and": [goal_filter, {meal_flag: {"$eq": True}}]}
+        return goal_filter
+    if category == "질환맞춤":
+        cond = (condition or "").strip().lower()
+        if "당뇨" in cond:
+            return {"is_diabetes": {"$eq": True}}
+        if "고혈압" in cond or "혈압" in cond:
+            return {"is_hypertension": {"$eq": True}}
+        # 질환 미입력 시 가이드라인 문서 위주로
+        return {"category": {"$eq": "가이드라인"}}
+    # 기호별 / 전체: meal_time 기반 필터
+    meal_flag = _MEAL_TIME_FLAG.get(meal_time)
+    if meal_flag:
+        return {meal_flag: {"$eq": True}}
+    return None
+
+
+def _category_of(doc: str) -> str:
+    """문서 텍스트에서 카테고리 토큰 추출 (다양성 필터용)"""
+    first_token = doc.split("|")[0].strip()
+    return first_token.split("_")[0].strip()
 
 
 async def _retrieve_docs(
@@ -180,29 +286,58 @@ async def _retrieve_docs(
     limit: int = 8,
     where: dict | None = None,
 ) -> list[str]:
-    from ai.rag_engine.rag_pipeline import _get_embed_model, get_collection
+    from ai.rag_engine.rag_pipeline import _get_embed_model, get_collection, FETCH_MULTIPLIER
 
     embed_model = _get_embed_model()
     collection = get_collection()
-    docs: list[str] = []
-    seen_docs: set[str] = set()
 
+    # 쿼리별 검색 → 문서별 최고 유사도(최솟값) 보존
+    best_dist: dict[str, float] = {}
     for query in queries:
         query_embedding = (
             await run_in_threadpool(embed_model.encode, query, convert_to_numpy=True)
         ).tolist()
-        query_kwargs: dict = dict(query_embeddings=[query_embedding], n_results=4)
+        n = min(limit * FETCH_MULTIPLIER, collection.count())
+        query_kwargs: dict = dict(
+            query_embeddings=[query_embedding],
+            n_results=n,
+            include=["documents", "distances"],
+        )
         if where:
             query_kwargs["where"] = where
         results = await run_in_threadpool(collection.query, **query_kwargs)
-        for doc in results["documents"][0] if results["documents"] else []:
-            if doc in seen_docs:
-                continue
-            docs.append(doc)
-            seen_docs.add(doc)
-            if len(docs) >= limit:
-                return docs
-    return docs
+        for doc, dist in zip(
+            results["documents"][0] if results["documents"] else [],
+            results["distances"][0] if results["distances"] else [],
+        ):
+            if doc not in best_dist or dist < best_dist[doc]:
+                best_dist[doc] = dist
+
+    # 유사도 기준 정렬 → 임계값 필터 → 다양성 적용
+    sorted_docs = sorted(best_dist.items(), key=lambda x: x[1])
+    filtered = [doc for doc, dist in sorted_docs if dist <= _SIMILARITY_THRESHOLD]
+
+    # 임계값 통과 문서가 너무 적으면 완화 fallback
+    if len(filtered) < limit:
+        extra = [doc for doc, _ in sorted_docs if doc not in set(filtered)]
+        filtered += extra[: limit - len(filtered)]
+
+    # 카테고리 다양성 적용
+    category_count: dict[str, int] = {}
+    diverse: list[str] = []
+    remainder: list[str] = []
+    for doc in filtered:
+        cat = _category_of(doc)
+        if category_count.get(cat, 0) < _MAX_PER_CATEGORY:
+            diverse.append(doc)
+            category_count[cat] = category_count.get(cat, 0) + 1
+        else:
+            remainder.append(doc)
+
+    if len(diverse) < limit:
+        diverse += remainder[: limit - len(diverse)]
+
+    return diverse[:limit]
 
 
 @router.post("", response_model=RecommendResponse)
@@ -217,8 +352,10 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
             user_query=f"{req.category} 메뉴 추천",
         )
 
-        # 건강기능식품 카테고리는 해당 소스만 검색
-        where_filter = {"source": "건강기능식품DB"} if req.category == "건강기능식품" else None
+        # 메타데이터 기반 where 필터 구성
+        where_filter = _build_where_filter(
+            req.category, pipeline_ctx.meal_time, profile.get("condition")
+        )
         docs = await _retrieve_docs(pipeline_ctx.queries, where=where_filter)
         context = format_context_block(pipeline_ctx, docs)
         messages = [
@@ -237,8 +374,14 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
             },
         ]
 
-        raw = await run_in_threadpool(_call_ollama_json, messages)
-        data = _extract_json(raw)
+        try:
+            raw = await run_in_threadpool(_call_ollama_json, messages)
+            data = _try_extract_json(raw)
+        except (ValueError, _requests.exceptions.RequestException) as e:
+            # 재시도 모두 실패 → 빈 추천으로 폴백 (5xx 대신 200 + 안내)
+            logger.warning("Recommendation fallback: %s", e)
+            return _fallback_response(req.category, "LLM 응답 실패")
+
         ranked_items = validate_and_rank_items(
             data.get("items", []),
             remaining_kcal=pipeline_ctx.meal_status.remaining_kcal,

@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 
 class DatabaseHelper {
   static const _dbName    = 'nutrai.db';
-  static const _dbVersion = 2;
+  static const _dbVersion = 3;
 
   // 싱글턴
   DatabaseHelper._();
@@ -96,7 +96,17 @@ class DatabaseHelper {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE chat_message (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        role       TEXT NOT NULL,
+        text       TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
     // 인덱스
+    await db.execute('CREATE INDEX idx_chat_created_at ON chat_message(created_at)');
     await db.execute('CREATE INDEX idx_meal_user_id ON meal(user_id)');
     await db.execute('CREATE INDEX idx_meal_eaten_at ON meal(eaten_at)');
     await db.execute('CREATE INDEX idx_meal_food_meal_id ON meal_food(meal_id)');
@@ -111,6 +121,19 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE user_profile ADD COLUMN goal TEXT');
       await db.execute('ALTER TABLE user_profile ADD COLUMN allergy TEXT');
       await db.execute('ALTER TABLE user_profile ADD COLUMN condition TEXT');
+    }
+    if (oldV < 3) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS chat_message (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          role       TEXT NOT NULL,
+          text       TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_chat_created_at ON chat_message(created_at)'
+      );
     }
   }
 

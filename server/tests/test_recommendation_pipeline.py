@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from server.services.recommendation_pipeline import (
+    MealStatus,
     build_meal_status,
     extract_constraints,
     infer_meal_time,
@@ -14,6 +15,8 @@ from server.services.recommendation_pipeline import (
     normalize_goal,
     rewrite_queries,
     validate_and_rank_items,
+    _category_queries,
+    _score_item,
 )
 
 
@@ -222,3 +225,78 @@ class TestValidateAndRankItems:
         result = validate_and_rank_items(items, remaining_kcal=2000, allergy_str=None, count=5)
         assert len(result) == 1
         assert result[0]["name"] == "비빔밥"
+
+
+# ── _category_queries ───────────────────────────────
+class TestCategoryQueries:
+    def test_diet_category(self):
+        q = _category_queries("다이어트", "weight_loss", [], "점심")
+        assert any("저칼로리" in x or "체중" in x or "다이어트" in x for x in q)
+
+    def test_preference_weight_loss(self):
+        q = _category_queries("기호별", "weight_loss", [], "점심")
+        assert len(q) > 0
+        # "기호별" 키워드가 쿼리에 직접 들어가면 안 됨
+        assert not any("기호별" in x for x in q)
+
+    def test_preference_weight_gain(self):
+        q = _category_queries("기호별", "weight_gain", [], "저녁")
+        assert any("고단백" in x or "증량" in x for x in q)
+
+    def test_disease_with_condition(self):
+        q = _category_queries("질환맞춤", "general_health", ["condition:당뇨"], "점심")
+        assert any("당뇨" in x for x in q)
+
+    def test_disease_no_condition_fallback(self):
+        q = _category_queries("질환맞춤", "general_health", [], "점심")
+        assert len(q) > 0
+        assert any("가이드라인" in x or "건강" in x for x in q)
+
+    def test_supplement_category(self):
+        q = _category_queries("건강기능식품", "general_health", [], "점심")
+        assert any("건강기능식품" in x or "영양제" in x for x in q)
+
+    def test_all_category_returns_empty(self):
+        q = _category_queries("전체", "general_health", [], "점심")
+        assert q == []
+
+
+# ── rewrite_queries (새 카테고리 로직) ──────────────
+class TestRewriteQueriesWithCategory:
+    _ms = MealStatus(consumed_today=500, remaining_kcal=800)
+
+    def test_diet_category_queries(self):
+        qs = rewrite_queries("weight_loss", [], self._ms, "lunch", "다이어트", "")
+        assert len(qs) <= 6
+        assert any("다이어트" in q or "저칼로리" in q or "체중" in q for q in qs)
+
+    def test_disease_uses_condition(self):
+        constraints = ["condition:당뇨"]
+        qs = rewrite_queries("general_health", constraints, self._ms, "lunch", "질환맞춤", "")
+        assert any("당뇨" in q for q in qs)
+
+    def test_preference_no_keyword_in_query(self):
+        qs = rewrite_queries("weight_loss", [], self._ms, "dinner", "기호별", "")
+        assert not any("기호별" in q for q in qs)
+
+    def test_supplement_category(self):
+        qs = rewrite_queries("general_health", [], self._ms, "meal", "건강기능식품", "")
+        assert any("건강기능식품" in q or "영양제" in q for q in qs)
+
+
+# ── _score_item ─────────────────────────────────────
+class TestScoreItem:
+    def test_closer_to_remaining_scores_higher(self):
+        item_close = {"kcal": 500, "protein": 25, "reason": "good", "allergen_warning": False}
+        item_far   = {"kcal": 100, "protein": 25, "reason": "good", "allergen_warning": False}
+        assert _score_item(item_close, 500) > _score_item(item_far, 500)
+
+    def test_higher_protein_scores_higher(self):
+        low  = {"kcal": 400, "protein": 5,  "reason": "", "allergen_warning": False}
+        high = {"kcal": 400, "protein": 35, "reason": "", "allergen_warning": False}
+        assert _score_item(high, 400) > _score_item(low, 400)
+
+    def test_allergen_penalty(self):
+        safe    = {"kcal": 400, "protein": 20, "reason": "", "allergen_warning": False}
+        unsafe  = {"kcal": 400, "protein": 20, "reason": "", "allergen_warning": True}
+        assert _score_item(safe, 400) > _score_item(unsafe, 400)

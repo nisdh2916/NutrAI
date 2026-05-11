@@ -51,13 +51,22 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
     // 1
     {'text': '먼저 이름이 어떻게 되세요?', 'input': 'name', 'hint': '이름을 입력해주세요'},
     // 2
-    {'text': '반가워요! 성별을 선택해주세요.', 'quick': ['남성', '여성']},
+    {
+      'text': '반가워요! 성별을 선택해주세요.',
+      'quick': ['남성', '여성']
+    },
     // 3
     {'text': '나이가 어떻게 되세요?', 'input': 'age', 'hint': '예: 25'},
     // 4
-    {'text': '건강 목표를 선택해주세요!', 'quick': ['다이어트', '체중 유지', '근육 증진', '건강 관리']},
+    {
+      'text': '건강 목표를 선택해주세요!',
+      'quick': ['다이어트', '체중 유지', '근육 증진', '건강 관리']
+    },
     // 5
-    {'text': '평소 활동량은 어느 정도예요?', 'quick': ['낮음 (주로 앉아서)', '보통 (가벼운 운동)', '높음 (주 3회 이상)']},
+    {
+      'text': '평소 활동량은 어느 정도예요?',
+      'quick': ['낮음 (주로 앉아서)', '보통 (가벼운 운동)', '높음 (주 3회 이상)']
+    },
     // 6
     {
       'text': '알레르기가 있으신가요?',
@@ -115,7 +124,10 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
     _step = idx;
     final step = _script[idx];
 
-    setState(() { _isTyping = true; _waitingInput = false; });
+    setState(() {
+      _isTyping = true;
+      _waitingInput = false;
+    });
     await Future.delayed(const Duration(milliseconds: 700));
     if (!mounted) return;
     setState(() => _isTyping = false);
@@ -128,7 +140,8 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
 
     if (step.containsKey('input')) {
       setState(() => _waitingInput = true);
-      Future.delayed(const Duration(milliseconds: 150), () => _focusNode.requestFocus());
+      Future.delayed(
+          const Duration(milliseconds: 150), () => _focusNode.requestFocus());
     } else if (step['final'] == true) {
       await Future.delayed(const Duration(milliseconds: 1200));
       if (mounted) _goToSetup();
@@ -158,10 +171,18 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
     _addMessage(ChatMessage(text: value, sender: MessageSender.user));
 
     switch (_step) {
-      case 1: _profile.name = value.trim(); break;
-      case 3: _profile.age = int.tryParse(value.trim()); break;
-      case 6: _profile.allergy = value.trim(); break;
-      case 7: _profile.condition = value.trim(); break;
+      case 1:
+        _profile.name = value.trim();
+        break;
+      case 3:
+        _profile.age = int.tryParse(value.trim());
+        break;
+      case 6:
+        _profile.allergy = value.trim();
+        break;
+      case 7:
+        _profile.condition = value.trim();
+        break;
     }
 
     await Future.delayed(const Duration(milliseconds: 350));
@@ -175,12 +196,15 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
     // 직접 입력 선택 시 → 텍스트 입력 모드
     if (value == '직접 입력') {
       final hint = step['customHint'] as String? ?? '직접 입력해주세요';
-      setState(() { _waitingInput = true; });
+      setState(() {
+        _waitingInput = true;
+      });
       _addMessage(ChatMessage(
         text: '직접 입력해주세요: $hint',
         sender: MessageSender.bot,
       ));
-      Future.delayed(const Duration(milliseconds: 150), () => _focusNode.requestFocus());
+      Future.delayed(
+          const Duration(milliseconds: 150), () => _focusNode.requestFocus());
       return;
     }
 
@@ -194,9 +218,13 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
         _profile.goal = value;
         break;
       case 5:
-        if (value.startsWith('낮음')) _profile.activityLevel = '낮음';
-        else if (value.startsWith('보통')) _profile.activityLevel = '보통';
-        else _profile.activityLevel = '높음';
+        if (value.startsWith('낮음')) {
+          _profile.activityLevel = '낮음';
+        } else if (value.startsWith('보통')) {
+          _profile.activityLevel = '보통';
+        } else {
+          _profile.activityLevel = '높음';
+        }
         break;
       case 6:
         _profile.allergy = value == '없음' ? '' : value;
@@ -220,7 +248,8 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
   void _skipToSetup() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => UserSetupScreen(profile: UserProfile())),
+      MaterialPageRoute(
+          builder: (_) => UserSetupScreen(profile: UserProfile())),
     );
   }
 
@@ -270,15 +299,20 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      leading: Padding(
-        padding: const EdgeInsets.all(8),
+      leading: const Padding(
+        padding: EdgeInsets.all(8),
         child: _BotAvatar(size: 32),
       ),
       title: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('NutrAI 챗봇', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-          Text('온라인', style: TextStyle(fontSize: 11, color: AppColors.green400, fontWeight: FontWeight.w400)),
+          Text('NutrAI 챗봇',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          Text('온라인',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.green400,
+                  fontWeight: FontWeight.w400)),
         ],
       ),
       actions: [
@@ -286,12 +320,15 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
           onPressed: _skipToSetup,
           child: const Text(
             '건너뛰기',
-            style: TextStyle(fontSize: 13, color: AppColors.gray400, fontWeight: FontWeight.w500),
+            style: TextStyle(
+                fontSize: 13,
+                color: AppColors.gray400,
+                fontWeight: FontWeight.w500),
           ),
         ),
       ],
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(0.5),
+      bottom: const PreferredSize(
+        preferredSize: Size.fromHeight(0.5),
         child: Divider(height: 0.5, color: AppColors.border),
       ),
     );
@@ -302,11 +339,12 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
-        mainAxisAlignment: isBot ? MainAxisAlignment.start : MainAxisAlignment.end,
+        mainAxisAlignment:
+            isBot ? MainAxisAlignment.start : MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (isBot) ...[
-            _BotAvatar(size: 28),
+            const _BotAvatar(size: 28),
             const SizedBox(width: 8),
           ],
           Flexible(
@@ -320,7 +358,9 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
                   bottomLeft: Radius.circular(isBot ? 4 : 16),
                   bottomRight: Radius.circular(isBot ? 16 : 4),
                 ),
-                border: isBot ? Border.all(color: AppColors.border, width: 0.5) : null,
+                border: isBot
+                    ? Border.all(color: AppColors.border, width: 0.5)
+                    : null,
               ),
               child: Text(
                 msg.text,
@@ -348,10 +388,12 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
       child: Wrap(
         spacing: 8,
         runSpacing: 6,
-        children: replies.map((r) => _QuickReplyChip(
-          label: r,
-          onTap: () => _handleQuickReply(r),
-        )).toList(),
+        children: replies
+            .map((r) => _QuickReplyChip(
+                  label: r,
+                  onTap: () => _handleQuickReply(r),
+                ))
+            .toList(),
       ),
     );
   }
@@ -371,7 +413,8 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
               style: const TextStyle(fontSize: 13.5),
               decoration: InputDecoration(
                 hintText: _waitingInput ? _currentHint : '버튼을 선택해주세요',
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: const BorderSide(color: AppColors.border),
@@ -382,7 +425,8 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
-                  borderSide: const BorderSide(color: AppColors.green400, width: 1.5),
+                  borderSide:
+                      const BorderSide(color: AppColors.green400, width: 1.5),
                 ),
                 filled: true,
                 fillColor: _waitingInput ? AppColors.white : AppColors.gray50,
@@ -390,15 +434,20 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          GestureDetector(
-            onTap: _waitingInput ? () => _handleInput(_inputController.text) : null,
+          InkWell(
+            onTap: _waitingInput
+                ? () => _handleInput(_inputController.text)
+                : null,
+            borderRadius: BorderRadius.circular(22),
             child: Container(
-              width: 40, height: 40,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: _waitingInput ? AppColors.green400 : AppColors.gray100,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+              child:
+                  const Icon(Icons.send_rounded, color: Colors.white, size: 18),
             ),
           ),
         ],
@@ -418,14 +467,16 @@ class _BotAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size, height: size,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: AppColors.green50,
         shape: BoxShape.circle,
         border: Border.all(color: AppColors.green100, width: 1.5),
       ),
       child: Center(
-        child: Icon(Icons.smart_toy_outlined, size: size * 0.55, color: AppColors.green800),
+        child: Icon(Icons.smart_toy_outlined,
+            size: size * 0.55, color: AppColors.green800),
       ),
     );
   }
@@ -435,14 +486,19 @@ class _UserAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 28, height: 28,
+      width: 28,
+      height: 28,
       decoration: BoxDecoration(
         color: AppColors.green50,
         shape: BoxShape.circle,
         border: Border.all(color: AppColors.green100),
       ),
       child: const Center(
-        child: Text('나', style: TextStyle(fontSize: 10, color: AppColors.green800, fontWeight: FontWeight.w500)),
+        child: Text('나',
+            style: TextStyle(
+                fontSize: 10,
+                color: AppColors.green800,
+                fontWeight: FontWeight.w500)),
       ),
     );
   }
@@ -455,10 +511,12 @@ class _QuickReplyChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        constraints: const BoxConstraints(minHeight: 44),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(20),
@@ -484,17 +542,21 @@ class _TypingBubble extends StatefulWidget {
   State<_TypingBubble> createState() => _TypingBubbleState();
 }
 
-class _TypingBubbleState extends State<_TypingBubble> with TickerProviderStateMixin {
+class _TypingBubbleState extends State<_TypingBubble>
+    with TickerProviderStateMixin {
   late final List<AnimationController> _controllers;
   late final List<Animation<double>> _animations;
 
   @override
   void initState() {
     super.initState();
-    _controllers = List.generate(3, (i) => AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..repeat(reverse: true, period: Duration(milliseconds: 600 + i * 150)));
+    _controllers = List.generate(
+        3,
+        (i) => AnimationController(
+              vsync: this,
+              duration: const Duration(milliseconds: 600),
+            )..repeat(
+                reverse: true, period: Duration(milliseconds: 600 + i * 150)));
     _animations = _controllers
         .map((c) => Tween<double>(begin: 0.3, end: 1.0).animate(c))
         .toList();
@@ -502,7 +564,9 @@ class _TypingBubbleState extends State<_TypingBubble> with TickerProviderStateMi
 
   @override
   void dispose() {
-    for (final c in _controllers) c.dispose();
+    for (final c in _controllers) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -513,7 +577,7 @@ class _TypingBubbleState extends State<_TypingBubble> with TickerProviderStateMi
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          _BotAvatar(size: 28),
+          const _BotAvatar(size: 28),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -529,22 +593,25 @@ class _TypingBubbleState extends State<_TypingBubble> with TickerProviderStateMi
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              children: List.generate(3, (i) => AnimatedBuilder(
-                animation: _animations[i],
-                builder: (_, __) => Padding(
-                  padding: EdgeInsets.only(right: i < 2 ? 4 : 0),
-                  child: Opacity(
-                    opacity: _animations[i].value,
-                    child: Container(
-                      width: 7, height: 7,
-                      decoration: const BoxDecoration(
-                        color: AppColors.gray200,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ),
-              )),
+              children: List.generate(
+                  3,
+                  (i) => AnimatedBuilder(
+                        animation: _animations[i],
+                        builder: (_, __) => Padding(
+                          padding: EdgeInsets.only(right: i < 2 ? 4 : 0),
+                          child: Opacity(
+                            opacity: _animations[i].value,
+                            child: Container(
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                color: AppColors.gray200,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )),
             ),
           ),
         ],

@@ -19,6 +19,19 @@ class FoodRepository {
     return FoodEntity.fromMap(rows.first);
   }
 
+  // ── 정확 이름으로 단건 조회 (인덱스 활용, getOrCreate 용) ──
+  Future<FoodEntity?> getByExactName(String name) async {
+    final db   = await _db.database;
+    final rows = await db.query(
+      'food',
+      where: 'food_name = ?',
+      whereArgs: [name],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return FoodEntity.fromMap(rows.first);
+  }
+
   // ── 이름으로 검색 (LIKE) ───────────────────────
   Future<List<FoodEntity>> searchFoods(String query) async {
     if (query.trim().isEmpty) return getAllFoods();

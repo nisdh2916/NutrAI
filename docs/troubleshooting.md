@@ -464,3 +464,237 @@ const _kCategoryMeta = <String, ({IconData icon, String desc, Color color})>{
 목표치: 탄수화물 300g, 단백질 60g, 지방 65g (일반 성인 기준 기본값)
 
 **관련 파일:** `app/lib/screens/report_screen.dart` → `_WeeklyNutrAvg`, `_WeeklyTipCard`, `_MonthlyInsightCard`
+
+---
+
+<<<<<<< HEAD
+## 20. Flutter 위젯 테스트가 AppState Provider 없이 앱을 렌더링함
+
+**증상:** `flutter test` 실행 시 `_RootRouter`가 `context.watch<AppState>()`를 호출하는 단계에서 `ProviderNotFoundException`이 발생함. Provider를 추가한 뒤에도 온보딩 화면의 지연 타이머가 남아 테스트가 종료되지 않음.
+
+**원인:** `widget_test.dart`가 실제 `main()`의 `ChangeNotifierProvider<AppState>` 래핑 없이 `NutrAIApp`만 직접 렌더링함. 또한 사용자 정보가 없는 상태로 앱을 띄우면 온보딩 챗봇의 `Future.delayed()` 타이머가 테스트 종료 시점까지 남을 수 있음.
+
+**해결:**
+```dart
+// 변경 전
+await tester.pumpWidget(const NutrAIApp());
+
+// 변경 후
+class _ReadyAppState extends AppState {
+  @override
+  bool get loading => false;
+
+  @override
+  UserProfileEntity? get user => const UserProfileEntity(
+    nickname: '테스트',
+    createdAt: '2026-05-04T00:00:00',
+    updatedAt: '2026-05-04T00:00:00',
+  );
+}
+
+await tester.pumpWidget(
+  ChangeNotifierProvider<AppState>(
+    create: (_) => _ReadyAppState(),
+    child: const NutrAIApp(),
+  ),
+);
+```
+
+**관련 파일:** `app/test/widget_test.dart` → `앱 기본 렌더링 테스트`
+
+---
+
+## 21. 홈 화면이 데모 식단과 플로팅 AI 버튼으로 실제 상태를 가림
+
+**증상:** 홈 화면이 실제 오늘 식단 대신 하드코딩된 샘플 식단을 보여주고, 별도 AI 코치 FAB가 카드 영역 위에 떠서 작은 화면에서 콘텐츠를 가렸음. 사용자 이름 fallback도 `00`으로 표시되어 추천/리포트 화면의 신뢰도가 떨어졌음.
+
+**원인:** `home_screen.dart`가 `AppState.todayMeals`를 구독하지 않고 자체 샘플 `_meals`를 보유함. AI 코치 진입점은 홈 내부 FAB로 별도 배치되어 부모 탭 FAB와 시각적으로 경쟁했고, 추천/리포트의 기본 사용자명이 개발용 placeholder로 남아 있었음.
+
+**해결:**
+```dart
+// 변경 전
+final List<MealRecord> _meals = const [...];
+floatingActionButton: FloatingActionButton(
+  heroTag: 'home_chat_fab',
+  onPressed: () => Navigator.push(...AiChatScreen()),
+);
+final name = widget.profile.name.isNotEmpty ? widget.profile.name : '00';
+
+// 변경 후
+final appState = context.watch<AppState>();
+final meals = appState.todayMeals.map(_toMealRecord).toList();
+
+IconButton(
+  tooltip: 'AI 코치와 대화',
+  icon: const Icon(Icons.smart_toy_outlined),
+  onPressed: () => Navigator.push(...AiChatScreen()),
+);
+
+final name = widget.profile.name.isNotEmpty ? widget.profile.name : '사용자';
+```
+
+**관련 파일:** `app/lib/screens/home_screen.dart` → `HomeScreen.build()`, `_toMealRecord()`, `_EmptyMealCard`, `_StreakCard`; `app/lib/screens/main_tab_screen.dart` → `_MainTabScreenState.initState()`; `app/lib/screens/recommend_screen.dart` → `RecommendScreen`; `app/lib/screens/report_screen.dart` → `ReportScreen`
+
+---
+
+## 22. 하단바 중앙 추가 버튼이 탭 균형을 깨고 콘텐츠를 덮음
+
+**증상:** 하단바가 `홈`, `기록`, 중앙 `+`, `리포트`, `추천`, `설정`처럼 5개 탭과 중앙 FAB를 동시에 보여주면서 좌우 균형이 맞지 않았음. 중앙 FAB가 바깥으로 떠 있어 홈 화면의 기록 흐름 요일 라벨 같은 콘텐츠를 덮는 문제도 보였음.
+
+**원인:** `main_tab_screen.dart`에서 5개 탭을 유지한 채 중앙 docked FAB를 별도로 띄웠고, 중앙 빈 슬롯 오른쪽에 탭이 3개 몰려 있었다. FAB가 `Scaffold.floatingActionButton`으로 배치되어 body 영역 위를 침범할 수밖에 없는 구조였음.
+
+**해결:**
+```dart
+// 변경 전
+bottomNavigationBar: _buildBottomNav(),
+floatingActionButton: _buildFab(),
+floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
+// 하단바: 홈, 기록, 빈 슬롯, 리포트, 추천, 설정
+
+// 변경 후
+bottomNavigationBar: _buildBottomNav(),
+
+// 하단바: 홈, 기록, 중앙 추가 액션, 리포트, 추천
+_AddNavAction(onTap: _onFabTap)
+```
+
+추가로 하단 액션 주변 콘텐츠가 답답해지지 않도록 홈/기록/추천/리포트 화면의 하단 스크롤 padding을 `100`에서 `144`로 늘렸다.
+
+**관련 파일:** `app/lib/screens/main_tab_screen.dart` → `_buildBottomNav()`, `_AddNavAction`; `app/lib/screens/home_screen.dart`, `app/lib/screens/calendar_screen.dart`, `app/lib/screens/recommend_screen.dart`, `app/lib/screens/report_screen.dart` → 하단 padding
+
+---
+
+## 23. 감사 후 `flutter analyze`/`flutter test`가 음식 추가 화면에서 실패함
+
+**증상:** `/audit` 재점검에서 `food_add_screen.dart`가 컴파일되지 않아 `flutter analyze`와 `flutter test`가 모두 실패함. 동시에 낮은 색상 대비, 작은 터치 타깃, `GestureDetector` 기반 클릭 영역, 원본 크기 이미지 렌더링 문제가 남아 있었음.
+
+**원인:** `_FoodDB.search()`가 삭제된 `all` 목록을 참조하고 있었고, `detectAllergens()`가 `core/allergens.dart`와 `utils/allergy_checker.dart` 양쪽에서 import되어 이름이 충돌함. UI 쪽은 기존 토큰 색상이 작은 텍스트 대비 기준을 일부 만족하지 못했고, 여러 터치 요소가 44px보다 작았으며 `Image.file`에 캐시 크기가 지정되지 않았음.
+
+**해결:**
+```dart
+// 변경 전
+import '../core/allergens.dart';
+import '../utils/allergy_checker.dart';
+
+static List<MealFood> search(String q) {
+  if (q.trim().isEmpty) return [];
+  return all.where((f) => f.name.contains(q.trim())).toList();
+}
+
+GestureDetector(
+  onTap: onRemove,
+  child: Container(width: 28, height: 28),
+);
+
+Image.file(File(photoPath), width: double.infinity, height: 180);
+
+// 변경 후
+import '../core/allergens.dart';
+
+// 사용하지 않는 search() 제거
+
+InkWell(
+  onTap: onRemove,
+  borderRadius: BorderRadius.circular(8),
+  child: Container(width: 44, height: 44),
+);
+
+final dpr = MediaQuery.devicePixelRatioOf(context);
+final cacheWidth = (MediaQuery.sizeOf(context).width * dpr).round();
+final cacheHeight = (180 * dpr).round();
+
+Image.file(
+  File(photoPath),
+  width: double.infinity,
+  height: 180,
+  cacheWidth: cacheWidth,
+  cacheHeight: cacheHeight,
+);
+```
+
+추가로 `AppColors`의 텍스트/브랜드/의미 색상 토큰을 대비 기준에 맞게 어둡게 조정하고, 남은 info lint는 `dart fix --apply`와 수동 중괄호 보정으로 정리함.
+
+**관련 파일:** `app/lib/screens/food_add_screen.dart` → `_FoodDB`, `_DetectedFoodRow`, `_PhotoDoneBanner`, `_AllergyWarningBanner`; `app/lib/screens/calendar_screen.dart` → `_MonthBody`, `_MealDetailSheet`; `app/lib/theme/app_theme.dart` → `AppColors`; `app/lib/screens/user_setup_screen.dart`, `app/lib/screens/settings_screen.dart`, `app/lib/screens/onboarding_chat_screen.dart` → 터치 타깃 보정
+
+---
+
+## 24. 김영서 브랜치 병합 후 Flutter 분석이 실패함
+
+**증상:** `origin/team/kim-youngseo` 병합 직후 `flutter analyze`에서 `home_screen.dart`, `food_add_screen.dart`, `app_state.dart`, `main_tab_screen.dart`의 문법 오류와 정의되지 않은 참조 오류가 발생함.
+
+**원인:** 자동 병합이 신동하 브랜치의 AppState 파사드 구조와 김영서 브랜치의 기존 Repository 기반 구조를 같은 파일 안에 섞었고, 홈/음식 추가 화면에는 중복 위젯 블록이 남았음. `.gitignore`도 한쪽 규칙만 선택되어 로컬 로그와 Chroma 벡터 저장소가 untracked로 다시 노출됨.
+
+**해결:**
+```bash
+# 변경 전
+git merge origin/team/kim-youngseo
+# app_state.dart/home_screen.dart/food_add_screen.dart에 자동 병합 잔여 코드 발생
+# flutter analyze: Undefined name, duplicate named argument, expected token 오류
+
+# 변경 후
+git restore --source=origin/team/kim-youngseo -- \
+  app/lib/providers/app_state.dart \
+  app/lib/repositories/meal_repository.dart \
+  app/lib/screens/food_add_screen.dart \
+  app/lib/screens/home_screen.dart \
+  app/lib/screens/main_tab_screen.dart \
+  app/lib/theme/app_theme.dart
+
+# .gitignore는 양쪽 규칙을 합쳐 로컬 산출물을 계속 제외
+*_out.txt
+*_err.txt
+ai/rag_engine/chroma_db/
+```
+
+추가로 남은 analyzer info는 `const` 보정과 문자열 보간 정리 후 `dart format`으로 정리함.
+
+**관련 파일:** `app/lib/providers/app_state.dart` → `AppState`; `app/lib/screens/home_screen.dart` → `HomeScreen.build()`; `app/lib/screens/food_add_screen.dart` → `_FoodDB`, `_BottomActionBar`, `_QuickFoodGrid`; `app/lib/screens/main_tab_screen.dart` → `_MainTabScreenState`; `.gitignore` → 로컬 산출물 제외 규칙
+
+---
+
+## 25. 알레르겐 키워드 매핑이 앱·서버 3곳에 중복 정의되어 내용 불일치
+
+**증상:** `food_add_screen.dart`에서 경고가 뜨는 음식이 서버 RAG 추천 결과에는 그대로 포함됨. 앱·서버의 키워드 목록이 달라서 발생.
+
+**원인:** `_allergenKeywords`(Dart), `_ALLERGEN_KEYWORDS`(rag_pipeline.py), `ALLERGEN_KEYWORDS`(recommendation_pipeline.py) 3개가 각자 독립적으로 정의되어 있었고, 일부 키워드(`떡볶이`, `스크램블`, `순두부` 등)가 특정 파일에만 존재했음.
+
+**해결:**
+```
+# 단일 소스로 통합
+ai/allergens.py  ← ALLERGEN_KEYWORDS, ALLERGEN_CATEGORIES 정의
+
+# 서버 두 파일은 import로 교체
+from ai.allergens import ALLERGEN_KEYWORDS
+
+# 앱은 AllergenService 싱글톤 (서버 GET /allergens fetch + fallback)
+app/lib/services/allergen_service.dart
+```
+
+**관련 파일:** `ai/allergens.py`, `ai/rag_engine/rag_pipeline.py`, `server/services/recommendation_pipeline.py`, `server/api/routes_allergens.py`, `app/lib/services/allergen_service.dart`
+
+---
+
+## 26. nutrition_service.py가 3개 음식만 하드코딩하여 나머지 음식은 동일한 generic 값 반환
+
+**증상:** `/nutrition` 엔드포인트에 임의 음식을 전달하면 모두 250kcal/탄30g/단10g/지8g으로 계산됨.
+
+**원인:** `FOOD_NUTRITION` dict에 `김치찌개`, `쌀밥`, `닭가슴살` 3종만 하드코딩.
+
+**해결:**
+```python
+# 변경 전
+FOOD_NUTRITION = {"김치찌개": ..., "쌀밥": ..., "닭가슴살": ...}
+base = FOOD_NUTRITION.get(item.food_name, _GENERIC)
+
+# 변경 후
+def _lookup_chromadb(food_name: str) -> dict | None:
+    # ChromaDB 벡터 검색 → 정규식으로 kcal/carb/protein/fat 파싱
+    # SIMILARITY_THRESHOLD 초과 시 None 반환
+    ...
+
+def _get_nutrition(food_name: str) -> dict:
+    return _lookup_chromadb(food_name) or _GENERIC
+```
+
+**관련 파일:** `server/services/nutrition_service.py` → `_get_nutrition()`, `_lookup_chromadb()`
