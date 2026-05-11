@@ -158,6 +158,33 @@ def build_recommendation_context(
     )
 
 
+def _category_queries(category: str, goal: str, constraints: list[str], meal_label: str) -> list[str]:
+    """카테고리별 특화 쿼리 생성 — 카테고리 이름을 그대로 쓰지 않고 의미 있는 검색어로 변환"""
+    if category in ("전체", "all", ""):
+        return []
+    if category == "다이어트":
+        return [f"저칼로리 고단백 체중 감량 {meal_label} 식단", "다이어트 식단 가이드라인"]
+    if category == "기호별":
+        # 사용자 goal 기반 맞춤 쿼리 — "기호별" 키워드 대신 실제 목표로 검색
+        if goal == "weight_loss":
+            return [f"저칼로리 포만감 {meal_label} 메뉴", "다이어트 추천 식품"]
+        if goal == "weight_gain":
+            return [f"고단백 고칼로리 {meal_label} 메뉴", "근육 증가 식단"]
+        return [f"균형 잡힌 {meal_label} 메뉴", "건강한 한식 식단"]
+    if category == "질환맞춤":
+        # constraints에서 condition 추출하여 구체적 쿼리 생성
+        condition_queries = [
+            f"{c.split(':', 1)[1]} 맞춤 식단 가이드라인"
+            for c in constraints if c.startswith("condition:")
+        ]
+        if condition_queries:
+            return condition_queries + [f"질환자 {meal_label} 추천 식단"]
+        return [f"저염 저당 건강 {meal_label} 식단", "질환 맞춤 식단 가이드라인"]
+    if category == "건강기능식품":
+        return ["비타민 미네랄 건강기능식품", "영양제 보충 건강기능식품"]
+    return [f"{category} {meal_label} 메뉴 추천"]
+
+
 def rewrite_queries(
     goal: str,
     constraints: list[str],
@@ -168,16 +195,21 @@ def rewrite_queries(
 ) -> list[str]:
     queries: list[str] = []
     meal_label = MEAL_TIME_LABELS.get(meal_time, meal_time)
+
     if user_query.strip():
         queries.append(user_query.strip())
-    if category and category not in ("전체", "all"):
-        queries.append(f"{category} 메뉴 추천")
-    if goal == "weight_loss":
-        queries.append(f"체중 감량 {meal_label} 메뉴 추천")
-    elif goal == "weight_gain":
-        queries.append(f"증량 고단백 {meal_label} 메뉴 추천")
-    else:
-        queries.append(f"건강한 {meal_label} 메뉴 추천")
+
+    # 카테고리별 특화 쿼리
+    queries.extend(_category_queries(category, goal, constraints, meal_label))
+
+    # goal 기반 기본 쿼리 (카테고리가 이미 다루지 않은 경우)
+    if category in ("전체", "all", "기호별", ""):
+        if goal == "weight_loss":
+            queries.append(f"체중 감량 {meal_label} 메뉴 추천")
+        elif goal == "weight_gain":
+            queries.append(f"증량 고단백 {meal_label} 메뉴 추천")
+        else:
+            queries.append(f"건강한 {meal_label} 메뉴 추천")
 
     if meal_status.remaining_kcal > 0:
         queries.append(f"남은 칼로리 {meal_status.remaining_kcal:.0f}kcal 이하 {meal_label} 식사")

@@ -232,34 +232,112 @@ def _fallback_response(category: str, reason: str) -> "RecommendResponse":
     )
 
 
+_SIMILARITY_THRESHOLD = 1.0   # L2 거리 상한 (≈ cosine 0.5)
+_MAX_PER_CATEGORY = 2         # 동일 카테고리 문서 최대 허용 수
+
+# meal_time(pipeline) → is_* 메타데이터 필드 매핑
+_MEAL_TIME_FLAG: dict[str, str] = {
+    "breakfast": "is_morning",
+    "lunch": "is_lunch",
+    "dinner": "is_dinner",
+    "snack": "is_snack",
+}
+
+
+def _build_where_filter(category: str, meal_time: str, condition: str | None = None) -> dict | None:
+    """
+    ChromaDB where 필터 생성.
+    - 건강기능식품: is_supplement=True
+    - 다이어트: is_diet=True
+    - 질환맞춤: 질환 종류에 따라 is_diabetes / is_hypertension, 없으면 가이드라인 포함
+    - 기호별/전체: meal_time 기반 필터만 적용
+    """
+    if category == "건강기능식품":
+        return {"is_supplement": {"$eq": True}}
+    if category == "다이어트":
+        goal_filter: dict = {"is_diet": {"$eq": True}}
+        meal_flag = _MEAL_TIME_FLAG.get(meal_time)
+        if meal_flag:
+            return {"$and": [goal_filter, {meal_flag: {"$eq": True}}]}
+        return goal_filter
+    if category == "질환맞춤":
+        cond = (condition or "").strip().lower()
+        if "당뇨" in cond:
+            return {"is_diabetes": {"$eq": True}}
+        if "고혈압" in cond or "혈압" in cond:
+            return {"is_hypertension": {"$eq": True}}
+        # 질환 미입력 시 가이드라인 문서 위주로
+        return {"category": {"$eq": "가이드라인"}}
+    # 기호별 / 전체: meal_time 기반 필터
+    meal_flag = _MEAL_TIME_FLAG.get(meal_time)
+    if meal_flag:
+        return {meal_flag: {"$eq": True}}
+    return None
+
+
+def _category_of(doc: str) -> str:
+    """문서 텍스트에서 카테고리 토큰 추출 (다양성 필터용)"""
+    first_token = doc.split("|")[0].strip()
+    return first_token.split("_")[0].strip()
+
+
 async def _retrieve_docs(
     queries: list[str],
     limit: int = 8,
     where: dict | None = None,
 ) -> list[str]:
-    from ai.rag_engine.rag_pipeline import _get_embed_model, get_collection
+    from ai.rag_engine.rag_pipeline import _get_embed_model, get_collection, FETCH_MULTIPLIER
 
     embed_model = _get_embed_model()
     collection = get_collection()
-    docs: list[str] = []
-    seen_docs: set[str] = set()
 
+    # 쿼리별 검색 → 문서별 최고 유사도(최솟값) 보존
+    best_dist: dict[str, float] = {}
     for query in queries:
         query_embedding = (
             await run_in_threadpool(embed_model.encode, query, convert_to_numpy=True)
         ).tolist()
-        query_kwargs: dict = dict(query_embeddings=[query_embedding], n_results=4)
+        n = min(limit * FETCH_MULTIPLIER, collection.count())
+        query_kwargs: dict = dict(
+            query_embeddings=[query_embedding],
+            n_results=n,
+            include=["documents", "distances"],
+        )
         if where:
             query_kwargs["where"] = where
         results = await run_in_threadpool(collection.query, **query_kwargs)
-        for doc in results["documents"][0] if results["documents"] else []:
-            if doc in seen_docs:
-                continue
-            docs.append(doc)
-            seen_docs.add(doc)
-            if len(docs) >= limit:
-                return docs
-    return docs
+        for doc, dist in zip(
+            results["documents"][0] if results["documents"] else [],
+            results["distances"][0] if results["distances"] else [],
+        ):
+            if doc not in best_dist or dist < best_dist[doc]:
+                best_dist[doc] = dist
+
+    # 유사도 기준 정렬 → 임계값 필터 → 다양성 적용
+    sorted_docs = sorted(best_dist.items(), key=lambda x: x[1])
+    filtered = [doc for doc, dist in sorted_docs if dist <= _SIMILARITY_THRESHOLD]
+
+    # 임계값 통과 문서가 너무 적으면 완화 fallback
+    if len(filtered) < limit:
+        extra = [doc for doc, _ in sorted_docs if doc not in set(filtered)]
+        filtered += extra[: limit - len(filtered)]
+
+    # 카테고리 다양성 적용
+    category_count: dict[str, int] = {}
+    diverse: list[str] = []
+    remainder: list[str] = []
+    for doc in filtered:
+        cat = _category_of(doc)
+        if category_count.get(cat, 0) < _MAX_PER_CATEGORY:
+            diverse.append(doc)
+            category_count[cat] = category_count.get(cat, 0) + 1
+        else:
+            remainder.append(doc)
+
+    if len(diverse) < limit:
+        diverse += remainder[: limit - len(diverse)]
+
+    return diverse[:limit]
 
 
 @router.post("", response_model=RecommendResponse)
@@ -274,8 +352,10 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
             user_query=f"{req.category} 메뉴 추천",
         )
 
-        # 건강기능식품 카테고리는 해당 소스만 검색
-        where_filter = {"source": "건강기능식품DB"} if req.category == "건강기능식품" else None
+        # 메타데이터 기반 where 필터 구성
+        where_filter = _build_where_filter(
+            req.category, pipeline_ctx.meal_time, profile.get("condition")
+        )
         docs = await _retrieve_docs(pipeline_ctx.queries, where=where_filter)
         context = format_context_block(pipeline_ctx, docs)
         messages = [
