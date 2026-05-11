@@ -578,16 +578,15 @@ class _RecommendCard extends StatelessWidget {
                         color: AppColors.red,
                         borderRadius: BorderRadius.circular(AppRadius.sm),
                       ),
-                      child:
-                          const Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.warning_rounded,
-                            size: 11, color: Colors.white),
-                        SizedBox(width: 4),
-                        Text('알레르기 주의',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.warning_rounded, size: 11, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text(
+                          item.allergenNames.isNotEmpty
+                              ? '${item.allergenNames.first} 알레르기'
+                              : '알레르기 주의',
+                          style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
                       ]),
                     ),
                   ),
@@ -648,6 +647,17 @@ class _RecommendCard extends StatelessWidget {
                               size: 18, color: AppColors.textMuted),
                         ),
                       ]),
+                      if (item.allergenWarning && item.allergenNames.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(children: [
+                          const Icon(Icons.warning_amber_rounded, size: 12, color: AppColors.red),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${item.allergenNames.join(', ')} 성분 포함 가능',
+                            style: const TextStyle(fontSize: 11, color: AppColors.red),
+                          ),
+                        ]),
+                      ],
                     ]),
               ),
             ],
