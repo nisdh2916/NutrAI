@@ -15,6 +15,7 @@
 특징:
   - GPU 자동 사용 (CUDA)
   - 체크포인트 지원 (끊겨도 이어서 시작)
+  - 카테고리·영양소 기반 boolean 메타데이터 자동 태깅
 """
 import sys
 import time
@@ -37,6 +38,82 @@ BATCH_SIZE  = 2000
 
 SOURCE_KR = "식품영양성분 데이터베이스"
 SOURCE_EN = "Korean Food Composition Database system (K-FCDB)"
+
+# ── 메타데이터 태깅 규칙 ──────────────────────────────────────────
+# 식사 시간대 카테고리 매핑
+_MORNING_CATS  = {"죽 및 스프류", "과일류", "음료 및 차류", "빵 및 과자류",
+                  "유제품류 및 빙과류", "밥류"}
+_LUNCH_CATS    = {"밥류", "면 및 만두류", "국 및 탕류", "찌개 및 전골류",
+                  "구이류", "볶음류", "찜류", "전·적 및 부침류", "조림류",
+                  "튀김류", "나물·숙채류", "생채·무침류", "수·조·어·육류"}
+_DINNER_CATS   = {"밥류", "국 및 탕류", "찌개 및 전골류", "구이류",
+                  "볶음류", "찜류", "수·조·어·육류", "면 및 만두류"}
+_SNACK_CATS    = {"빵 및 과자류", "과일류", "음료 및 차류",
+                  "두류, 견과 및 종실류"}
+
+# 질환식 제외 카테고리 (염분·당류 높은 것들)
+_HIGH_SODIUM_CATS = {"젓갈류", "김치류", "장류, 양념류", "장아찌·절임류"}
+_HIGH_SUGAR_CATS  = {"음료 및 차류", "빵 및 과자류", "유제품류 및 빙과류",
+                     "과일류", "장류, 양념류"}
+
+
+def _fval(row, col: str, default: float = 0.0) -> float:
+    try:
+        v = row.get(col)
+        return float(v) if v is not None and not pd.isna(v) else default
+    except (TypeError, ValueError):
+        return default
+
+
+def tag_row(row, category: str, source: str = "food") -> dict:
+    """카테고리·영양소 기반 boolean 메타데이터 태그 계산."""
+    kcal    = _fval(row, "에너지(kcal)")
+    protein = _fval(row, "단백질(g)")
+    fat     = _fval(row, "지방(g)")
+    sodium  = _fval(row, "나트륨(mg)")
+    sugar   = _fval(row, "당류(g)")
+    carb    = _fval(row, "탄수화물(g)")
+    fiber   = _fval(row, "식이섬유(g)")
+
+    # 식사 시간대
+    is_morning = category in _MORNING_CATS
+    is_lunch   = category in _LUNCH_CATS
+    is_dinner  = category in _DINNER_CATS
+    is_snack   = category in _SNACK_CATS
+
+    # 다이어트 적합: 저칼로리(≤300) + 비다이어트 부적합 카테고리 제외
+    #              OR 고단백 저지방(단백질≥15g, 지방≤8g, kcal≤350)
+    non_diet_cats = {"빵 및 과자류", "유제품류 및 빙과류", "튀김류", "장류, 양념류"}
+    is_diet = (
+        (0 < kcal <= 300 and category not in non_diet_cats)
+        or (protein >= 15 and fat <= 8 and 0 < kcal <= 350)
+    )
+
+    # 당뇨 적합: 당류≤5g AND 탄수화물≤30g, 고당 카테고리 제외
+    is_diabetes = (
+        sugar <= 5 and carb <= 30 and kcal > 0
+        and category not in _HIGH_SUGAR_CATS
+    )
+
+    # 고혈압 적합: 나트륨≤300mg, 고염 카테고리 제외
+    is_hypertension = (
+        0 < sodium <= 300
+        and category not in _HIGH_SODIUM_CATS
+    )
+
+    # 건강기능식품: 별도 DB 소스에서만 True
+    is_supplement = source == "supplement"
+
+    return {
+        "is_morning":     is_morning,
+        "is_lunch":       is_lunch,
+        "is_dinner":      is_dinner,
+        "is_snack":       is_snack,
+        "is_diet":        is_diet,
+        "is_diabetes":    is_diabetes,
+        "is_hypertension": is_hypertension,
+        "is_supplement":  is_supplement,
+    }
 
 
 def safe(val, unit="") -> str:
@@ -97,6 +174,7 @@ def load_food_docs() -> tuple[list[str], list[dict]]:
             "source_en": SOURCE_EN,
             "category": cat,
             "name": str(row.get("식품명", "")),
+            **tag_row(row, cat, source="food"),
         })
     return texts, metas
 
@@ -118,6 +196,7 @@ def load_proc_docs() -> tuple[list[str], list[dict]]:
             "source_en": SOURCE_EN,
             "category": cat,
             "name": str(row.get("식품명", "")),
+            **tag_row(row, cat, source="food"),
         })
     return texts, metas
 
