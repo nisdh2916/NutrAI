@@ -64,3 +64,7 @@ android/.gradle/
 # ChromaDB 벡터 DB (빌드 산출물)
 ai/rag_engine/chroma_db/
 ai/rag_engine/build_checkpoint.json
+
+# 영양 DB 원본 데이터 (대용량, git 미포함)
+data/nutrition_db/*.xlsx
+data/nutrition_db/*.csv
