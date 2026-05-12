@@ -120,9 +120,9 @@ def build_meal_status(
             total_protein += _as_float(food.get("protein_g"))
             total_fat += _as_float(food.get("fat_g"))
 
-    # 명시 target_kcal이 없으면 프로필 기반 자동 계산
     explicit = _as_float(profile.get("target_kcal"))
-    target = explicit if explicit > 0 else calculate_target_kcal(profile)
+    has_body_data = any(profile.get(k) for k in ("weight_kg", "weight", "age"))
+    target = explicit if explicit > 0 else (calculate_target_kcal(profile) if has_body_data else 0.0)
     remaining = max(0.0, target - consumed_today) if target > 0 else NO_LIMIT_REMAINING_KCAL
 
     return MealStatus(

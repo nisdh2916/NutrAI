@@ -698,3 +698,46 @@ def _get_nutrition(food_name: str) -> dict:
 ```
 
 **관련 파일:** `server/services/nutrition_service.py` → `_get_nutrition()`, `_lookup_chromadb()`
+
+---
+
+## 27. build_meal_status가 빈 프로필에서 remaining_kcal을 0 대신 1500으로 반환
+
+**증상:** `profile={}` (빈 프로필)로 `build_meal_status` 호출 시 `remaining_kcal`이 0이 아닌 `DEFAULT_TARGET_KCAL(2000) - consumed` 값으로 반환됨. 테스트 `test_no_target_returns_zero_remaining` 실패.
+
+**원인:** `calculate_target_kcal({})` 가 프로필 정보가 없을 때 `DEFAULT_TARGET_KCAL = 2000.0`을 반환하도록 설계됨. `build_meal_status`에서 `explicit > 0`이 아니면 무조건 `calculate_target_kcal`을 호출해 2000을 target으로 사용, `remaining = 2000 - consumed`가 됨.
+
+**해결:**
+```python
+# 변경 전
+explicit = _as_float(profile.get("target_kcal"))
+target = explicit if explicit > 0 else calculate_target_kcal(profile)
+
+# 변경 후
+explicit = _as_float(profile.get("target_kcal"))
+has_body_data = any(profile.get(k) for k in ("weight_kg", "weight", "age"))
+target = explicit if explicit > 0 else (calculate_target_kcal(profile) if has_body_data else 0.0)
+```
+
+body data(몸무게/나이)가 있을 때만 자동 계산, 없으면 0(제한 없음) 처리.
+
+**관련 파일:** `server/services/recommendation_pipeline.py` → `build_meal_status()`
+
+---
+
+## 28. ChromaDB where 필터 매칭 0건 — boolean 메타데이터 플래그 누락
+
+**증상:** 다이어트/질환맞춤/건강기능식품 카테고리 선택 시 추천 결과가 비거나 벡터 유사도 검색만으로 동작(카테고리 필터 무효).
+
+**원인:** `routes_recommend.py`의 `_build_where_filter()`가 `{"is_diet": True}`, `{"is_supplement": True}` 등의 필터를 생성하지만, `build_nutrition_db.py`가 ChromaDB에 저장하는 메타데이터에 이 필드들이 없었음.
+
+**해결:** `build_nutrition_db.py`에 `tag_row()` 함수 추가. 카테고리명·영양소 기반으로 boolean 플래그 자동 계산 후 메타데이터에 포함:
+- `is_morning/lunch/dinner/snack`: 카테고리 집합 매핑
+- `is_diet`: kcal ≤ 300 + 비다이어트 카테고리 제외, OR 고단백저지방
+- `is_diabetes`: 당류 ≤ 5g AND 탄수화물 ≤ 30g, 고당 카테고리 제외
+- `is_hypertension`: 나트륨 ≤ 300mg, 고염 카테고리(젓갈/김치/장류) 제외
+- `is_supplement`: source="supplement"일 때만 True
+
+ChromaDB 재빌드 필요 (`python ai/scripts/build_nutrition_db.py`).
+
+**관련 파일:** `ai/scripts/build_nutrition_db.py` → `tag_row()`

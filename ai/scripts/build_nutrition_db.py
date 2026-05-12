@@ -1,22 +1,23 @@
 """
-식품영양성분 CSV → ChromaDB 벡터 DB 전체 구축 스크립트
+식품영양성분 xlsx → ChromaDB 벡터 DB 구축 스크립트
 
-사전 준비:
-  .venv\Scripts\pip install sentence-transformers
+데이터 출처:
+  한글: 식품영양성분 데이터베이스
+  영문: Korean Food Composition Database system (K-FCDB)
 
 실행:
-  .venv\Scripts\python ai\scripts\build_nutrition_db.py
+  .venv\Scripts\python ai\scripts\build_nutrition_db.py [--all]
 
-데이터:
-  - 음식 데이터   ~15,568건 (중복제거 후)
-  - 가공식품 데이터 ~232,202건 (중복제거 후)
-  - 합계 ~247,770건
-  - 예상 시간: 30분~1시간 (RTX GPU 기준)
+옵션:
+  (없음)   음식DB만 빌드 (~19,495건, 5~10분)
+  --all    음식DB + 가공식품DB 모두 빌드 (~296,000건, 1시간+)
 
 특징:
   - GPU 자동 사용 (CUDA)
   - 체크포인트 지원 (끊겨도 이어서 시작)
+  - 카테고리·영양소 기반 boolean 메타데이터 자동 태깅
 """
+import sys
 import time
 import json
 import pandas as pd
@@ -24,26 +25,107 @@ from pathlib import Path
 from sentence_transformers import SentenceTransformer
 import chromadb
 
-# ── 경로 설정 ────────────────────────────────────────────
-REPO_ROOT   = Path(__file__).parent.parent.parent
-DATA_DIR    = REPO_ROOT / "data" / "nutrition_db"
-CHROMA_DIR  = REPO_ROOT / "ai" / "rag_engine" / "chroma_db"
-CHECKPOINT  = REPO_ROOT / "ai" / "rag_engine" / "build_checkpoint.json"
+REPO_ROOT  = Path(__file__).parent.parent.parent
+DATA_DIR   = REPO_ROOT / "data" / "nutrition_db"
+CHROMA_DIR = REPO_ROOT / "ai" / "rag_engine" / "chroma_db"
+CHECKPOINT = REPO_ROOT / "ai" / "rag_engine" / "build_checkpoint.json"
 
-FOOD_CSV = DATA_DIR / "식품의약품안전처_통합식품영양성분정보(음식)_20251229 (1).csv"
-PROC_CSV = DATA_DIR / "식품의약품안전처_통합식품영양성분정보(가공식품)_20260402.csv"
+FOOD_XLSX = DATA_DIR / "20251229_음식DB 19495건.xlsx"
+PROC_XLSX = DATA_DIR / "20260429_가공식품_277074건.xlsx"
 
-EMBED_MODEL = "snunlp/KR-SBERT-V40K-klueNLI-augSTS"  # 한국어 특화 모델
-BATCH_SIZE  = 2000  # GPU 사용 시 큰 배치 가능
+EMBED_MODEL = "snunlp/KR-SBERT-V40K-klueNLI-augSTS"
+BATCH_SIZE  = 2000
+
+SOURCE_KR = "식품영양성분 데이터베이스"
+SOURCE_EN = "Korean Food Composition Database system (K-FCDB)"
+
+# ── 메타데이터 태깅 규칙 ──────────────────────────────────────────
+# 식사 시간대 카테고리 매핑
+_MORNING_CATS  = {"죽 및 스프류", "과일류", "음료 및 차류", "빵 및 과자류",
+                  "유제품류 및 빙과류", "밥류"}
+_LUNCH_CATS    = {"밥류", "면 및 만두류", "국 및 탕류", "찌개 및 전골류",
+                  "구이류", "볶음류", "찜류", "전·적 및 부침류", "조림류",
+                  "튀김류", "나물·숙채류", "생채·무침류", "수·조·어·육류"}
+_DINNER_CATS   = {"밥류", "국 및 탕류", "찌개 및 전골류", "구이류",
+                  "볶음류", "찜류", "수·조·어·육류", "면 및 만두류"}
+_SNACK_CATS    = {"빵 및 과자류", "과일류", "음료 및 차류",
+                  "두류, 견과 및 종실류"}
+
+# 질환식 제외 카테고리 (염분·당류 높은 것들)
+_HIGH_SODIUM_CATS = {"젓갈류", "김치류", "장류, 양념류", "장아찌·절임류"}
+_HIGH_SUGAR_CATS  = {"음료 및 차류", "빵 및 과자류", "유제품류 및 빙과류",
+                     "과일류", "장류, 양념류"}
 
 
-def safe(val, unit=""):
-    if pd.isna(val):
+def _fval(row, col: str, default: float = 0.0) -> float:
+    try:
+        v = row.get(col)
+        return float(v) if v is not None and not pd.isna(v) else default
+    except (TypeError, ValueError):
+        return default
+
+
+def tag_row(row, category: str, source: str = "food") -> dict:
+    """카테고리·영양소 기반 boolean 메타데이터 태그 계산."""
+    kcal    = _fval(row, "에너지(kcal)")
+    protein = _fval(row, "단백질(g)")
+    fat     = _fval(row, "지방(g)")
+    sodium  = _fval(row, "나트륨(mg)")
+    sugar   = _fval(row, "당류(g)")
+    carb    = _fval(row, "탄수화물(g)")
+    fiber   = _fval(row, "식이섬유(g)")
+
+    # 식사 시간대
+    is_morning = category in _MORNING_CATS
+    is_lunch   = category in _LUNCH_CATS
+    is_dinner  = category in _DINNER_CATS
+    is_snack   = category in _SNACK_CATS
+
+    # 다이어트 적합: 저칼로리(≤300) + 비다이어트 부적합 카테고리 제외
+    #              OR 고단백 저지방(단백질≥15g, 지방≤8g, kcal≤350)
+    non_diet_cats = {"빵 및 과자류", "유제품류 및 빙과류", "튀김류", "장류, 양념류"}
+    is_diet = (
+        (0 < kcal <= 300 and category not in non_diet_cats)
+        or (protein >= 15 and fat <= 8 and 0 < kcal <= 350)
+    )
+
+    # 당뇨 적합: 당류≤5g AND 탄수화물≤30g, 고당 카테고리 제외
+    is_diabetes = (
+        sugar <= 5 and carb <= 30 and kcal > 0
+        and category not in _HIGH_SUGAR_CATS
+    )
+
+    # 고혈압 적합: 나트륨≤300mg, 고염 카테고리 제외
+    is_hypertension = (
+        0 < sodium <= 300
+        and category not in _HIGH_SODIUM_CATS
+    )
+
+    # 건강기능식품: 별도 DB 소스에서만 True
+    is_supplement = source == "supplement"
+
+    return {
+        "is_morning":     is_morning,
+        "is_lunch":       is_lunch,
+        "is_dinner":      is_dinner,
+        "is_snack":       is_snack,
+        "is_diet":        is_diet,
+        "is_diabetes":    is_diabetes,
+        "is_hypertension": is_hypertension,
+        "is_supplement":  is_supplement,
+    }
+
+
+def safe(val, unit="") -> str:
+    try:
+        if pd.isna(val):
+            return ""
+        return f"{round(float(val), 1)}{unit}"
+    except (TypeError, ValueError):
         return ""
-    return f"{round(float(val), 1)}{unit}"
 
 
-def row_to_doc(row, category="") -> str:
+def row_to_doc(row, category: str = "") -> str:
     name  = str(row.get("식품명", "")).strip()
     kcal  = safe(row.get("에너지(kcal)"), "kcal")
     carb  = safe(row.get("탄수화물(g)"), "g")
@@ -70,33 +152,52 @@ def row_to_doc(row, category="") -> str:
 
     ref = row.get("영양성분함량기준량", "100g")
     parts.append(f"(기준: {ref})")
+    parts.append(f"(출처: {SOURCE_EN})")
 
     return " | ".join(parts)
 
 
-def load_all_docs() -> tuple[list[str], list[dict]]:
-    """전체 문서 로드 → (texts, metadatas)"""
-    texts, metas = [], []
-
-    print("음식 데이터 로드 중...")
-    df = pd.read_csv(FOOD_CSV, encoding="utf-8", low_memory=False)
+def load_food_docs() -> tuple[list[str], list[dict]]:
+    """음식DB xlsx 로드"""
+    print(f"음식DB 로드 중: {FOOD_XLSX.name}")
+    df = pd.read_excel(FOOD_XLSX, engine="openpyxl")
     df = df.dropna(subset=["식품명", "에너지(kcal)"]).drop_duplicates(subset=["식품명"])
-    print(f"  → {len(df)}건")
+    print(f"  → {len(df):,}건")
+
+    texts, metas = [], []
     for _, row in df.iterrows():
         cat = str(row.get("식품대분류명", ""))
         texts.append(row_to_doc(row, cat))
-        metas.append({"source": "음식DB", "category": cat, "name": str(row.get("식품명", ""))})
+        metas.append({
+            "source": "K-FCDB_음식DB",
+            "source_kr": SOURCE_KR,
+            "source_en": SOURCE_EN,
+            "category": cat,
+            "name": str(row.get("식품명", "")),
+            **tag_row(row, cat, source="food"),
+        })
+    return texts, metas
 
-    print("가공식품 데이터 로드 중...")
-    df = pd.read_csv(PROC_CSV, encoding="utf-8", low_memory=False)
+
+def load_proc_docs() -> tuple[list[str], list[dict]]:
+    """가공식품DB xlsx 로드"""
+    print(f"가공식품DB 로드 중: {PROC_XLSX.name}")
+    df = pd.read_excel(PROC_XLSX, engine="openpyxl")
     df = df.dropna(subset=["식품명", "에너지(kcal)"]).drop_duplicates(subset=["식품명"])
-    print(f"  → {len(df)}건")
+    print(f"  → {len(df):,}건")
+
+    texts, metas = [], []
     for _, row in df.iterrows():
         cat = str(row.get("식품대분류명", row.get("식품기원명", "")))
         texts.append(row_to_doc(row, cat))
-        metas.append({"source": "가공식품DB", "category": cat, "name": str(row.get("식품명", ""))})
-
-    print(f"총 {len(texts)}개 문서 생성 완료")
+        metas.append({
+            "source": "K-FCDB_가공식품DB",
+            "source_kr": SOURCE_KR,
+            "source_en": SOURCE_EN,
+            "category": cat,
+            "name": str(row.get("식품명", "")),
+            **tag_row(row, cat, source="food"),
+        })
     return texts, metas
 
 
@@ -112,44 +213,52 @@ def save_checkpoint(done: int):
 
 
 def main():
+    sys.stdout.reconfigure(encoding="utf-8")
+
+    include_proc = "--all" in sys.argv
+
     import torch
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"디바이스: {device.upper()}")
+    print(f"모드: {'음식DB + 가공식품DB' if include_proc else '음식DB만'}")
+    print(f"출처: {SOURCE_KR} ({SOURCE_EN})\n")
 
-    # 체크포인트 확인
     start_from = load_checkpoint()
     if start_from > 0:
         print(f"체크포인트 발견: {start_from:,}건부터 이어서 시작")
     else:
-        # 처음 시작 시 기존 ChromaDB 삭제
         if CHROMA_DIR.exists():
             import shutil
             print("기존 ChromaDB 삭제 중...")
             shutil.rmtree(CHROMA_DIR)
 
-    texts, metas = load_all_docs()
-    total = len(texts)
+    texts, metas = load_food_docs()
+    if include_proc:
+        t2, m2 = load_proc_docs()
+        texts += t2
+        metas += m2
 
-    print(f"\n모델 로드 중: {EMBED_MODEL}")
+    total = len(texts)
+    print(f"\n총 {total:,}개 문서")
+
+    print(f"임베딩 모델 로드 중: {EMBED_MODEL}")
     model = SentenceTransformer(EMBED_MODEL, device=device)
 
-    # ChromaDB 초기화
     CHROMA_DIR.mkdir(parents=True, exist_ok=True)
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
     collection = client.get_or_create_collection(
         name="nutrition",
-        metadata={"hnsw:space": "cosine"},
+        metadata={"hnsw:space": "l2"},
     )
 
-    print(f"\nEmbedding 시작 (배치 {BATCH_SIZE}건씩)")
+    print(f"\nEmbedding 시작 (배치 {BATCH_SIZE:,}건씩)\n")
     start = time.time()
 
     for i in range(start_from, total, BATCH_SIZE):
-        batch_texts = texts[i:i + BATCH_SIZE]
-        batch_metas = metas[i:i + BATCH_SIZE]
+        batch_texts = texts[i : i + BATCH_SIZE]
+        batch_metas = metas[i : i + BATCH_SIZE]
         batch_ids   = [f"doc_{j}" for j in range(i, i + len(batch_texts))]
 
-        # GPU 배치 임베딩
         embeddings = model.encode(
             batch_texts,
             batch_size=256,
@@ -171,14 +280,18 @@ def main():
         speed = (done - start_from) / elapsed if elapsed > 0 else 0
         eta = (total - done) / speed if speed > 0 else 0
         pct = done * 100 // total
-        print(f"  [{pct:3d}%] {done:,}/{total:,}건  "
-              f"경과: {elapsed/60:.1f}분  남은시간: {eta/60:.1f}분  "
-              f"속도: {speed:.0f}건/초", flush=True)
+        print(
+            f"  [{pct:3d}%] {done:,}/{total:,}건  "
+            f"경과: {elapsed/60:.1f}분  남은시간: {eta/60:.1f}분  "
+            f"속도: {speed:.0f}건/초",
+            flush=True,
+        )
 
+    CHECKPOINT.unlink(missing_ok=True)
     total_min = (time.time() - start) / 60
-    CHECKPOINT.unlink(missing_ok=True)  # 체크포인트 삭제
     print(f"\n완료! 총 소요: {total_min:.1f}분")
     print(f"ChromaDB 저장 위치: {CHROMA_DIR}")
+    print(f"총 문서 수: {collection.count():,}건")
     print("서버를 재시작하면 새 데이터가 적용됩니다.")
 
 
