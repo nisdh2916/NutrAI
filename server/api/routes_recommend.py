@@ -340,6 +340,65 @@ async def _retrieve_docs(
     return diverse[:limit]
 
 
+class RecommendDebugResponse(BaseModel):
+    """LLM 호출 없이 파이프라인 전처리 결과만 반환 (개발/비교용)."""
+    goal: str
+    meal_time: str
+    constraints: list[str]
+    queries: list[str]
+    where_filter: dict | None
+    consumed_today_kcal: float
+    remaining_kcal: float
+    macros: dict
+    logged_foods: list[str]
+    coaching_prefix: str
+    retrieved_docs: list[str]
+
+
+@router.post("/debug", response_model=RecommendDebugResponse)
+async def recommend_debug(req: RecommendRequest) -> RecommendDebugResponse:
+    """
+    추천 파이프라인 전처리 결과 확인용 엔드포인트.
+    LLM을 호출하지 않고 쿼리·컨텍스트·남은 칼로리만 반환.
+    기록 있는 유저 vs 없는 유저 비교에 활용.
+    """
+    profile = req.user_profile.model_dump(exclude_none=False)
+    meal_history = [meal.model_dump() for meal in req.meal_history]
+
+    pipeline_ctx = build_recommendation_context(
+        profile=profile,
+        meal_history=meal_history,
+        category=req.category,
+        user_query=f"{req.category} 메뉴 추천",
+    )
+    where_filter = _build_where_filter(
+        req.category, pipeline_ctx.meal_time, profile.get("condition")
+    )
+
+    try:
+        docs = await _retrieve_docs(pipeline_ctx.queries, limit=5, where=where_filter)
+    except Exception:
+        docs = []
+
+    return RecommendDebugResponse(
+        goal=pipeline_ctx.goal,
+        meal_time=pipeline_ctx.meal_time,
+        constraints=pipeline_ctx.constraints,
+        queries=pipeline_ctx.queries,
+        where_filter=where_filter,
+        consumed_today_kcal=pipeline_ctx.meal_status.consumed_today,
+        remaining_kcal=pipeline_ctx.meal_status.remaining_kcal,
+        macros={
+            "carb_g": pipeline_ctx.meal_status.total_carb_g,
+            "protein_g": pipeline_ctx.meal_status.total_protein_g,
+            "fat_g": pipeline_ctx.meal_status.total_fat_g,
+        },
+        logged_foods=pipeline_ctx.meal_status.detected_foods,
+        coaching_prefix=build_coaching_prefix(pipeline_ctx),
+        retrieved_docs=docs[:5],
+    )
+
+
 @router.post("", response_model=RecommendResponse)
 async def recommend(req: RecommendRequest) -> RecommendResponse:
     try:
