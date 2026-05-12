@@ -1,0 +1,163 @@
+"""
+kdclub.com 식사요법 페이지 스크래퍼
+
+https://www.kdclub.com/iyagi/ 하위 페이지들을 긁어와서
+data/guidelines/ 에 txt 파일로 저장한다.
+
+실행:
+  .venv\Scripts\python ai\scripts\scrape_kdclub.py
+"""
+import sys
+import time
+from pathlib import Path
+
+import requests
+from bs4 import BeautifulSoup
+
+REPO_ROOT = Path(__file__).parent.parent.parent
+OUT_DIR   = REPO_ROOT / "data" / "guidelines"
+BASE_URL  = "https://www.kdclub.com/iyagi/"
+
+# ── 수집할 페이지 목록 (파일명: (출력파일, 섹션 제목)) ──────────────────
+PAGES = {
+    # ── 일반 치료식 ────────────────────────────────────────────
+    "by_1.htm":     ("kdclub_general_diet.txt",    "# 일반병인식"),
+    "by_2.htm":     ("kdclub_general_diet.txt",    "# 치료식"),
+    "by_4.htm":     ("kdclub_general_diet.txt",    "# 영양지원"),
+    # ── 소화기 ─────────────────────────────────────────────────
+    "sh_1.htm":     ("kdclub_gastric.txt",         "# 급성위염"),
+    "sh_2.htm":     ("kdclub_gastric.txt",         "# 만성위염"),
+    "sh_3.htm":     ("kdclub_gastric.txt",         "# 위·십이지장궤양"),
+    "sh_4.htm":     ("kdclub_gastric.txt",         "# 위하수증"),
+    "sh_5.htm":     ("kdclub_gastric.txt",         "# 장염(급성·만성)"),
+    "sh_6.htm":     ("kdclub_gastric.txt",         "# 국부적장염(크론병)"),
+    "sh_7.htm":     ("kdclub_gastric.txt",         "# 지방변증"),
+    "sh_8.htm":     ("kdclub_gastric.txt",         "# 이당류흡수불량"),
+    "sh_9.htm":     ("kdclub_gastric.txt",         "# 설사"),
+    "sh_10.htm":    ("kdclub_gastric.txt",         "# 변비"),
+    "sh_11.htm":    ("kdclub_gastric.txt",         "# 게실염"),
+    "sh_12.htm":    ("kdclub_gastric.txt",         "# 과민성대장증후군"),
+    "sh_13.htm":    ("kdclub_gastric.txt",         "# 궤양성대장염"),
+    "sh_21.htm":    ("kdclub_gastric.txt",         "# 위절제수술후"),
+    "sh_22.htm":    ("kdclub_gastric.txt",         "# 소장·대장절제수술후"),
+    "sh_31.htm":    ("kdclub_gastric.txt",         "# 역류성식도염"),
+    "sh_32.htm":    ("kdclub_gastric.txt",         "# 위산과다"),
+    # ── 간·담도·췌장 ────────────────────────────────────────────
+    "gd_1.htm":     ("kdclub_liver.txt",           "# 급성간염"),
+    "gd_2.htm":     ("kdclub_liver.txt",           "# 만성간염"),
+    "gd_3.htm":     ("kdclub_liver.txt",           "# 지방간"),
+    "gd_4.htm":     ("kdclub_liver.txt",           "# 간경변"),
+    "gd_5.htm":     ("kdclub_liver.txt",           "# 간성혼수"),
+    "gd_6.htm":     ("kdclub_liver.txt",           "# 알콜성간장애"),
+    "gd_7.htm":     ("kdclub_liver.txt",           "# 황달"),
+    "gd_8.htm":     ("kdclub_liver.txt",           "# 담석"),
+    "gd_9.htm":     ("kdclub_liver.txt",           "# 담낭염"),
+    "gd_10.htm":    ("kdclub_liver.txt",           "# 급성췌장염"),
+    "gd_11.htm":    ("kdclub_liver.txt",           "# 만성췌장염"),
+    "gd_13.htm":    ("kdclub_liver.txt",           "# 간절제수술후"),
+    "gd_14.htm":    ("kdclub_liver.txt",           "# 담낭수술후"),
+    # ── 심혈관 ─────────────────────────────────────────────────
+    "pt_1.htm":     ("kdclub_cardiovascular.txt",  "# 고혈압"),
+    "pt_6.htm":     ("kdclub_cardiovascular.txt",  "# 고지혈증"),
+    "pt_10.htm":    ("kdclub_cardiovascular.txt",  "# 동맥경화증"),
+    "pt_11.htm":    ("kdclub_cardiovascular.txt",  "# 저혈압"),
+    "ht_1.htm":     ("kdclub_cardiovascular.txt",  "# 심부전"),
+    "ht_2.htm":     ("kdclub_cardiovascular.txt",  "# 협심증"),
+    "ht_3.htm":     ("kdclub_cardiovascular.txt",  "# 심근경색"),
+    "ht_5.htm":     ("kdclub_cardiovascular.txt",  "# 나트륨제한식사"),
+    "ht_6.htm":     ("kdclub_cardiovascular.txt",  "# 심장수술후"),
+    "ht_8.htm":     ("kdclub_cardiovascular.txt",  "# 빈혈"),
+    # ── 신장 ───────────────────────────────────────────────────
+    "ur_1.htm":     ("kdclub_kidney.txt",          "# 급성사구체신염"),
+    "ur_2.htm":     ("kdclub_kidney.txt",          "# 만성사구체신염"),
+    "ur_3.htm":     ("kdclub_kidney.txt",          "# 네프로제(신증후군)"),
+    "ur_4.htm":     ("kdclub_kidney.txt",          "# 급성신부전"),
+    "ur_5.htm":     ("kdclub_kidney.txt",          "# 만성신부전"),
+    "ur_6.htm":     ("kdclub_kidney.txt",          "# 요독증"),
+    "ur_7.htm":     ("kdclub_kidney.txt",          "# 투석"),
+    "ur_8.htm":     ("kdclub_kidney.txt",          "# 신장이식"),
+    "ur_9.htm":     ("kdclub_kidney.txt",          "# 신결석"),
+    "ur_10.htm":    ("kdclub_kidney.txt",          "# 신장질환식품교환표"),
+    # ── 뇌신경 ─────────────────────────────────────────────────
+    "br_1.htm":     ("kdclub_neuro.txt",           "# 뇌졸중"),
+    "br_2.htm":     ("kdclub_neuro.txt",           "# 간질"),
+    "br_3.htm":     ("kdclub_neuro.txt",           "# 치매"),
+    "br_4.htm":     ("kdclub_neuro.txt",           "# 편두통"),
+    "br_5.htm":     ("kdclub_neuro.txt",           "# 중증근무력증"),
+    # ── 섭식장애 ────────────────────────────────────────────────
+    "cn_ano.htm":   ("kdclub_eating_disorder.txt", "# 신경성식욕부진"),
+    "cn_bul.htm":   ("kdclub_eating_disorder.txt", "# 신경성탐식증"),
+    # ── 암 ──────────────────────────────────────────────────────
+    "cancer_11.htm":("kdclub_cancer.txt",          "# 폐암"),
+}
+
+SESSION = requests.Session()
+SESSION.headers.update({
+    "User-Agent": "Mozilla/5.0 (compatible; NutrAI-research-bot/1.0)"
+})
+
+
+def fetch_page_text(url: str) -> str:
+    import re
+    resp = SESSION.get(url, timeout=15)
+    resp.encoding = resp.apparent_encoding or "euc-kr"
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # kdclub 구조: 중첩 테이블에서 리프 td들만 수집 (자식 td 없는 td)
+    leaf_texts = []
+    for td in soup.find_all("td"):
+        if td.find("td"):  # 자식 td가 있으면 스킵 (중간 컨테이너)
+            continue
+        text = td.get_text(separator="\n", strip=True)
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        text = text.strip()
+        # 네비게이션 잔재나 너무 짧은 셀 제외
+        if len(text) < 15:
+            continue
+        # 이미 추가된 텍스트와 중복이면 스킵
+        if leaf_texts and leaf_texts[-1] == text:
+            continue
+        leaf_texts.append(text)
+
+    raw = "\n\n".join(leaf_texts)
+    raw = re.sub(r"\n{3,}", "\n\n", raw)
+    return raw.strip()
+
+
+def scrape_all() -> None:
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    print(f"\n{'='*60}")
+    print("  kdclub.com 식사요법 스크래핑")
+    print(f"{'='*60}\n")
+
+    results: dict[str, list[str]] = {}  # outfile -> list of text blocks
+
+    for page_file, (out_file, section_title) in PAGES.items():
+        url = BASE_URL + page_file
+        print(f"  [{page_file}] {section_title} ...")
+        try:
+            text = fetch_page_text(url)
+            if out_file not in results:
+                results[out_file] = []
+            results[out_file].append(section_title)
+            results[out_file].append(text)
+            print(f"    → {len(text)}자 수집")
+        except Exception as e:
+            print(f"    ✗ 실패: {e}")
+        time.sleep(0.5)  # 서버 부하 방지
+
+    # 파일 저장
+    print()
+    for out_file, blocks in results.items():
+        path = OUT_DIR / out_file
+        content = "\n\n".join(blocks)
+        path.write_text(content, encoding="utf-8")
+        print(f"  저장: {path.name}  ({len(content):,}자)")
+
+    print(f"\n완료: {len(results)}개 파일 → {OUT_DIR}\n")
+
+
+if __name__ == "__main__":
+    scrape_all()
