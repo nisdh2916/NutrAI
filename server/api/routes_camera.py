@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from server.db.mysql_db import get_db
-from server.db.mysql_models import Meal, MealImage, FoodAnalysisResult, MealFood, Food
+from server.db.mysql_models import Meal, MealImage, FoodAnalysisResult, MealFood
 
 router = APIRouter(prefix="/camera", tags=["camera"])
 
@@ -77,15 +77,8 @@ def receive_camera_detection(req: CameraDetectRequest, db: Session = Depends(get
             ))
 
     for f in req.foods:
-        food_row = db.query(Food).filter(Food.food_name == f.food_name).first()
-        if food_row is None:
-            food_row = Food(food_name=f.food_name, source_name="camera")
-            db.add(food_row)
-            db.flush()
-
         db.add(MealFood(
             meals_id   = meal.id,
-            foods_id   = food_row.id,
             food_name  = f.food_name,
             amount_g   = f.amount_g,
             kcal       = f.kcal,

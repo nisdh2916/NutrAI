@@ -23,19 +23,6 @@ class User(Base):
     meals      = relationship("Meal", back_populates="user")
 
 
-class Food(Base):
-    __tablename__ = "foods"
-
-    id               = Column(BigInteger, primary_key=True, autoincrement=True)
-    external_food_id = Column(String(100))
-    food_name        = Column(String(150), nullable=False)
-    source_name      = Column(String(50))
-    last_synced_at   = Column(DateTime)
-    created_at       = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at       = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    meal_foods = relationship("MealFood", back_populates="food")
-
 
 class AllergyMaster(Base):
     __tablename__ = "allergy_master"
@@ -101,22 +88,19 @@ class Meal(Base):
 class MealFood(Base):
     __tablename__ = "meal_foods"
 
-    id               = Column(BigInteger, primary_key=True, autoincrement=True)
-    meals_id         = Column(BigInteger, ForeignKey("meals.id"), nullable=False)
-    foods_id         = Column(BigInteger, ForeignKey("foods.id"), nullable=False)
-    external_food_id = Column(String(100))
-    food_name        = Column(String(150), nullable=False)
-    amount_g         = Column(DECIMAL(8, 2), nullable=False)
-    kcal             = Column(DECIMAL(8, 2), nullable=False)
-    carb_g           = Column(DECIMAL(8, 2), nullable=False)
-    protein_g        = Column(DECIMAL(8, 2), nullable=False)
-    fat_g            = Column(DECIMAL(8, 2), nullable=False)
-    confidence       = Column(DECIMAL(5, 4))
-    created_at       = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at       = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id         = Column(BigInteger, primary_key=True, autoincrement=True)
+    meals_id   = Column(BigInteger, ForeignKey("meals.id"), nullable=False)
+    food_name  = Column(String(150), nullable=False)
+    amount_g   = Column(DECIMAL(8, 2), nullable=False)
+    kcal       = Column(DECIMAL(8, 2), nullable=False)
+    carb_g     = Column(DECIMAL(8, 2), nullable=False)
+    protein_g  = Column(DECIMAL(8, 2), nullable=False)
+    fat_g      = Column(DECIMAL(8, 2), nullable=False)
+    confidence = Column(DECIMAL(5, 4))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     meal = relationship("Meal", back_populates="meal_foods")
-    food = relationship("Food", back_populates="meal_foods")
 
 
 class MealImage(Base):

@@ -32,21 +32,6 @@ ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `mydb`.`foods`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `mydb`.`foods` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `external_food_id` VARCHAR(100) NULL,
-  `food_name` VARCHAR(150) NOT NULL,
-  `source_name` VARCHAR(50) NULL,
-  `last_synced_at` DATETIME NULL,
-  `created_at` DATETIME NOT NULL,
-  `updated_at` DATETIME NOT NULL,
-  PRIMARY KEY (`id`))
-ENGINE = InnoDB;
-
-
--- -----------------------------------------------------
 -- Table `mydb`.`allergy_master`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `mydb`.`allergy_master` (
@@ -139,8 +124,6 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `mydb`.`meal_foods` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `meals_id` BIGINT NOT NULL,
-  `foods_id` BIGINT NOT NULL,
-  `external_food_id` VARCHAR(100) NULL,
   `food_name` VARCHAR(150) NOT NULL,
   `amount_g` DECIMAL(8,2) NOT NULL,
   `kcal` DECIMAL(8,2) NOT NULL,
@@ -152,15 +135,9 @@ CREATE TABLE IF NOT EXISTS `mydb`.`meal_foods` (
   `updated_at` DATETIME NOT NULL,
   PRIMARY KEY (`id`),
   INDEX `fk_meal_foods_meals1_idx` (`meals_id` ASC) VISIBLE,
-  INDEX `fk_meal_foods_foods1_idx` (`foods_id` ASC) VISIBLE,
   CONSTRAINT `fk_meal_foods_meals1`
     FOREIGN KEY (`meals_id`)
     REFERENCES `mydb`.`meals` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_meal_foods_foods1`
-    FOREIGN KEY (`foods_id`)
-    REFERENCES `mydb`.`foods` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
