@@ -69,6 +69,9 @@ ai/rag_engine/build_checkpoint.json
 data/nutrition_db/*.xlsx
 data/nutrition_db/*.csv
 
+# KDRI 가이드라인 PDF (대용량, git 미포함)
+data/guidelines/*.pdf
+
 # 개인 AI 도구 설정 (Claude Code, Junie, Impeccable)
 .claude/
 .agents/
