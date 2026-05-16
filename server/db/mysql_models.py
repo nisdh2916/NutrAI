@@ -15,7 +15,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     nickname      = Column(String(50), nullable=False)
     status        = Column(String(20), nullable=False, default="active")
-    crated_at     = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at    = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at    = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     profile    = relationship("UserProfile", back_populates="user", uselist=False)
@@ -44,10 +44,11 @@ class UserProfile(Base):
     height_cm      = Column(DECIMAL(5, 2))
     weight_kg      = Column(DECIMAL(5, 2))
     activity_level = Column(String(20))
-    target_kacl    = Column(DECIMAL(7, 2))
+    target_kcal    = Column(DECIMAL(7, 2))
     goal_type      = Column(String(45))
+    condition      = Column(Text)
     created_at     = Column(DateTime, nullable=False, default=datetime.utcnow)
-    update_at      = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at     = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="profile")
 
@@ -78,7 +79,7 @@ class Meal(Base):
     total_protein_g = Column(DECIMAL(8, 2))
     total_fat_g     = Column(DECIMAL(8, 2))
     created_at      = Column(DateTime, nullable=False, default=datetime.utcnow)
-    update_at       = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at      = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user       = relationship("User", back_populates="meals")
     meal_foods = relationship("MealFood", back_populates="meal")
@@ -122,8 +123,7 @@ class FoodAnalysisResult(Base):
     id                    = Column(BigInteger, primary_key=True, autoincrement=True)
     meal_images_id        = Column(BigInteger, ForeignKey("meal_images.id"), nullable=False)
     detected_food_name    = Column(String(150), nullable=False)
-    external_food_id      = Column(String(100))
-    extimated_amount_g    = Column(DECIMAL(8, 2))
+    estimated_amount_g    = Column(DECIMAL(8, 2))
     confidence            = Column(DECIMAL(5, 4))
     raw_label             = Column(String(150))
     created_at            = Column(DateTime, nullable=False, default=datetime.utcnow)

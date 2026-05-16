@@ -71,7 +71,7 @@ def receive_camera_detection(req: CameraDetectRequest, db: Session = Depends(get
             db.add(FoodAnalysisResult(
                 meal_images_id     = image.id,
                 detected_food_name = f.food_name,
-                extimated_amount_g = f.amount_g,
+                estimated_amount_g = f.amount_g,
                 confidence         = f.confidence,
                 raw_label          = f.raw_label,
             ))
