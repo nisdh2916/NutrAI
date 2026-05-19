@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
-
-const _kAllergens = [
-  '유제품', '견과류', '갑각류', '밀', '글루텐',
-  '계란', '대두', '복숭아', '토마토', '고등어', '조개류',
-];
+import '../services/allergen_service.dart';
 
 const _kConditions = [
-  '당뇨', '고혈압', '고지혈증', '신장질환', '심장질환', '간질환', '통풍',
+  '당뇨',
+  '고혈압',
+  '고지혈증',
+  '신장질환',
+  '심장질환',
+  '간질환',
+  '통풍',
 ];
 
 class SettingsScreen extends StatelessWidget {
@@ -27,34 +29,39 @@ class SettingsScreen extends StatelessWidget {
         elevation: 0,
         automaticallyImplyLeading: false,
         title: const Text('설정',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary)),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(0.5),
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(0.5),
           child: Divider(height: 0.5, color: AppColors.border),
         ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-
           // ── 현재 프로필 카드 ──
           if (user != null) ...[
-            _SectionLabel('현재 프로필'),
+            const _SectionLabel('현재 프로필'),
             _InfoCard(items: [
-              _Item('이름',     user.nickname),
-              _Item('성별',     user.gender ?? '—'),
-              _Item('나이',     user.age != null ? '${user.age}세' : '—'),
-              _Item('키',       user.heightCm != null ? '${user.heightCm}cm' : '—'),
-              _Item('몸무게',   user.weightKg != null ? '${user.weightKg}kg' : '—'),
-              _Item('BMI',      user.bmi != null
-                  ? '${user.bmi!.toStringAsFixed(1)} (${user.bmiCategory})' : '—'),
-              _Item('기초대사량', user.bmr != null ? '약 ${user.bmr!.round()}kcal' : '—'),
+              _Item('이름', user.nickname),
+              _Item('성별', user.gender ?? '—'),
+              _Item('나이', user.age != null ? '${user.age}세' : '—'),
+              _Item('키', user.heightCm != null ? '${user.heightCm}cm' : '—'),
+              _Item('몸무게', user.weightKg != null ? '${user.weightKg}kg' : '—'),
+              _Item(
+                  'BMI',
+                  user.bmi != null
+                      ? '${user.bmi!.toStringAsFixed(1)} (${user.bmiCategory})'
+                      : '—'),
+              _Item('기초대사량',
+                  user.bmr != null ? '약 ${user.bmr!.round()}kcal' : '—'),
             ]),
             const SizedBox(height: 16),
 
             // ── 건강 정보 카드 ──
-            _SectionLabel('건강 정보'),
+            const _SectionLabel('건강 정보'),
             Container(
               decoration: BoxDecoration(
                 color: AppColors.white,
@@ -63,16 +70,20 @@ class SettingsScreen extends StatelessWidget {
               ),
               child: Column(children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(children: [
                     const Text('알레르기',
-                        style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                        style: TextStyle(
+                            fontSize: 14, color: AppColors.textSecondary)),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         _formatList(user.allergy, '없음'),
-                        style: const TextStyle(fontSize: 13,
-                            fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary),
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
                         maxLines: 2,
@@ -80,18 +91,26 @@ class SettingsScreen extends StatelessWidget {
                     ),
                   ]),
                 ),
-                Divider(height: 0.5, color: AppColors.border, indent: 16, endIndent: 16),
+                const Divider(
+                    height: 0.5,
+                    color: AppColors.border,
+                    indent: 16,
+                    endIndent: 16),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(children: [
                     const Text('질환',
-                        style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                        style: TextStyle(
+                            fontSize: 14, color: AppColors.textSecondary)),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         _formatList(user.condition, '없음'),
-                        style: const TextStyle(fontSize: 13,
-                            fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary),
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
                         maxLines: 2,
@@ -99,21 +118,27 @@ class SettingsScreen extends StatelessWidget {
                     ),
                   ]),
                 ),
-                Divider(height: 0.5, color: AppColors.border),
+                const Divider(height: 0.5, color: AppColors.border),
                 InkWell(
                   onTap: () => _editHealthInfo(context, user),
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
+                  borderRadius:
+                      const BorderRadius.vertical(bottom: Radius.circular(14)),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
                     child: Row(children: [
-                      Icon(Icons.edit_outlined, size: 16, color: AppColors.green400),
+                      const Icon(Icons.edit_outlined,
+                          size: 16, color: AppColors.green400),
                       const SizedBox(width: 8),
                       const Text('알레르기·질환 편집',
-                          style: TextStyle(fontSize: 14,
-                              fontWeight: FontWeight.w600, color: AppColors.green400)),
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.green400)),
                       const Spacer(),
                       Icon(Icons.chevron_right_rounded,
-                          size: 18, color: AppColors.green400.withValues(alpha: 0.5)),
+                          size: 18,
+                          color: AppColors.green400.withValues(alpha: 0.5)),
                     ]),
                   ),
                 ),
@@ -123,7 +148,7 @@ class SettingsScreen extends StatelessWidget {
           ],
 
           // ── 프로필 재설정 ──
-          _SectionLabel('계정'),
+          const _SectionLabel('계정'),
           _ActionTile(
             icon: Icons.person_outline_rounded,
             label: '프로필 재설정',
@@ -146,7 +171,8 @@ class SettingsScreen extends StatelessWidget {
 
   String _formatList(String? raw, String fallback) {
     if (raw == null || raw.trim().isEmpty) return fallback;
-    final items = raw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    final items =
+        raw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
     return items.isEmpty ? fallback : items.join(', ');
   }
 
@@ -174,10 +200,11 @@ class SettingsScreen extends StatelessWidget {
         onSave: (newAllergies, newConditions) async {
           Navigator.pop(ctx);
           await context.read<AppState>().saveUser(
-            nickname: user.nickname as String,
-            allergy: newAllergies.isEmpty ? null : newAllergies.join(','),
-            condition: newConditions.isEmpty ? null : newConditions.join(','),
-          );
+                nickname: user.nickname as String,
+                allergy: newAllergies.isEmpty ? null : newAllergies.join(','),
+                condition:
+                    newConditions.isEmpty ? null : newConditions.join(','),
+              );
         },
       ),
     );
@@ -190,14 +217,12 @@ class SettingsScreen extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('프로필 재설정',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        content: const Text(
-            '모든 식단 기록과 프로필이 삭제되고\n온보딩 화면으로 이동해요.\n계속할까요?',
+        content: const Text('모든 식단 기록과 프로필이 삭제되고\n온보딩 화면으로 이동해요.\n계속할까요?',
             style: TextStyle(fontSize: 14, height: 1.6)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('취소',
-                style: TextStyle(color: AppColors.gray400)),
+            child: const Text('취소', style: TextStyle(color: AppColors.gray400)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -225,7 +250,8 @@ class SettingsScreen extends StatelessWidget {
 class _HealthEditSheet extends StatefulWidget {
   final Set<String> initialAllergies;
   final Set<String> initialConditions;
-  final Future<void> Function(List<String> allergies, List<String> conditions) onSave;
+  final Future<void> Function(List<String> allergies, List<String> conditions)
+      onSave;
 
   const _HealthEditSheet({
     required this.initialAllergies,
@@ -264,7 +290,8 @@ class _HealthEditSheetState extends State<_HealthEditSheet> {
           // 핸들
           const SizedBox(height: 12),
           Container(
-            width: 36, height: 4,
+            width: 36,
+            height: 4,
             decoration: BoxDecoration(
               color: AppColors.gray200,
               borderRadius: BorderRadius.circular(2),
@@ -277,7 +304,9 @@ class _HealthEditSheetState extends State<_HealthEditSheet> {
             padding: EdgeInsets.symmetric(horizontal: 20),
             child: Row(children: [
               Text('알레르기·질환 편집',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary)),
             ]),
           ),
@@ -287,7 +316,7 @@ class _HealthEditSheetState extends State<_HealthEditSheet> {
             child: Text('해당 항목을 모두 선택해주세요',
                 style: TextStyle(fontSize: 12, color: AppColors.gray400)),
           ),
-          Divider(height: 24, color: AppColors.border),
+          const Divider(height: 24, color: AppColors.border),
 
           // 스크롤 영역
           Expanded(
@@ -299,7 +328,7 @@ class _HealthEditSheetState extends State<_HealthEditSheet> {
                   title: '알레르기',
                   icon: Icons.warning_amber_rounded,
                   color: const Color(0xFFE8A838),
-                  items: _kAllergens,
+                  items: AllergenService.instance.categories,
                   selected: _allergies,
                   onToggle: (v) => setState(() {
                     if (_allergies.contains(v)) {
@@ -347,7 +376,8 @@ class _HealthEditSheetState extends State<_HealthEditSheet> {
                 ),
                 child: _saving
                     ? const SizedBox(
-                        width: 20, height: 20,
+                        width: 20,
+                        height: 20,
                         child: CircularProgressIndicator(
                             color: Colors.white, strokeWidth: 2))
                     : const Text('저장',
@@ -383,13 +413,17 @@ class _HealthEditSheetState extends State<_HealthEditSheet> {
         runSpacing: 8,
         children: items.map((item) {
           final isSelected = selected.contains(item);
-          return GestureDetector(
+          return InkWell(
             onTap: () => onToggle(item),
+            borderRadius: BorderRadius.circular(20),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              constraints: const BoxConstraints(minHeight: 44),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: isSelected ? color.withValues(alpha: 0.12) : AppColors.gray50,
+                color: isSelected
+                    ? color.withValues(alpha: 0.12)
+                    : AppColors.gray50,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: isSelected ? color : AppColors.border,
@@ -428,11 +462,14 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(text,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-            color: AppColors.gray400, letterSpacing: 0.5)),
-  );
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(text,
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.gray400,
+                letterSpacing: 0.5)),
+      );
 }
 
 class _Item {
@@ -460,17 +497,22 @@ class _InfoCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(children: [
                 Text(e.value.label,
-                    style: const TextStyle(fontSize: 14,
-                        color: AppColors.textSecondary)),
+                    style: const TextStyle(
+                        fontSize: 14, color: AppColors.textSecondary)),
                 const Spacer(),
                 Text(e.value.value,
-                    style: const TextStyle(fontSize: 14,
+                    style: const TextStyle(
+                        fontSize: 14,
                         fontWeight: FontWeight.w500,
                         color: AppColors.textPrimary)),
               ]),
             ),
-            if (!isLast) Divider(height: 0.5, color: AppColors.border,
-                indent: 16, endIndent: 16),
+            if (!isLast)
+              const Divider(
+                  height: 0.5,
+                  color: AppColors.border,
+                  indent: 16,
+                  endIndent: 16),
           ]);
         }).toList(),
       ),
@@ -483,41 +525,52 @@ class _ActionTile extends StatelessWidget {
   final String label, sub;
   final Color color;
   final VoidCallback onTap;
-  const _ActionTile({required this.icon, required this.label,
-      required this.sub, required this.color, required this.onTap});
+  const _ActionTile(
+      {required this.icon,
+      required this.label,
+      required this.sub,
+      required this.color,
+      required this.onTap});
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border, width: 0.5),
-      ),
-      child: Row(children: [
-        Container(
-          width: 36, height: 36,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border, width: 0.5),
           ),
-          child: Icon(icon, size: 18, color: color),
+          child: Row(children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 18, color: color),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+                child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: color)),
+                Text(sub,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary)),
+              ],
+            )),
+            Icon(Icons.chevron_right_rounded,
+                size: 18, color: color.withValues(alpha: 0.5)),
+          ]),
         ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: TextStyle(fontSize: 14,
-                fontWeight: FontWeight.w600, color: color)),
-            Text(sub, style: const TextStyle(fontSize: 12,
-                color: AppColors.textSecondary)),
-          ],
-        )),
-        Icon(Icons.chevron_right_rounded,
-            size: 18, color: color.withValues(alpha: 0.5)),
-      ]),
-    ),
-  );
+      );
 }

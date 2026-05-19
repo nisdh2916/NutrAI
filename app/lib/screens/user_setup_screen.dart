@@ -30,13 +30,13 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.profile.name);
-    _ageCtrl  = TextEditingController(
+    _ageCtrl = TextEditingController(
       text: widget.profile.age != null ? widget.profile.age.toString() : '',
     );
-    _selectedGender   = widget.profile.gender;
-    _selectedGoal     = widget.profile.goal;
+    _selectedGender = widget.profile.gender;
+    _selectedGoal = widget.profile.goal;
     _selectedActivity = widget.profile.activityLevel;
-    _allergyCtrl   = TextEditingController(text: widget.profile.allergy);
+    _allergyCtrl = TextEditingController(text: widget.profile.allergy);
     _conditionCtrl = TextEditingController(text: widget.profile.condition);
   }
 
@@ -60,8 +60,8 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   }
 
   double? get _bmr {
-    final h   = double.tryParse(_heightCtrl.text);
-    final w   = double.tryParse(_weightCtrl.text);
+    final h = double.tryParse(_heightCtrl.text);
+    final w = double.tryParse(_weightCtrl.text);
     final age = int.tryParse(_ageCtrl.text);
     if (h == null || w == null || age == null) return null;
     return _selectedGender == '남'
@@ -73,10 +73,15 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
     final b = _bmi;
     if (b == null) return '';
     String cat;
-    if (b < 18.5)      cat = '저체중';
-    else if (b < 23.0) cat = '정상';
-    else if (b < 25.0) cat = '과체중';
-    else               cat = '비만';
+    if (b < 18.5) {
+      cat = '저체중';
+    } else if (b < 23.0) {
+      cat = '정상';
+    } else if (b < 25.0) {
+      cat = '과체중';
+    } else {
+      cat = '비만';
+    }
     return '${b.toStringAsFixed(1)} ($cat)';
   }
 
@@ -90,15 +95,15 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final profile = UserProfile(
-      name:          _nameCtrl.text.trim(),
-      gender:        _selectedGender,
-      age:           int.tryParse(_ageCtrl.text),
-      height:        double.tryParse(_heightCtrl.text),
-      weight:        double.tryParse(_weightCtrl.text),
-      goal:          _selectedGoal,
+      name: _nameCtrl.text.trim(),
+      gender: _selectedGender,
+      age: int.tryParse(_ageCtrl.text),
+      height: double.tryParse(_heightCtrl.text),
+      weight: double.tryParse(_weightCtrl.text),
+      goal: _selectedGoal,
       activityLevel: _selectedActivity,
-      allergy:       _allergyCtrl.text.trim(),
-      condition:     _conditionCtrl.text.trim(),
+      allergy: _allergyCtrl.text.trim(),
+      condition: _conditionCtrl.text.trim(),
     );
 
     Navigator.push(
@@ -116,7 +121,10 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
         elevation: 0,
         title: const Text(
           '사용자 기본 설정',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+          style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary),
         ),
         centerTitle: true,
       ),
@@ -128,8 +136,10 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
             // ── 이름 ──
             _HorizField(
               label: '이름',
-              child: _InlineInput(controller: _nameCtrl, validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? '이름을 입력해주세요' : null),
+              child: _InlineInput(
+                  controller: _nameCtrl,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? '이름을 입력해주세요' : null),
             ),
             const SizedBox(height: 22),
 
@@ -161,7 +171,9 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Text('세', style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
+                const Text('세',
+                    style: TextStyle(
+                        fontSize: 15, color: AppColors.textSecondary)),
               ]),
             ),
             const SizedBox(height: 22),
@@ -173,8 +185,11 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
                 Expanded(
                   child: _InlineInput(
                     controller: _heightCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
+                    ],
                     onChanged: (_) => setState(() {}),
                     validator: (v) {
                       final n = double.tryParse(v ?? '');
@@ -184,7 +199,9 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Text('cm', style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
+                const Text('cm',
+                    style: TextStyle(
+                        fontSize: 15, color: AppColors.textSecondary)),
               ]),
             ),
             const SizedBox(height: 22),
@@ -196,8 +213,11 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
                 Expanded(
                   child: _InlineInput(
                     controller: _weightCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
+                    ],
                     onChanged: (_) => setState(() {}),
                     validator: (v) {
                       final n = double.tryParse(v ?? '');
@@ -207,7 +227,9 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Text('kg', style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
+                const Text('kg',
+                    style: TextStyle(
+                        fontSize: 15, color: AppColors.textSecondary)),
               ]),
             ),
 
@@ -299,7 +321,10 @@ class _HorizField extends StatelessWidget {
         SizedBox(
           width: 60,
           child: Text(label,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+              style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary)),
         ),
         const SizedBox(width: 16),
         Expanded(child: child),
@@ -336,14 +361,21 @@ class _InlineInput extends StatelessWidget {
         filled: true,
         fillColor: AppColors.gray50,
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide.none),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: AppColors.green400, width: 1.5)),
+            borderSide:
+                const BorderSide(color: AppColors.green400, width: 1.5)),
         errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.red)),
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Colors.red)),
         focusedErrorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: const BorderSide(color: Colors.red, width: 1.5)),
@@ -364,12 +396,14 @@ class _GenderToggle extends StatelessWidget {
         final isSel = selected == g;
         return Padding(
           padding: EdgeInsets.only(right: g == '남' ? 8 : 0),
-          child: GestureDetector(
+          child: InkWell(
             onTap: () => onChanged(g),
+            borderRadius: BorderRadius.circular(8),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               width: 56,
-              padding: const EdgeInsets.symmetric(vertical: 9),
+              constraints: const BoxConstraints(minHeight: 44),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
                 color: isSel ? AppColors.green400 : AppColors.gray50,
                 borderRadius: BorderRadius.circular(8),
@@ -377,7 +411,8 @@ class _GenderToggle extends StatelessWidget {
               child: Text(g,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                     color: isSel ? AppColors.white : AppColors.gray400,
                   )),
             ),
@@ -392,7 +427,8 @@ class _ChipSelector extends StatelessWidget {
   final List<String> options;
   final String selected;
   final ValueChanged<String> onChanged;
-  const _ChipSelector({required this.options, required this.selected, required this.onChanged});
+  const _ChipSelector(
+      {required this.options, required this.selected, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -401,19 +437,24 @@ class _ChipSelector extends StatelessWidget {
       runSpacing: 8,
       children: options.map((opt) {
         final isSel = selected == opt;
-        return GestureDetector(
+        return InkWell(
           onTap: () => onChanged(opt),
+          borderRadius: BorderRadius.circular(8),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            constraints: const BoxConstraints(minHeight: 44),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: isSel ? AppColors.green400 : AppColors.gray50,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: isSel ? AppColors.green400 : AppColors.border, width: isSel ? 1.5 : 0.5),
+              border: Border.all(
+                  color: isSel ? AppColors.green400 : AppColors.border,
+                  width: isSel ? 1.5 : 0.5),
             ),
             child: Text(opt,
                 style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                   color: isSel ? AppColors.white : AppColors.gray400,
                 )),
           ),
@@ -434,16 +475,21 @@ class _AutoCalcField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(label,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+            style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textPrimary)),
         const SizedBox(height: 8),
         Container(
           width: 180,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-          decoration: BoxDecoration(color: AppColors.gray50, borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(
+              color: AppColors.gray50, borderRadius: BorderRadius.circular(8)),
           child: Text(
             value.isNotEmpty ? value : '',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            style:
+                const TextStyle(fontSize: 14, color: AppColors.textSecondary),
           ),
         ),
       ],
@@ -460,13 +506,15 @@ class _BottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.white,
-      padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
+      padding: EdgeInsets.fromLTRB(
+          16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.green400,
           foregroundColor: AppColors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           minimumSize: const Size(double.infinity, 52),
           elevation: 0,
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),

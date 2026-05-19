@@ -1,1 +1,0 @@
-MEALS: list[dict] = []

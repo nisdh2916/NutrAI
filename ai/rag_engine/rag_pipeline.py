@@ -17,6 +17,7 @@ from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from server.common.llm_config import LLM, CHAT_TEMPERATURE, CHAT_NUM_PREDICT
+from server.common.allergens import extract_allergen_keywords
 
 CHROMA_DIR = Path(__file__).parent / "chroma_db"
 EMBED_MODEL = "snunlp/KR-SBERT-V40K-klueNLI-augSTS"
@@ -33,20 +34,7 @@ _collection = None
 _llm: ChatOllama | None = None
 
 
-# ── 알레르기 키워드 매핑 ────────────────────────────
-_ALLERGEN_KEYWORDS: dict[str, list[str]] = {
-    "유제품": ["우유", "치즈", "버터", "요거트", "크림", "유청", "밀크", "라떼", "카푸치노", "아이스크림"],
-    "견과류": ["아몬드", "호두", "캐슈", "땅콩", "잣", "피스타치오", "마카다미아", "헤이즐넛", "피넛", "견과"],
-    "갑각류": ["새우", "게", "랍스터", "크랩", "대게"],
-    "밀":    ["빵", "파스타", "면", "국수", "라면", "우동", "스파게티", "밀가루", "만두", "냉면", "소면", "떡볶이"],
-    "글루텐": ["빵", "파스타", "면", "국수", "라면", "우동", "밀가루"],
-    "계란":  ["계란", "달걀", "에그", "오믈렛", "마요네즈", "스크램블"],
-    "대두":  ["두부", "된장", "간장", "두유", "콩국수", "낫토", "청국장", "순두부", "콩"],
-    "복숭아": ["복숭아", "피치"],
-    "토마토": ["토마토", "케첩"],
-    "고등어": ["고등어"],
-    "조개류": ["조개", "홍합", "굴", "전복", "바지락", "오징어", "낙지", "문어"],
-}
+from ai.allergens import ALLERGEN_KEYWORDS as _ALLERGEN_KEYWORDS
 
 # ── 시간대 / 의도 키워드 ──────────────────────────
 _MEAL_TIME_MAP: dict[str, str] = {
@@ -104,9 +92,14 @@ SYSTEM_PROMPT = """한국어로만 답변하는 NutrAI 영양 코치입니다.
 반드시 [참고 영양 정보]에 있는 식품 데이터를 바탕으로 추천하세요. 목록에 없는 음식은 추천하지 마세요.
 알레르기 성분이 포함된 음식은 절대 추천하지 마세요.
 질환이 있으면 해당 질환에 적합한 식단을 최우선으로 고려하세요.
-음식명은 반드시 일반 음식명만 사용하세요. 브랜드명·제품명이 포함된 경우 핵심 음식명만 추출하세요. 예: '페이보잇 한끼 차돌짬뽕국밥' → '차돌짬뽕국밥', '호텔컬렉션 베트남쌀국수' → '베트남쌀국수'.
 의료적 확정 표현은 사용하지 말고 권고 표현을 사용하세요.
 수치 계산(칼로리, 남은 열량)은 반드시 [식단 현황]의 수치를 그대로 사용하고 임의로 계산하지 마세요.
+
+[음식 선택 우선순위 - 반드시 준수]
+- 밥, 국, 찌개, 구이, 볶음, 나물 등 일반 가정식·한식 위주로 추천하세요.
+- 즉석식품, 가공식품, 냉동식품, 포장 간편식(제품명/브랜드명이 있는 식품)은 절대 추천하지 마세요.
+- [참고 영양 정보]에 브랜드명이 포함된 항목은 건너뛰고 다른 항목을 선택하세요.
+- 추천 음식명은 '된장찌개', '닭가슴살 샐러드', '현미밥' 같은 일반 음식명으로만 표기하세요.
 
 [영양 추론 규칙 - 반드시 준수]
 - 당뇨 관련: 혈당을 올리는 것은 탄수화물(당류)이지 단백질이 아닙니다. "단백질이 낮아서 당뇨에 좋다"는 표현은 절대 사용하지 마세요. 당뇨에는 저당·저탄수화물·적정 단백질을 강조하세요.
@@ -174,27 +167,32 @@ def _rewrite_queries(
 
     queries: list[str] = []
 
-    # 1. 기본 쿼리: 시간대가 있으면 시간대 중심, 없으면 원문
-    base = f"{meal_time} 메뉴 추천" if meal_time else user_query
-    queries.append(base)
+    # 1. 사용자 원문 — 항상 포함 (meal_time 감지 여부와 무관)
+    if user_query.strip():
+        queries.append(user_query.strip())
 
-    # 2. 목표 + 시간대
-    if goal and goal not in ("일반 건강 관리", ""):
-        queries.append(f"{goal} {meal_time} 메뉴" if meal_time else f"{goal} 맞춤 메뉴")
+    # 2. 시간대 + 목표 복합 쿼리
+    if meal_time:
+        if goal and goal not in ("일반 건강 관리", ""):
+            queries.append(f"{goal} {meal_time} 메뉴")
+        else:
+            queries.append(f"건강한 {meal_time} 메뉴 추천")
 
-    # 3. 남은 칼로리 기반 제약 쿼리
-    if remaining_kcal is not None:
+    # 3. 질환 맞춤 쿼리 — 질환이 있으면 항상 포함 (우선순위 상향)
+    if condition:
+        queries.append(f"{condition} 맞춤 식단 가이드라인")
+
+    # 4. 남은 칼로리 제약
+    if remaining_kcal is not None and len(queries) < 4:
         queries.append(f"{int(remaining_kcal)}kcal 이하 {meal_time} 식사" if meal_time
                        else f"{int(remaining_kcal)}kcal 이하 메뉴")
 
-    # 4. 질환 맞춤 or 감지 음식 연계
-    if condition and len(queries) < 4:
-        queries.append(f"{condition} {meal_time} 식단" if meal_time else f"{condition} 맞춤 식단")
-    elif detected_foods and len(queries) < 4:
+    # 5. 감지 음식 연계 (질환 없을 때)
+    if detected_foods and not condition and len(queries) < 4:
         foods_str = " ".join(detected_foods[:2])
-        queries.append(f"{foods_str} 후 {meal_time} 균형 식단" if meal_time else f"{foods_str} 균형 식단")
+        queries.append(f"{foods_str} 후 균형 식단")
 
-    return queries[:4]
+    return list(dict.fromkeys(q for q in queries if q.strip()))[:4]
 
 
 # ── 알레르기 유틸 ─────────────────────────────────
