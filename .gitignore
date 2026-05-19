@@ -68,3 +68,10 @@ ai/rag_engine/build_checkpoint.json
 # 영양 DB 원본 데이터 (대용량, git 미포함)
 data/nutrition_db/*.xlsx
 data/nutrition_db/*.csv
+
+# 개인 AI 도구 설정 (Claude Code, Junie, Impeccable)
+.claude/
+.agents/
+.junie/
+skills-lock.json
+.impeccable.md
