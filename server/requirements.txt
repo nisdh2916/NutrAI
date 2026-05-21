@@ -1,0 +1,27 @@
+fastapi>=0.115.9
+uvicorn==0.35.0
+python-multipart==0.0.20
+httpx==0.28.1
+
+# RAG
+# Windows users should prefer Python 3.11. With Python 3.12,
+# chromadb==1.0.4 may try to build chroma-hnswlib from source unless
+# Microsoft C++ Build Tools are installed.
+langchain==0.3.25
+langchain-ollama==0.3.3
+langchain-community==0.3.24
+chromadb==1.0.4
+
+# Data
+pydantic==2.11.4
+pandas==2.2.0
+openpyxl>=3.1.0
+pyarrow>=14.0.0
+
+# Food Detection (YOLOv11m)
+ultralytics>=8.0.0
+pillow>=10.0.0
+numpy>=1.24.0
+
+# Embedding (KR-SBERT)
+sentence-transformers>=3.0.0
