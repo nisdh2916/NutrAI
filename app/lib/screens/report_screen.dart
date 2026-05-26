@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +6,7 @@ import '../core/nutrition.dart';
 import '../models/db_models.dart';
 import '../models/meal_models.dart';
 import '../providers/app_state.dart';
+import '../services/chat_service.dart';
 import '../theme/app_theme.dart';
 
 // 공용 헬퍼
@@ -326,7 +328,13 @@ class _DailyTabState extends State<_DailyTab> {
               fat: totalF,
             ),
             const SizedBox(height: 14),
-            if (meals.isNotEmpty) _TipCard(meals: meals, totalKcal: totalK),
+            if (meals.isNotEmpty) _AiInsightCard(
+              key: ValueKey('daily_${_dateKey(widget.selected)}'),
+              title: 'AI 코치',
+              icon: Icons.tips_and_updates_rounded,
+              prompt: _buildDailyPrompt(meals, totalK, totalC, totalP, totalF),
+              user: context.read<AppState>().user,
+            ),
             if (meals.isEmpty) _EmptyReport(),
           ])),
         ),
@@ -547,23 +555,121 @@ class _NutrRow extends StatelessWidget {
   }
 }
 
-// ── AI 코치 조언 카드 ──────────────────────────────
-class _TipCard extends StatelessWidget {
-  final List<MealRecord> meals;
-  final double totalKcal;
-  const _TipCard({required this.meals, required this.totalKcal});
+// ── 프롬프트 빌더 (top-level) ──────────────────────
+String _buildDailyPrompt(List<MealRecord> meals, double kcal,
+    double carb, double protein, double fat) {
+  final total = carb + protein + fat;
+  final cPct = total > 0 ? (carb / total * 100).round() : 0;
+  final pPct = total > 0 ? (protein / total * 100).round() : 0;
+  final fPct = total > 0 ? (fat / total * 100).round() : 0;
+  final mealStr = meals.map((m) => '${m.label}: ${m.summary}').join(', ');
+  return '오늘 식단을 분석해주세요.\n'
+      '칼로리 ${kcal.round()}kcal · 탄수화물 ${carb.round()}g($cPct%) · '
+      '단백질 ${protein.round()}g($pPct%) · 지방 ${fat.round()}g($fPct%)\n'
+      '식사: $mealStr\n'
+      '영양 균형 평가와 구체적인 개선 조언을 2~3문장으로 해주세요. '
+      '사용자 건강 목표와 상태를 반영해 맞춤 분석해주세요.';
+}
 
-  String get _tip {
-    final totalP = meals.fold(0.0, (s, m) => s + m.totalProtein);
-    final totalC = meals.fold(0.0, (s, m) => s + m.totalCarb);
-    final totalF = meals.fold(0.0, (s, m) => s + m.totalFat);
-    if (totalP < 50) {
-      return '오늘 단백질 섭취가 부족해요. 닭가슴살, 두부, 계란 등 단백질이 풍부한 음식을 추가해보세요.';
+String _buildWeeklyPrompt(
+    List<double> data, List<List<MealRecord>> weekMeals) {
+  final recorded = data.where((v) => v > 0).length;
+  final avgK = recorded > 0 ? data.fold(0.0, (s, v) => s + v) / 7 : 0.0;
+  final avgP = weekMeals.fold(
+          0.0, (s, ml) => s + ml.fold(0.0, (ss, m) => ss + m.totalProtein)) /
+      7;
+  final avgC = weekMeals.fold(
+          0.0, (s, ml) => s + ml.fold(0.0, (ss, m) => ss + m.totalCarb)) /
+      7;
+  final avgF = weekMeals.fold(
+          0.0, (s, ml) => s + ml.fold(0.0, (ss, m) => ss + m.totalFat)) /
+      7;
+  return '이번 주 식단을 분석해주세요.\n'
+      '기록: $recorded/7일 · 일 평균 ${avgK.round()}kcal\n'
+      '탄수화물 평균 ${avgC.round()}g · 단백질 평균 ${avgP.round()}g · '
+      '지방 평균 ${avgF.round()}g\n'
+      '이번 주 식단 패턴을 평가하고 다음 주를 위한 구체적인 개선 방향을 '
+      '2~3문장으로 조언해주세요.';
+}
+
+String _buildMonthlyPrompt(Map<String, double> kcalMap, int activeDays,
+    double monthTotal, DateTime cursor) {
+  final avgK = activeDays > 0 ? monthTotal / activeDays : 0.0;
+  final best = kcalMap.entries.isEmpty
+      ? null
+      : kcalMap.entries.reduce((a, b) => a.value > b.value ? a : b);
+  return '${cursor.year}년 ${cursor.month}월 한 달 식단을 분석해주세요.\n'
+      '기록한 날: $activeDays일 · 월 총 ${monthTotal.round()}kcal · '
+      '일 평균 ${avgK.round()}kcal'
+      '${best != null ? '\n베스트 데이: ${best.key} (${best.value.round()}kcal)' : ''}\n'
+      '이번 달 식습관 패턴을 평가하고 다음 달을 위한 조언을 2~3문장으로 해주세요.';
+}
+
+// ── AI 인사이트 카드 (실제 LLM 스트리밍) ─────────────
+class _AiInsightCard extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final String prompt;
+  final UserProfileEntity? user;
+
+  const _AiInsightCard({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.prompt,
+    this.user,
+  });
+
+  @override
+  State<_AiInsightCard> createState() => _AiInsightCardState();
+}
+
+class _AiInsightCardState extends State<_AiInsightCard> {
+  String _text = '';
+  bool _loading = false;
+  bool _error = false;
+  StreamSubscription<String>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _generate();
+  }
+
+  @override
+  void didUpdateWidget(_AiInsightCard old) {
+    super.didUpdateWidget(old);
+    if (old.prompt != widget.prompt) _generate();
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _generate() async {
+    _sub?.cancel();
+    if (mounted) setState(() { _text = ''; _loading = true; _error = false; });
+    try {
+      final stream = ChatService.streamMessage(
+        message: widget.prompt,
+        user: widget.user,
+      );
+      _sub = stream.listen(
+        (chunk) {
+          if (mounted) setState(() { _text += chunk; _loading = false; });
+        },
+        onError: (_) {
+          if (mounted) setState(() { _loading = false; _error = true; });
+        },
+        onDone: () {
+          if (mounted) setState(() => _loading = false);
+        },
+      );
+    } catch (_) {
+      if (mounted) setState(() { _loading = false; _error = true; });
     }
-    if (totalC > 300) return '탄수화물 섭취가 다소 높아요. 다음 끼니에는 채소 위주의 식단을 선택해보세요.';
-    if (totalF > 80) return '지방 섭취가 목표치를 초과했어요. 튀긴 음식보다 구운 음식을 선택하면 도움이 돼요.';
-    if (totalKcal < 1200) return '오늘 칼로리 섭취가 너무 적어요. 균형 잡힌 식사로 기초대사량을 유지해주세요.';
-    return '오늘 식단이 전반적으로 균형 잡혀 있어요! 다른 날도 이렇게 유지해보세요.';
   }
 
   @override
@@ -580,6 +686,7 @@ class _TipCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // 헤더
         Row(children: [
           Container(
             width: 28,
@@ -588,23 +695,65 @@ class _TipCard extends StatelessWidget {
               color: AppColors.brand,
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
-            child: const Icon(Icons.tips_and_updates_rounded,
-                size: 14, color: Colors.white),
+            child: Icon(widget.icon, size: 14, color: Colors.white),
           ),
           const SizedBox(width: 8),
-          const Text('AI 코치',
-              style: TextStyle(
+          Text(widget.title,
+              style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: AppColors.brandText)),
+          const Spacer(),
+          if (!_loading)
+            GestureDetector(
+              onTap: _generate,
+              child: const Icon(Icons.refresh_rounded,
+                  size: 16, color: AppColors.brandText),
+            ),
         ]),
         const SizedBox(height: 10),
-        Text(_tip,
+        // 본문
+        if (_loading && _text.isEmpty)
+          const Row(children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                  strokeWidth: 1.5, color: AppColors.brand),
+            ),
+            SizedBox(width: 8),
+            Text('AI 분석 중...',
+                style:
+                    TextStyle(fontSize: 13, color: AppColors.brandText)),
+          ])
+        else if (_error)
+          Row(children: [
+            const Icon(Icons.wifi_off_rounded,
+                size: 14, color: AppColors.brandText),
+            const SizedBox(width: 6),
+            const Expanded(
+              child: Text('서버에 연결할 수 없어요.',
+                  style:
+                      TextStyle(fontSize: 13, color: AppColors.brandText)),
+            ),
+            GestureDetector(
+              onTap: _generate,
+              child: const Text('다시 시도',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.brand,
+                      fontWeight: FontWeight.w600)),
+            ),
+          ])
+        else
+          Text(
+            _loading ? '$_text▌' : _text,
             style: const TextStyle(
                 fontSize: 13,
                 color: AppColors.brandText,
                 height: 1.6,
-                fontWeight: FontWeight.w500)),
+                fontWeight: FontWeight.w500),
+          ),
       ]),
     );
   }
@@ -921,7 +1070,13 @@ class _WeeklyTabState extends State<_WeeklyTab> {
           const SizedBox(height: 14),
 
           // AI 주간 인사이트
-          _WeeklyTipCard(weekData: data, weekMeals: _weekMeals!),
+          _AiInsightCard(
+            key: ValueKey('weekly_${_dateKey(_monday)}'),
+            title: '주간 AI 인사이트',
+            icon: Icons.insights_rounded,
+            prompt: _buildWeeklyPrompt(data, _weekMeals!),
+            user: context.read<AppState>().user,
+          ),
         ])),
       ),
     ]);
@@ -1032,87 +1187,6 @@ class _NutrAvgRow extends StatelessWidget {
   }
 }
 
-// ── AI 주간 인사이트 카드 ──────────────────────────
-class _WeeklyTipCard extends StatelessWidget {
-  final List<double> weekData;
-  final List<List<MealRecord>> weekMeals;
-  const _WeeklyTipCard({required this.weekData, required this.weekMeals});
-
-  String get _tip {
-    final recorded = weekData.where((v) => v > 0).length;
-    if (recorded < 3) return '이번 주 기록이 $recorded일뿐이에요. 꾸준한 기록이 정확한 분석의 시작이에요!';
-
-    final avgK = weekData.fold(0.0, (s, v) => s + v) / 7;
-    final avgP = weekMeals.fold(
-            0.0, (s, ml) => s + ml.fold(0.0, (ss, m) => ss + m.totalProtein)) /
-        7;
-    final avgC = weekMeals.fold(
-            0.0, (s, ml) => s + ml.fold(0.0, (ss, m) => ss + m.totalCarb)) /
-        7;
-    final avgF = weekMeals.fold(
-            0.0, (s, ml) => s + ml.fold(0.0, (ss, m) => ss + m.totalFat)) /
-        7;
-
-    if (avgP < 50) {
-      return '이번 주 단백질 평균이 ${avgP.round()}g으로 낮아요. 닭가슴살·달걀·두부를 매 끼니 포함해보세요.';
-    }
-    if (avgC > 350) {
-      return '이번 주 탄수화물 평균이 ${avgC.round()}g으로 높아요. 밥 양을 줄이고 채소 비중을 늘려보세요.';
-    }
-    if (avgF > 80) {
-      return '이번 주 지방 평균이 ${avgF.round()}g으로 높아요. 튀김류보다 구이·찜 요리를 선택해보세요.';
-    }
-    if (avgK < 1200) {
-      return '이번 주 평균 칼로리가 ${avgK.round()}kcal로 부족해요. 기초대사량 이상의 식사를 유지해주세요.';
-    }
-    return '이번 주 식단이 전반적으로 균형 잡혀 있어요! $recorded일 기록으로 좋은 습관을 만들고 있어요.';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final recorded = weekData.where((v) => v > 0).length;
-    if (recorded == 0) return const SizedBox.shrink();
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFE6F4EA), Color(0xFFF0FAF2)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: AppColors.brand,
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-            ),
-            child: const Icon(Icons.insights_rounded,
-                size: 14, color: Colors.white),
-          ),
-          const SizedBox(width: 8),
-          const Text('주간 AI 인사이트',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.brandText)),
-        ]),
-        const SizedBox(height: 10),
-        Text(_tip,
-            style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.brandText,
-                height: 1.6,
-                fontWeight: FontWeight.w500)),
-      ]),
-    );
-  }
-}
 
 // ── 통계 카드 (주간/월간 공용) ─────────────────────
 class _StatCard extends StatelessWidget {
@@ -1482,10 +1556,13 @@ class _MonthlyTabState extends State<_MonthlyTab> {
           if (_selMeals != null && selMeals.isEmpty) _EmptyReport(),
           const SizedBox(height: 14),
           if (_monthKcalMap != null)
-            _MonthlyInsightCard(
-              kcalMap: _monthKcalMap!,
-              activeDays: activeDays,
-              monthTotal: monthTotal,
+            _AiInsightCard(
+              key: ValueKey('monthly_${_cursor.year}_${_cursor.month}'),
+              title: '월간 AI 인사이트',
+              icon: Icons.emoji_events_rounded,
+              prompt: _buildMonthlyPrompt(
+                  _monthKcalMap!, activeDays, monthTotal, _cursor),
+              user: context.read<AppState>().user,
             ),
         ])),
       ),
@@ -1493,107 +1570,6 @@ class _MonthlyTabState extends State<_MonthlyTab> {
   }
 }
 
-// ── 월간 AI 인사이트 카드 ──────────────────────────
-class _MonthlyInsightCard extends StatelessWidget {
-  final Map<String, double> kcalMap;
-  final int activeDays;
-  final double monthTotal;
-  const _MonthlyInsightCard({
-    required this.kcalMap,
-    required this.activeDays,
-    required this.monthTotal,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (activeDays == 0) return const SizedBox.shrink();
-
-    final avgK = monthTotal / activeDays;
-    // 베스트 데이: 1200~2500 kcal 범위에서 가장 높은 날
-    final bestEntry = kcalMap.entries
-        .where((e) => e.value >= 1200 && e.value <= 2500)
-        .fold<MapEntry<String, double>?>(
-            null, (best, e) => best == null || e.value > best.value ? e : best);
-
-    String tip;
-    if (activeDays < 7) {
-      tip = '이번 달 $activeDays일 기록했어요. 꾸준히 기록할수록 더 정확한 분석이 가능해요!';
-    } else if (avgK < 1400) {
-      tip =
-          '월 평균 ${avgK.round()}kcal로 섭취가 부족한 편이에요. 식사를 거르지 않고 규칙적으로 드시는 게 중요해요.';
-    } else if (avgK > 2500) {
-      tip = '월 평균 ${avgK.round()}kcal로 목표 칼로리를 초과하고 있어요. 식사량을 조금씩 줄여보세요.';
-    } else {
-      tip =
-          '이번 달 $activeDays일을 꾸준히 기록하셨어요! 월 평균 ${avgK.round()}kcal로 목표 범위 내에 있어요.';
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFE6F4EA), Color(0xFFF0FAF2)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: AppColors.brand,
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-            ),
-            child: const Icon(Icons.emoji_events_rounded,
-                size: 14, color: Colors.white),
-          ),
-          const SizedBox(width: 8),
-          const Text('월간 AI 인사이트',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.brandText)),
-        ]),
-        const SizedBox(height: 10),
-        Text(tip,
-            style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.brandText,
-                height: 1.6,
-                fontWeight: FontWeight.w500)),
-        if (bestEntry != null) ...[
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.brand.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: Row(children: [
-              const Icon(Icons.star_rounded, size: 14, color: AppColors.brand),
-              const SizedBox(width: 6),
-              Text('베스트 데이 ${bestEntry.key}',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.brandText)),
-              const Spacer(),
-              Text('${bestEntry.value.round()}kcal',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.brandText)),
-            ]),
-          ),
-        ],
-      ]),
-    );
-  }
-}
 
 // ── 빈 리포트 상태 ─────────────────────────────────
 class _EmptyReport extends StatelessWidget {
