@@ -36,6 +36,7 @@ class MealRepository {
     required String mealType,
     required DateTime eatenAt,
     String? memo,
+    String? photoPath,
     required List<({int foodId, double? amountG, double servingCount})> foods,
   }) async {
     final db = await _db.database;
@@ -48,6 +49,7 @@ class MealRepository {
         'meal_type': mealType,
         'eaten_at': eatenAt.toIso8601String(),
         'memo': memo,
+        'photo_path': photoPath,
         'created_at': now,
         'updated_at': now,
       });

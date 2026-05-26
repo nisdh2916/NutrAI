@@ -155,11 +155,12 @@ class AppState extends ChangeNotifier {
   }) async {
     if (userId == null) return;
     await _mealRepo.saveMealWithFoods(
-      userId:   userId!,
-      mealType: mealType,
-      eatenAt:  eatenAt,
-      memo:     memo,
-      foods:    foods,
+      userId:    userId!,
+      mealType:  mealType,
+      eatenAt:   eatenAt,
+      memo:      memo,
+      photoPath: photoPath,
+      foods:     foods,
     );
     await loadTodayMeals();
   }

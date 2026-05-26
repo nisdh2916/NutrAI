@@ -49,11 +49,12 @@ class MealState {
     required List<({int foodId, double? amountG, double servingCount})> foods,
   }) async {
     await _mealRepo.saveMealWithFoods(
-      userId:   userId,
-      mealType: mealType,
-      eatenAt:  eatenAt,
-      memo:     memo,
-      foods:    foods,
+      userId:    userId,
+      mealType:  mealType,
+      eatenAt:   eatenAt,
+      memo:      memo,
+      photoPath: photoPath,
+      foods:     foods,
     );
     await loadToday(userId);
   }
