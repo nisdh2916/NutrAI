@@ -594,15 +594,18 @@ String _buildWeeklyPrompt(
 
 String _buildMonthlyPrompt(Map<String, double> kcalMap, int activeDays,
     double monthTotal, DateTime cursor) {
+  final daysInMonth = DateUtils.getDaysInMonth(cursor.year, cursor.month);
   final avgK = activeDays > 0 ? monthTotal / activeDays : 0.0;
   final best = kcalMap.entries.isEmpty
       ? null
       : kcalMap.entries.reduce((a, b) => a.value > b.value ? a : b);
-  return '${cursor.year}년 ${cursor.month}월 한 달 식단을 분석해주세요.\n'
-      '기록한 날: $activeDays일 · 월 총 ${monthTotal.round()}kcal · '
-      '일 평균 ${avgK.round()}kcal'
-      '${best != null ? '\n베스트 데이: ${best.key} (${best.value.round()}kcal)' : ''}\n'
-      '이번 달 식습관 패턴을 평가하고 다음 달을 위한 조언을 2~3문장으로 해주세요.';
+  final bestStr = best != null ? ' | 최고 기록일: ${best.key} (${best.value.round()}kcal)' : '';
+  return '${cursor.year}년 ${cursor.month}월 월간 식습관 리포트를 작성해주세요.\n'
+      '기록한 날: $activeDays / $daysInMonth일 | 월 총 ${monthTotal.round()}kcal | 일 평균 ${avgK.round()}kcal$bestStr\n\n'
+      '개별 음식이나 메뉴를 나열하지 마세요. 아래 3가지를 통합해서 3~4문장으로 간결하게 작성해주세요:\n'
+      '① 기록 꾸준함 평가 ($daysInMonth일 중 $activeDays일 기록)\n'
+      '② 칼로리 수준 평가 (일 평균 ${avgK.round()}kcal가 적정한지)\n'
+      '③ 다음 달을 위한 핵심 개선 방향 1가지';
 }
 
 // ── AI 인사이트 카드 (실제 LLM 스트리밍) ─────────────
@@ -1069,14 +1072,15 @@ class _WeeklyTabState extends State<_WeeklyTab> {
           ),
           const SizedBox(height: 14),
 
-          // AI 주간 인사이트
-          _AiInsightCard(
-            key: ValueKey('weekly_${_dateKey(_monday)}'),
-            title: '주간 AI 인사이트',
-            icon: Icons.insights_rounded,
-            prompt: _buildWeeklyPrompt(data, _weekMeals!),
-            user: context.read<AppState>().user,
-          ),
+          // AI 주간 인사이트 (3일 이상 기록 시에만)
+          if (data.where((v) => v > 0).length >= 3)
+            _AiInsightCard(
+              key: ValueKey('weekly_${_dateKey(_monday)}'),
+              title: '주간 AI 인사이트',
+              icon: Icons.insights_rounded,
+              prompt: _buildWeeklyPrompt(data, _weekMeals!),
+              user: context.read<AppState>().user,
+            ),
         ])),
       ),
     ]);
@@ -1555,7 +1559,8 @@ class _MonthlyTabState extends State<_MonthlyTab> {
           ],
           if (_selMeals != null && selMeals.isEmpty) _EmptyReport(),
           const SizedBox(height: 14),
-          if (_monthKcalMap != null)
+          // AI 월간 인사이트 (7일 이상 기록 시에만)
+          if (_monthKcalMap != null && activeDays >= 7)
             _AiInsightCard(
               key: ValueKey('monthly_${_cursor.year}_${_cursor.month}'),
               title: '월간 AI 인사이트',
