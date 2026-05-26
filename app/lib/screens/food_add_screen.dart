@@ -8,6 +8,7 @@ import '../models/db_models.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import '../services/allergen_service.dart';
+import '../services/chat_service.dart';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 음식 DB
@@ -137,13 +138,35 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
     super.dispose();
   }
 
-  // ── DB 검색 (DB 결과 없으면 내장 목록으로 폴백) ──
+  // ── 검색: 서버 API(ChromaDB) → 로컬 SQLite → 내장 목록 순으로 폴백 ──
   void _onSearch() async {
     final q = _searchCtrl.text;
     if (q.isEmpty) {
       setState(() => _searchResults = []);
       return;
     }
+
+    // 1순위: 서버 ChromaDB (400개 음식)
+    try {
+      final apiResults = await ChatService.searchFood(q, k: 5);
+      if (apiResults.isNotEmpty) {
+        setState(() {
+          _searchResults = apiResults
+              .map((f) => MealFood(
+                    name: f.name,
+                    kcal: f.kcal,
+                    carb: f.carbG,
+                    protein: f.proteinG,
+                    fat: f.fatG,
+                  ))
+              .toList();
+        });
+        return;
+      }
+    } catch (_) {}
+
+    // 2순위: 로컬 SQLite (사용자가 직접 추가한 음식)
+    if (!mounted) return;
     final appState = context.read<AppState>();
     final dbResults = await appState.searchFoods(q);
     if (dbResults.isNotEmpty) {
@@ -159,7 +182,7 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
             .toList();
       });
     } else {
-      // 내장 음식 목록에서 검색
+      // 3순위: 내장 목록
       setState(() => _searchResults = _FoodDB.search(q));
     }
   }
@@ -170,18 +193,7 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
     final picked =
         await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
     if (picked == null) return;
-    setState(() {
-      _pickedImagePath = picked.path;
-      _state = _ScreenState.analyzing;
-    });
-    await Future.delayed(const Duration(milliseconds: 1400));
-    if (!mounted) return;
-    setState(() {
-      _detectedFoods
-        ..clear()
-        ..addAll(_FoodDB.aiDetected);
-      _state = _ScreenState.confirmed;
-    });
+    await _analyzeImage(picked.path);
   }
 
   // ── 갤러리 선택 ──
@@ -190,16 +202,46 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
     final picked =
         await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return;
+    await _analyzeImage(picked.path);
+  }
+
+  // ── YOLO API 호출 → 영양정보 조회 ──
+  Future<void> _analyzeImage(String imagePath) async {
     setState(() {
-      _pickedImagePath = picked.path;
+      _pickedImagePath = imagePath;
       _state = _ScreenState.analyzing;
     });
-    await Future.delayed(const Duration(milliseconds: 1400));
+
+    final detected = await ChatService.detectFoods(File(imagePath));
     if (!mounted) return;
+
+    List<MealFood> foods;
+    if (detected.isEmpty) {
+      // API 실패 또는 탐지 결과 없음 → 목업으로 폴백
+      foods = List.of(_FoodDB.aiDetected);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('AI 분석에 실패했습니다. 서버 연결을 확인해주세요.'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } else {
+      foods = detected
+          .map((f) => MealFood(
+                name: f.name,
+                kcal: f.kcal,
+                carb: f.carbG,
+                protein: f.proteinG,
+                fat: f.fatG,
+              ))
+          .toList();
+    }
+
     setState(() {
       _detectedFoods
         ..clear()
-        ..addAll(_FoodDB.aiDetected);
+        ..addAll(foods);
       _state = _ScreenState.confirmed;
     });
   }
