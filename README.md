@@ -84,14 +84,15 @@
 <p align="left">
   <img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=FastAPI&logoColor=white">
   <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=Python&logoColor=white">
-  <img src="https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=MySQL&logoColor=white">
+  <img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=SQLite&logoColor=white">
 </p>
 
 ###  AI & Data
 <p align="left">
   <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=PyTorch&logoColor=white">
   <img src="https://img.shields.io/badge/YOLOv11-FF6F00?style=for-the-badge&logo=fastapi&logoColor=white">
-  <img src="https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=OpenAI&logoColor=white">
+  <img src="https://img.shields.io/badge/Ollama-000000?style=for-the-badge&logo=ollama&logoColor=white">
+  <img src="https://img.shields.io/badge/ChromaDB-FF6B35?style=for-the-badge&logo=databricks&logoColor=white">
 </p>
 
 ###  DevOps & Tools
@@ -105,17 +106,7 @@
 
 ##  시스템 아키텍처
 
-```mermaid
-graph TD
-    User((사용자)) --> App[Flutter App]
-    App --> Server[FastAPI Server]
-    Server --> YOLO[YOLOv11 Detection]
-    Server --> DB[(MySQL)]
-    Server --> RAG[RAG + GPT Engine]
-    YOLO --> Server
-    DB --> Server
-    Server --> App
-```
+<img width="1326" height="889" alt="NutrAI 시스템 아키텍처" src="https://github.com/user-attachments/assets/3961caa2-3412-45be-b132-ec4797a85579" />
 
 
 
@@ -176,16 +167,23 @@ cd app
 flutter pub get
 flutter run
 ```
-### 3. Backend (FastAPI) 실행
+### 3. AI (Ollama) 실행
+```bash
+# Ollama 설치 후 모델 실행 (별도 터미널)
+ollama serve
+ollama pull qwen3:8b
+```
+
+### 4. Backend (FastAPI) 실행
 ```bash
 # 프로젝트 루트(NutrAI/)에서 실행
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r server/requirements.txt
-uvicorn server.main:app --reload
+python -m uvicorn server.main:app --host 0.0.0.0 --port 8000
 ```
 
-### 4. API 동작 확인
+### 5. API 동작 확인
 ```bash
 curl http://127.0.0.1:8000/health
 ```
@@ -195,33 +193,29 @@ curl http://127.0.0.1:8000/health
 NutrAI/
 ├── .github/                # GitHub Actions CI/CD 워크플로우
 ├── app/                    # Flutter 프론트엔드 (Dart)
-│   ├── android/            # 안드로이드 네이티브 설정
 │   ├── lib/
-│   │   ├── core/           # 공통 유틸, 테마, 라우터
-│   │   ├── features/       # 기능별 모듈 (촬영, 분석, 추천, 리포트)
-│   │   ├── models/         # 데이터 모델 (User, Meal 등)
-│   │   └── data/           # SQLite 로컬 캐시 처리
-│   └── pubspec.yaml        # Flutter 패키지 관리
+│   │   ├── core/           # 알레르기·영양 상수
+│   │   ├── database/       # SQLite DatabaseHelper
+│   │   ├── models/         # 데이터 모델 (User, Meal, Food 등)
+│   │   ├── providers/      # AppState, MealState, UserState (Provider)
+│   │   ├── repositories/   # DB CRUD (user, meal, food, chat)
+│   │   ├── screens/        # 화면 (홈, 캘린더, 채팅, 리포트 등)
+│   │   ├── services/       # 서버 API 통신 (chat, allergen)
+│   │   ├── theme/          # 앱 테마
+│   │   └── utils/          # 알레르기 체커, 채팅 파서
+│   └── pubspec.yaml
 ├── server/                 # FastAPI 백엔드 (Python)
-│   ├── api/                # API 엔드포인트 (/chat, /detect 등) 
-│   ├── core/               # 인증(JWT) 및 서버 설정
-│   ├── db/                 # MySQL 연결 및 ORM 설정
-│   ├── services/           # 비즈니스 로직 (영양 분석, 추천 알고리즘)
-│   └── requirements.txt    # 서버 라이브러리 목록
+│   ├── api/                # API 엔드포인트 (/chat, /detect, /recommend 등)
+│   ├── services/           # 비즈니스 로직 (meal_service 등)
+│   ├── tests/              # pytest 테스트
+│   └── requirements.txt
 ├── ai/                     # AI 모델 및 추론 로직
-│   ├── models/             # YOLOv11 가중치 파일 (.pt, .tflite)
-│   ├── scripts/            # 모델 학습 및 데이터 전처리 스크립트
-│   └── rag_engine/         # GPT-OSS + RAG 관련 프롬프트 및 벡터 DB
-├── docs/                   # 기획서, 보고서 및 테스트 케이스
-│   ├── planning/           # 아이디어 기획서 및 시스템 설계서
-│   ├── designs/            # 피그마(Figma) 링크 및 UI 설계도
-│   ├── test_cases/         # 단위/통합 테스트 명세서 (TC-MealLog-01 등)
-│   └── img/                # 문서용 이미지 폴더
-├── data/                   # 데이터셋 및 영양 DB
-│   ├── dataset/            # 한국 음식 이미지 샘플 (라벨링 데이터)
-│   └── nutrition_db/       # 한국식품영양성분표(KFDA) CSV/SQL
-├── .gitignore              # 깃 제외 목록 (API Key, 가상환경 등) 
-└── README.md               # 프로젝트 메인 대문
+│   ├── rag_engine/         # RAG 파이프라인 + ChromaDB
+│   └── scripts/            # 영양 DB 전처리, YOLO 학습 스크립트
+├── data/                   # 영양 DB (한국식품영양성분표)
+├── docs/                   # 기획서, 발표자료, 트러블슈팅
+├── .gitignore
+└── README.md
 ```
 
 <div align="center">
