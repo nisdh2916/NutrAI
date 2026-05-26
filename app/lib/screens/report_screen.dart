@@ -691,6 +691,7 @@ class _AiInsightCardState extends State<_AiInsightCard> {
       final stream = ChatService.streamMessage(
         message: widget.prompt,
         user: widget.user,
+        mode: 'report',
       );
       _sub = stream.listen(
         (chunk) {

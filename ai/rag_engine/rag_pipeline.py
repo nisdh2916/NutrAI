@@ -87,6 +87,18 @@ def get_collection():
 
 
 # ── 시스템 프롬프트 ────────────────────────────────
+# 리포트 분석용 — 음식 추천 없이 평문 요약만
+REPORT_SYSTEM_PROMPT = """한국어로만 답변하는 NutrAI 영양 분석 어시스턴트입니다.
+사용자의 식단 데이터를 바탕으로 전체적인 분석 보고서를 작성합니다.
+
+[답변 규칙 - 반드시 준수]
+- **, *, #, -, > 등 마크다운 기호를 절대 사용하지 마세요.
+- 개별 음식 항목을 하나씩 나열하거나 추천 목록 형식으로 답변하지 마세요.
+- 전체 식단 패턴을 통합하여 평문 3~4문장으로만 작성하세요.
+- 질환·알레르기 정보를 반영하여 맞춤형 분석을 제공하세요.
+- 의료적 확정 표현은 사용하지 말고 권고 표현을 사용하세요."""
+
+# 일반 챗봇용 — 음식 추천 포맷 강제
 # {context}를 제거하고 HumanMessage에 구조화된 섹션으로 전달
 SYSTEM_PROMPT = """한국어로만 답변하는 NutrAI 영양 코치입니다.
 반드시 [참고 영양 정보]에 있는 식품 데이터를 바탕으로 추천하세요. 목록에 없는 음식은 추천하지 마세요.
@@ -375,13 +387,25 @@ def build_messages(
     user_query: str,
     user_profile: dict,
     meal_history: list[dict] | None = None,
+    mode: str = "chat",
 ) -> list:
     """
     ChatOllama용 메시지 리스트 반환
 
     HumanMessage 구조:
       [사용자 정보] / [식단 현황] / [참고 영양 정보] / 사용자 질문
+    mode='report': 리포트 분석용 — RAG 컨텍스트 생략, 분석 프롬프트 사용
     """
+    if mode == "report":
+        sections = [
+            _build_profile_str(user_profile),
+            f"분석 요청: {user_query}",
+        ]
+        return [
+            SystemMessage(content=REPORT_SYSTEM_PROMPT),
+            HumanMessage(content="\n\n".join(sections)),
+        ]
+
     sections = [
         _build_profile_str(user_profile),
         _build_meal_status_str(user_profile, meal_history),
@@ -619,12 +643,20 @@ def stream_recommendation(
     detected_foods: list[str] | None = None,
     meal_history: list[dict] | None = None,
     k: int = 5,
+    mode: str = "chat",
 ):
     """
     스트리밍 버전 오케스트레이터.
 
-    전처리 → 검색 → 생성(_stream_ollama_raw) → 후처리 경고 yield
+    mode='report': RAG 검색 생략, 리포트 분석 프롬프트 사용
+    mode='chat'  : 전처리 → 검색 → 생성 → 후처리 경고 yield
     """
+    if mode == "report":
+        messages = build_messages("", user_query, user_profile, mode="report")
+        for chunk in _stream_ollama_raw(messages):
+            yield chunk
+        return
+
     remaining_kcal, _, queries = _preprocess_query(
         user_query, user_profile, detected_foods, meal_history
     )

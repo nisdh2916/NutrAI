@@ -25,6 +25,7 @@ class ChatService {
     UserProfileEntity? user,
     List<String> detectedFoods, {
     List<Map<String, dynamic>>? mealHistory,
+    String mode = 'chat',
   }) => {
     'message': message,
     'user_profile': {
@@ -39,6 +40,7 @@ class ChatService {
       'target_kcal': user?.targetKcal,
     },
     'detected_foods': detectedFoods,
+    'mode': mode,
     if (mealHistory != null) 'meal_history': mealHistory,
   };
 
@@ -47,10 +49,11 @@ class ChatService {
     UserProfileEntity? user,
     List<String> detectedFoods = const [],
     List<Map<String, dynamic>>? mealHistory,
+    String mode = 'chat',
   }) async* {
     final request = http.Request('POST', Uri.parse('$_baseUrl/chat/stream'));
     request.headers['Content-Type'] = 'application/json; charset=utf-8';
-    request.body = jsonEncode(_buildBody(message, user, detectedFoods, mealHistory: mealHistory));
+    request.body = jsonEncode(_buildBody(message, user, detectedFoods, mealHistory: mealHistory, mode: mode));
 
     final client = http.Client();
     String buffer = '';
