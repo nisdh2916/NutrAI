@@ -1,0 +1,77 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.db
+*.swp
+.DS_Store
+__pycache__/
+.pytest_cache/
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+.venv/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+**/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Local run output
+*_out.txt
+*_err.txt
+
+# Generated local vector stores
+ai/rag_engine/chroma_db/
+
+app/build/
+android/.gradle/
+.metadata
+
+# ChromaDB 벡터 DB (빌드 산출물)
+ai/rag_engine/chroma_db/
+ai/rag_engine/build_checkpoint.json
+
+# 영양 DB 원본 데이터 (대용량, git 미포함)
+data/nutrition_db/*.xlsx
+data/nutrition_db/*.csv
+
+# 개인 AI 도구 설정 (Claude Code, Junie, Impeccable)
+.claude/
+.agents/
+.junie/
+skills-lock.json
+.impeccable.md
