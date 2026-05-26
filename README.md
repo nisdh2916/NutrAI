@@ -26,7 +26,7 @@
 | 이름 | 직책 | 역할 | 담당 업무 |
 | :---: | :---: | :--- | :--- |
 | **김영서** | 팀장 | **App / PM** | Flutter 앱 개발, UI/UX 설계, 전체 일정 관리 |
-| **김서연** | 팀원 | **BackEnd** | FastAPI 서버 구축, DB 설계, API 명세서 작성 |
+| **김서현** | 팀원 | **BackEnd** | FastAPI 서버 구축, DB 설계, API 명세서 작성 |
 | **신동하** | 팀원 | **AI / Data** | YOLOv11 모델 학습, 영양 DB 전처리, RAG 엔진 최적화 |
 | **이호연** | 팀원 | **BackEnd** | FastAPI 서버 구축, DB 설계, API 명세서 작성 |
 | **최영수** | 팀원 | **AI / Data** | YOLOv11 모델 학습, 영양 DB 전처리, RAG 엔진 최적화 |
@@ -105,18 +105,7 @@
 
 ##  시스템 아키텍처
 
-```mermaid
-graph TD
-    User((사용자)) --> App[Flutter App]
-    App --> Server[FastAPI Server]
-    Server --> YOLO[YOLOv11 Detection]
-    Server --> DB[(MySQL)]
-    Server --> RAG[RAG + GPT Engine]
-    YOLO --> Server
-    DB --> Server
-    Server --> App
-```
-
+<img width="1326" height="889" alt="스크린샷 2026-05-06 122436" src="https://github.com/user-attachments/assets/3961caa2-3412-45be-b132-ec4797a85579" />
 
 
 
