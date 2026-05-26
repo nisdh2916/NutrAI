@@ -136,7 +136,7 @@ class _CalendarScreenState extends State<CalendarScreen>
       context,
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => FoodAddScreen(initialMealLabel: label),
+        builder: (_) => FoodAddScreen(initialMealLabel: label, initialDate: _selected),
       ),
     );
   }
