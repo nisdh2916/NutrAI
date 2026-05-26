@@ -741,3 +741,129 @@ body data(몸무게/나이)가 있을 때만 자동 계산, 없으면 0(제한 �
 ChromaDB 재빌드 필요 (`python ai/scripts/build_nutrition_db.py`).
 
 **관련 파일:** `ai/scripts/build_nutrition_db.py` → `tag_row()`
+
+---
+
+## 29. RAG 챗봇이 같은 음식에 대해 다른 칼로리를 반환 (된장찌개 125kcal vs 250kcal)
+
+**증상:** 같은 음식(된장찌개)을 다른 대화에서 물었을 때 응답 칼로리가 다름 (125kcal / 250kcal). 이전에 수정한 40kcal 표시 버그(#항목)와는 별개로 계속 불일치가 발생함.
+
+**원인:**
+1. ChromaDB에 `된장찌개` (46kcal/100g), `된장찌개_냉이` (19kcal), `된장찌개_달래` (35kcal) 등 여러 항목이 존재 — 쿼리마다 다른 항목이 검색됨
+2. LLM(qwen3:8b, temperature=0.6)이 SYSTEM_PROMPT의 "× 2.5" 배율 지시를 비결정적으로 적용하여 같은 기준값에서도 다른 결과 출력
+
+**해결:**
+```python
+# 변경 전: LLM이 100g 값을 직접 받아 스스로 배율 계산
+context = "\n".join(f"{i}. {doc.replace('|', ', ')}" for i, doc in enumerate(docs, 1))
+
+# SYSTEM_PROMPT에 배율 지시
+# 국·찌개류: 1인분 약 250g → 100g 칼로리 × 2.5
+# ...
+
+# 변경 후: _format_context()에서 미리 계산하여 컨텍스트에 포함
+_SERVING_MULTIPLIER = {
+    "찌개 및 전골류": 2.5,
+    "국 및 탕류": 2.5,
+    "밥류": 2.1,
+    # ...
+}
+
+def _add_serving_kcal(doc: str) -> str:
+    # 카테고리 → 배율 → 1인분 kcal 계산 후 문서에 추가
+    # 예: "된장찌개 | 칼로리 46kcal | ... | 1인분 기준: 115kcal (2.5배 환산)"
+    ...
+
+# SYSTEM_PROMPT 변경
+# "1인분 기준 값이 이미 계산되어 있습니다. 그 값을 그대로 사용하세요."
+```
+
+**관련 파일:** `ai/rag_engine/rag_pipeline.py` → `_add_serving_kcal()`, `_format_context()`, `SYSTEM_PROMPT`
+
+---
+
+## 30. RAG 임베딩 검색이 음식명 직접 질문에서 완전히 엉뚱한 문서를 반환
+
+**증상:** "된장찌개 칼로리가 얼마야?" 질문에 LLM이 "데이터에 없다"고 답변. 실제로 ChromaDB에는 된장찌개 항목이 있음.
+
+**원인:**
+1. ChromaDB 컬렉션이 L2 거리(`hnsw:space: l2`)를 사용하고 임베딩이 non-normalized → 거리값이 250+ 로 비정상적으로 큼 (정상 범위: 0~2)
+2. KR-SBERT로 "된장찌개 칼로리가 얼마야?"를 임베딩하면 구조화 데이터 문서 "된장찌개 | 분류: 찌개 및 전골류 | 칼로리 46.0kcal | ..."와 semantic similarity가 낮음 → 엉뚱한 문서(볶음밥, 샌드위치)를 top-k로 반환
+
+**해결:**
+```python
+# 변경 전: 임베딩 검색만 사용
+best_dist: dict[str, float] = {}
+for q in queries:
+    docs, dists = _search_single(q, k * FETCH_MULTIPLIER)
+    ...
+
+# 변경 후: 하이브리드 검색 (키워드 직접 매칭 + 임베딩)
+# 1단계: where_document.$contains로 음식명 키워드가 포함된 문서 직접 확보
+keyword_docs = []
+for q in queries:
+    for kw in _extract_food_keywords(q):
+        for doc in _search_by_keyword(kw, k):
+            keyword_docs.append(doc)
+
+# 2단계: 임베딩 검색 결과와 합쳐서 키워드 결과 우선 배치
+merged = keyword_docs + filtered (중복 제거)
+
+# 직접 영양 질문 감지 → LLM 우회, RAG 데이터 즉시 반환
+if _NUTRITION_QUESTION_RE.search(user_query):
+    for kw in _extract_food_keywords(user_query):
+        direct = _build_direct_nutrition_answer(kw, retrieved_docs)
+        if direct:
+            return {"answer": direct, ...}
+```
+
+**관련 파일:** `ai/rag_engine/rag_pipeline.py` → `_search_by_keyword()`, `_extract_food_keywords()`, `_build_direct_nutrition_answer()`, `_retrieve_multi()`, `stream_recommendation()`
+
+---
+
+## 31. 채팅 응답에 "음식명 (칼로리: Xkcal)" 플레이스홀더가 그대로 출력됨
+
+**증상:** 채팅 화면에 실제 음식명 대신 "음식명 (칼로리: 185kcal)" 또는 "**음식명** 현미밥 (칼로리: 130kcal)" 형태로 출력됨
+
+**원인:** qwen3:8b가 SYSTEM_PROMPT의 포맷 예시 `**음식명**`을 플레이스홀더로 인식하지 못하고 그대로 출력하거나, 레이블처럼 앞에 붙이는 동작을 보임
+
+**해결:**
+```python
+# post_process() 및 stream_recommendation()에서 아티팩트 제거
+_ARTIFACT_LABEL_RE = re.compile(
+    r"\*\*(음식명|실제 음식 이름|...)\*\*\s+(?!\()([^(\n]+?)\s*(\([^\n]*)?"
+)
+
+def _remove_format_artifacts(text: str) -> str:
+    # 패턴 A: "**음식명** 현미밥 (칼로리: 315kcal)" → "**현미밥** (칼로리: 315kcal)"
+    text = _ARTIFACT_LABEL_RE.sub(lambda m: f"**{m.group(2).strip()}**{...}", text)
+    # 패턴 B: "**음식명** (칼로리: Xkcal)" → 줄 전체 제거
+    text = _ARTIFACT_EMPTY_RE.sub("", text)
+    return text
+```
+
+**관련 파일:** `ai/rag_engine/rag_pipeline.py` → `_remove_format_artifacts()`, `post_process()`, `stream_recommendation()`
+
+---
+
+## 32. 채팅 스트리밍 중 칼로리 텍스트가 "(칼"에서 잘림
+
+**증상:** 스트리밍 응답 중 "닭가슴살 샐러드 (칼" 처럼 칼로리 텍스트가 "(칼"에서 잘려 표시됨
+
+**원인:** `_remove_format_artifacts()`가 **부분 LLM 청크**에 적용되는 문제. 구 스트리밍 코드는 LLM 토큰을 하나씩 Flutter에 전달할 때마다 아티팩트 제거를 실행했음. 이때 청크가 `**음식명** 닭가슴살 샐러드 (칼`처럼 잘린 상태이면 `_ARTIFACT_LABEL_RE`의 `(\([^\n]*)?` 그룹이 불완전한 `(칼`만 캡처하고, 나머지 `로리: 135kcal)`는 아직 도착하지 않았으므로 최종 출력이 `**닭가슴살 샐러드** (칼`로 잘림.
+
+**해결:** `stream_recommendation()`에서 모든 LLM 청크를 먼저 모두 수집한 뒤, 완성된 텍스트에 한 번만 `_remove_format_artifacts()`를 적용하고 하나의 SSE 이벤트로 전달:
+```python
+# 변경 전 (부분 청크마다 아티팩트 제거 → 잘림 발생)
+for chunk in _stream_ollama_raw(messages):
+    yield _remove_format_artifacts(chunk)
+
+# 변경 후 (전체 수집 후 한 번에 처리)
+raw_chunks: list[str] = []
+for chunk in _stream_ollama_raw(messages):
+    raw_chunks.append(chunk)
+full_response = _remove_format_artifacts("".join(raw_chunks))
+yield full_response
+```
+
+**관련 파일:** `ai/rag_engine/rag_pipeline.py` → `stream_recommendation()`
