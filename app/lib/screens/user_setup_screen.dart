@@ -16,7 +16,7 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _nameCtrl;
-  late final TextEditingController _ageCtrl;
+  late final TextEditingController _birthYearCtrl;
   final TextEditingController _heightCtrl = TextEditingController();
   final TextEditingController _weightCtrl = TextEditingController();
   late final TextEditingController _allergyCtrl;
@@ -30,8 +30,11 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.profile.name);
-    _ageCtrl = TextEditingController(
-      text: widget.profile.age != null ? widget.profile.age.toString() : '',
+    final currentYear = DateTime.now().year;
+    _birthYearCtrl = TextEditingController(
+      text: widget.profile.age != null
+          ? (currentYear - widget.profile.age!).toString()
+          : '',
     );
     _selectedGender = widget.profile.gender;
     _selectedGoal = widget.profile.goal;
@@ -43,7 +46,7 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _ageCtrl.dispose();
+    _birthYearCtrl.dispose();
     _heightCtrl.dispose();
     _weightCtrl.dispose();
     _allergyCtrl.dispose();
@@ -62,8 +65,9 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   double? get _bmr {
     final h = double.tryParse(_heightCtrl.text);
     final w = double.tryParse(_weightCtrl.text);
-    final age = int.tryParse(_ageCtrl.text);
-    if (h == null || w == null || age == null) return null;
+    final birthYear = int.tryParse(_birthYearCtrl.text);
+    if (h == null || w == null || birthYear == null) return null;
+    final age = DateTime.now().year - birthYear;
     return _selectedGender == '남'
         ? 88.362 + (13.397 * w) + (4.799 * h) - (5.677 * age)
         : 447.593 + (9.247 * w) + (3.098 * h) - (4.330 * age);
@@ -94,10 +98,11 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   void _onNext() {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
+    final birthYear = int.tryParse(_birthYearCtrl.text);
     final profile = UserProfile(
       name: _nameCtrl.text.trim(),
       gender: _selectedGender,
-      age: int.tryParse(_ageCtrl.text),
+      age: birthYear != null ? DateTime.now().year - birthYear : null,
       height: double.tryParse(_heightCtrl.text),
       weight: double.tryParse(_weightCtrl.text),
       goal: _selectedGoal,
@@ -153,25 +158,26 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
             ),
             const SizedBox(height: 22),
 
-            // ── 나이 ──
+            // ── 출생연도 ──
             _HorizField(
-              label: '나이',
+              label: '출생연도',
               child: Row(children: [
                 Expanded(
                   child: _InlineInput(
-                    controller: _ageCtrl,
+                    controller: _birthYearCtrl,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     onChanged: (_) => setState(() {}),
                     validator: (v) {
                       final n = int.tryParse(v ?? '');
-                      if (n == null || n <= 0 || n > 120) return '올바른 나이';
+                      final currentYear = DateTime.now().year;
+                      if (n == null || n < 1900 || n > currentYear) return '올바른 출생연도';
                       return null;
                     },
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Text('세',
+                const Text('년',
                     style: TextStyle(
                         fontSize: 15, color: AppColors.textSecondary)),
               ]),
