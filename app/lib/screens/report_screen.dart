@@ -8,6 +8,7 @@ import '../models/meal_models.dart';
 import '../providers/app_state.dart';
 import '../services/chat_service.dart';
 import '../theme/app_theme.dart';
+import 'food_add_screen.dart';
 
 // 공용 헬퍼
 MealRecord _toRecord(MealWithFoods mwf) => MealRecord(
@@ -39,7 +40,8 @@ Widget _buildLoading() => const Center(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 class ReportScreen extends StatefulWidget {
   final String userName;
-  const ReportScreen({super.key, this.userName = '사용자'});
+  final ValueChanged<DateTime>? onDateChanged;
+  const ReportScreen({super.key, this.userName = '사용자', this.onDateChanged});
 
   @override
   State<ReportScreen> createState() => _ReportScreenState();
@@ -73,13 +75,22 @@ class _ReportScreenState extends State<ReportScreen>
           children: [
             _DailyTab(
                 selected: _selected,
-                onDateChanged: (d) => setState(() => _selected = d)),
+                onDateChanged: (d) {
+                  setState(() => _selected = d);
+                  widget.onDateChanged?.call(d);
+                }),
             _WeeklyTab(
                 selected: _selected,
-                onDateChanged: (d) => setState(() => _selected = d)),
+                onDateChanged: (d) {
+                  setState(() => _selected = d);
+                  widget.onDateChanged?.call(d);
+                }),
             _MonthlyTab(
                 selected: _selected,
-                onDateChanged: (d) => setState(() => _selected = d)),
+                onDateChanged: (d) {
+                  setState(() => _selected = d);
+                  widget.onDateChanged?.call(d);
+                }),
           ],
         ),
       ),
@@ -288,6 +299,19 @@ class _DailyTabState extends State<_DailyTab> {
     if (mounted) setState(() => _data = data);
   }
 
+  void _openFoodAdd(String label) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => FoodAddScreen(
+          initialMealLabel: label,
+          initialDate: widget.selected,
+        ),
+      ),
+    ).then((_) => _load(widget.selected));
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_data == null) return _buildLoading();
@@ -319,7 +343,7 @@ class _DailyTabState extends State<_DailyTab> {
                     color: AppColors.textMuted,
                     letterSpacing: 0)),
             const SizedBox(height: 14),
-            _MealThumbnailRow(meals: meals),
+            _MealThumbnailRow(meals: meals, onRecordMeal: _openFoodAdd),
             const SizedBox(height: 14),
             _NutritionCard(
               totalKcal: totalK,
@@ -346,7 +370,8 @@ class _DailyTabState extends State<_DailyTab> {
 // ── 끼니 썸네일 행 ─────────────────────────────────
 class _MealThumbnailRow extends StatelessWidget {
   final List<MealRecord> meals;
-  const _MealThumbnailRow({required this.meals});
+  final ValueChanged<String>? onRecordMeal;
+  const _MealThumbnailRow({required this.meals, this.onRecordMeal});
 
   static const _labels = ['아침', '점심', '저녁'];
   static const _times = ['08:30', '12:30', '19:00'];
@@ -371,51 +396,58 @@ class _MealThumbnailRow extends StatelessWidget {
         return Expanded(
           child: Padding(
             padding: EdgeInsets.only(right: i < 2 ? 10 : 0),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
+            child: Material(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              child: InkWell(
+                onTap: () => onRecordMeal?.call(_labels[i]),
                 borderRadius: BorderRadius.circular(AppRadius.lg),
-                boxShadow: AppShadows.card,
-              ),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: meal != null ? soft : AppColors.lineSoft,
-                        borderRadius: BorderRadius.circular(AppRadius.sm),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          meal != null
-                              ? Icons.restaurant_rounded
-                              : Icons.add_rounded,
-                          size: 18,
-                          color: meal != null ? color : AppColors.textMuted,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    boxShadow: AppShadows.card,
+                  ),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: meal != null ? soft : AppColors.lineSoft,
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
+                          ),
+                          child: Center(
+                            child: Icon(
+                              meal != null
+                                  ? Icons.restaurant_rounded
+                                  : Icons.add_rounded,
+                              size: 18,
+                              color: meal != null ? color : AppColors.textMuted,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(_labels[i],
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: meal != null ? color : AppColors.textMuted)),
-                    Text(meal != null ? _times[i] : '—',
-                        style: const TextStyle(
-                            fontSize: 10, color: AppColors.textMuted)),
-                    if (meal != null) ...[
-                      const SizedBox(height: 4),
-                      Text('${meal.totalKcal.round()}kcal',
-                          style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSub)),
-                    ],
-                  ]),
+                        const SizedBox(height: 8),
+                        Text(_labels[i],
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: meal != null ? color : AppColors.textMuted)),
+                        Text(meal != null ? _times[i] : '—',
+                            style: const TextStyle(
+                                fontSize: 10, color: AppColors.textMuted)),
+                        if (meal != null) ...[
+                          const SizedBox(height: 4),
+                          Text('${meal.totalKcal.round()}kcal',
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSub)),
+                        ],
+                      ]),
+                ),
+              ),
             ),
           ),
         );
@@ -567,7 +599,8 @@ String _buildDailyPrompt(List<MealRecord> meals, double kcal,
       '칼로리 ${kcal.round()}kcal · 탄수화물 ${carb.round()}g($cPct%) · '
       '단백질 ${protein.round()}g($pPct%) · 지방 ${fat.round()}g($fPct%)\n'
       '식사: $mealStr\n'
-      '영양 균형 평가와 구체적인 개선 조언을 2~3문장으로 해주세요. '
+      '마크다운(**, *, # 등) 사용 금지. 음식을 항목별로 나열하지 말고, '
+      '전체 식단의 영양 균형 평가와 구체적인 개선 조언을 2~3문장 평문으로만 작성해주세요. '
       '사용자 건강 목표와 상태를 반영해 맞춤 분석해주세요.';
 }
 

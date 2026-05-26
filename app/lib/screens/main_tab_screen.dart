@@ -18,6 +18,7 @@ class MainTabScreen extends StatefulWidget {
 
 class _MainTabScreenState extends State<MainTabScreen> {
   int _currentIndex = 0;
+  DateTime _reportDate = DateTime.now();
   late final List<Widget> _screens;
 
   @override
@@ -28,7 +29,10 @@ class _MainTabScreenState extends State<MainTabScreen> {
       HomeScreen(profile: widget.profile, onGoToCalendar: () => _setTab(1), onGoToSettings: _navigateToSettings),
       CalendarScreen(onGoToReport: () => _setTab(3)),
       const SizedBox.shrink(),
-      ReportScreen(userName: name),
+      ReportScreen(
+        userName: name,
+        onDateChanged: (d) => setState(() => _reportDate = d),
+      ),
       RecommendScreen(userName: name),
     ];
   }
@@ -54,11 +58,12 @@ class _MainTabScreenState extends State<MainTabScreen> {
   void _onFabTap() {
     final hour  = DateTime.now().hour;
     final label = hour < 10 ? '아침' : hour < 15 ? '점심' : hour < 21 ? '저녁' : '기타';
+    final date  = _currentIndex == 3 ? _reportDate : DateTime.now();
     Navigator.push(
       context,
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => FoodAddScreen(initialMealLabel: label),
+        builder: (_) => FoodAddScreen(initialMealLabel: label, initialDate: date),
       ),
     );
   }
