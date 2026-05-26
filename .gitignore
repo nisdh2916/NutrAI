@@ -69,9 +69,15 @@ ai/rag_engine/build_checkpoint.json
 data/nutrition_db/*.xlsx
 data/nutrition_db/*.csv
 
+# KDRI 가이드라인 PDF (대용량, git 미포함)
+data/guidelines/*.pdf
+
 # 개인 AI 도구 설정 (Claude Code, Junie, Impeccable)
 .claude/
 .agents/
 .junie/
 skills-lock.json
 .impeccable.md
+
+# Flutter DevTools 자동 생성 파일
+app/devtools_options.yaml
