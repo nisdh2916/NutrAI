@@ -619,7 +619,7 @@ class _TipBannerState extends State<_TipBanner> {
             else
               Text(
                 _loading ? '$_tip▌' : _tip,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500,
                     color: Color(0xFF78350F), height: 1.4),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
