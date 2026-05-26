@@ -1,18 +1,20 @@
 class UserProfile {
   String name;
-  String gender; // '남' or '여'
-  int? age;
-  double? height; // cm
-  double? weight; // kg
-  String goal;           // '다이어트', '체중 유지', '근육 증진', '건강 관리'
-  String activityLevel;  // '낮음', '보통', '높음'
-  String allergy;        // 쉼표 구분: '유제품, 견과류'
-  String condition;      // 쉼표 구분: '당뇨, 고혈압'
+  String gender;
+  int? age;           // fallback (birthDate 없을 때만 사용)
+  DateTime? birthDate;
+  double? height;
+  double? weight;
+  String goal;
+  String activityLevel;
+  String allergy;
+  String condition;
 
   UserProfile({
     this.name = '',
     this.gender = '남',
     this.age,
+    this.birthDate,
     this.height,
     this.weight,
     this.goal = '다이어트',
@@ -21,6 +23,36 @@ class UserProfile {
     this.condition = '',
   });
 
+  // 만나이: 생일이 지났으면 (올해 - 출생연도), 아직이면 -1
+  int? get internationalAge {
+    if (birthDate != null) {
+      final now = DateTime.now();
+      int a = now.year - birthDate!.year;
+      if (now.month < birthDate!.month ||
+          (now.month == birthDate!.month && now.day < birthDate!.day)) {
+        a--;
+      }
+      return a;
+    }
+    return age;
+  }
+
+  // 세는 나이: 태어난 해 기준 + 1
+  int? get koreanAge {
+    if (birthDate != null) return DateTime.now().year - birthDate!.year + 1;
+    if (age != null) return age! + 1;
+    return null;
+  }
+
+  // "XX세 (만 XX세)" — 두 값이 같으면 괄호 생략
+  String get ageDisplayText {
+    final k = koreanAge;
+    final i = internationalAge;
+    if (k == null) return '—';
+    if (i != null && i != k) return '$k세 (만 $i세)';
+    return '$k세';
+  }
+
   double? get bmi {
     if (height == null || weight == null || height! <= 0) return null;
     final h = height! / 100;
@@ -28,13 +60,12 @@ class UserProfile {
   }
 
   double? get bmr {
-    if (height == null || weight == null || age == null) return null;
-    // Mifflin-St Jeor Equation
-    if (gender == '남') {
-      return 88.362 + (13.397 * weight!) + (4.799 * height!) - (5.677 * age!);
-    } else {
-      return 447.593 + (9.247 * weight!) + (3.098 * height!) - (4.330 * age!);
-    }
+    if (height == null || weight == null) return null;
+    final a = internationalAge;
+    if (a == null) return null;
+    return gender == '남'
+        ? 88.362 + (13.397 * weight!) + (4.799 * height!) - (5.677 * a)
+        : 447.593 + (9.247 * weight!) + (3.098 * height!) - (4.330 * a);
   }
 
   String get bmiCategory {
