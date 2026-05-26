@@ -12,7 +12,6 @@ from server.api.routes_chat import router as chat_router
 from server.api.routes_food import router as food_router
 from server.api.routes_recommend import router as recommend_router
 from server.api.routes_profile import router as profile_router
-from server.api.routes_camera import router as camera_router
 
 logger = logging.getLogger(__name__)
 
@@ -52,4 +51,3 @@ app.include_router(chat_router)
 app.include_router(food_router)
 app.include_router(recommend_router)
 app.include_router(profile_router)
-app.include_router(camera_router)
