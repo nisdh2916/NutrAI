@@ -64,10 +64,10 @@ class UserProfileEntity {
     nickname:      m['nickname'] as String,
     gender:        m['gender'] as String?,
     age:           m['age'] as int?,
-    heightCm:      m['height_cm'] != null ? (m['height_cm'] as num).toDouble() : null,
-    weightKg:      m['weight_kg'] != null ? (m['weight_kg'] as num).toDouble() : null,
+    heightCm:      m['height_cm'] as double?,
+    weightKg:      m['weight_kg'] as double?,
     activityLevel: m['activity_level'] as String?,
-    targetKcal:    m['target_kcal'] != null ? (m['target_kcal'] as num).toDouble() : null,
+    targetKcal:    m['target_kcal'] as double?,
     goal:          m['goal'] as String?,
     allergy:       m['allergy'] as String?,
     condition:     m['condition'] as String?,
@@ -240,45 +240,6 @@ class MealEntity {
     'photo_path': photoPath,
     'created_at': createdAt,
     'updated_at': updatedAt,
-  };
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// local_user_allergy 테이블
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-class UserAllergyEntity {
-  final int? id;
-  final int userId;
-  final String allergyCode;
-  final String allergyName;
-  final String createdAt;
-  final String updatedAt;
-
-  const UserAllergyEntity({
-    this.id,
-    required this.userId,
-    required this.allergyCode,
-    required this.allergyName,
-    required this.createdAt,
-    required this.updatedAt,
-  });
-
-  factory UserAllergyEntity.fromMap(Map<String, dynamic> m) => UserAllergyEntity(
-    id:           m['id'] as int?,
-    userId:       m['user_id'] as int,
-    allergyCode:  m['allergy_code'] as String,
-    allergyName:  m['allergy_name'] as String,
-    createdAt:    m['created_at'] as String,
-    updatedAt:    m['updated_at'] as String,
-  );
-
-  Map<String, dynamic> toMap() => {
-    if (id != null) 'id': id,
-    'user_id':      userId,
-    'allergy_code': allergyCode,
-    'allergy_name': allergyName,
-    'created_at':   createdAt,
-    'updated_at':   updatedAt,
   };
 }
 
