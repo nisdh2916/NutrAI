@@ -73,12 +73,14 @@ def _doc_to_result(doc: str) -> FoodSearchResult:
 def get_food_search(
     q: str = Query(..., min_length=1, description="검색어"),
     k: int = Query(5, ge=1, le=20, description="결과 수"),
+    collection: str = Query("nutrition", pattern="^(nutrition|detection)$",
+                            description="조회 컬렉션 — nutrition(검색/추천) | detection(YOLO 탐지 매핑)"),
 ) -> FoodSearchResponse:
     """ChromaDB에서 음식 검색 — 이름 직접 포함 우선, 시맨틱으로 보완"""
     try:
-        from ai.rag_engine.rag_pipeline import get_collection, _get_embed_model
+        from ai.rag_engine.rag_pipeline import get_collection as _get_collection, _get_embed_model
 
-        collection = get_collection()
+        collection = _get_collection(collection)
         total = collection.count()
 
         # 1단계: 음식명 직접 포함 검색

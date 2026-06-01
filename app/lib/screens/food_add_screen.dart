@@ -8,6 +8,7 @@ import '../models/db_models.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import '../services/allergen_service.dart';
+import '../services/chat_service.dart';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 음식 DB
@@ -170,18 +171,7 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
     final picked =
         await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
     if (picked == null) return;
-    setState(() {
-      _pickedImagePath = picked.path;
-      _state = _ScreenState.analyzing;
-    });
-    await Future.delayed(const Duration(milliseconds: 1400));
-    if (!mounted) return;
-    setState(() {
-      _detectedFoods
-        ..clear()
-        ..addAll(_FoodDB.aiDetected);
-      _state = _ScreenState.confirmed;
-    });
+    await _analyzeImage(picked.path);
   }
 
   // ── 갤러리 선택 ──
@@ -190,16 +180,47 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
     final picked =
         await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return;
+    await _analyzeImage(picked.path);
+  }
+
+  // ── YOLO(/detect) 호출 → detection 컬렉션에서 영양정보 매핑 ──
+  Future<void> _analyzeImage(String imagePath) async {
     setState(() {
-      _pickedImagePath = picked.path;
+      _pickedImagePath = imagePath;
       _state = _ScreenState.analyzing;
     });
-    await Future.delayed(const Duration(milliseconds: 1400));
+
+    final detected = await ChatService.detectFoods(File(imagePath));
+    if (!mounted) return;
+
+    List<MealFood> foods;
+    if (detected.isEmpty) {
+      // /detect 실패 또는 탐지 결과 없음 → 목업 폴백 + 안내
+      foods = List.of(_FoodDB.aiDetected);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('AI 분석에 실패했습니다. 서버 연결을 확인해주세요.'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } else {
+      foods = detected
+          .map((f) => MealFood(
+                name: f.name,
+                kcal: f.kcal,
+                carb: f.carbG,
+                protein: f.proteinG,
+                fat: f.fatG,
+              ))
+          .toList();
+    }
+
     if (!mounted) return;
     setState(() {
       _detectedFoods
         ..clear()
-        ..addAll(_FoodDB.aiDetected);
+        ..addAll(foods);
       _state = _ScreenState.confirmed;
     });
   }

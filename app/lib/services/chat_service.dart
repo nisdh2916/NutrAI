@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../models/chat_models.dart';
 import '../models/db_models.dart';
@@ -19,6 +20,7 @@ class ChatService {
   static const Duration _profileTimeout  = Duration(seconds: 60);
   static const Duration _searchTimeout   = Duration(seconds: 15);
   static const Duration _recommendTimeout = Duration(seconds: 120);
+  static const Duration _detectTimeout   = Duration(seconds: 30);
 
   static Map<String, dynamic> _buildBody(
     String message,
@@ -144,10 +146,39 @@ class ChatService {
     }).toList();
   }
 
+  /// 이미지를 /detect(YOLO)에 전송 → 탐지된 음식명을 detection 컬렉션에서 영양정보로 매핑
+  static Future<List<FoodNutrition>> detectFoods(File imageFile) async {
+    final bytes = await imageFile.readAsBytes();
+    final request = http.MultipartRequest('POST', Uri.parse('$_baseUrl/detect'));
+    request.files.add(http.MultipartFile.fromBytes(
+      'image',
+      bytes,
+      filename: imageFile.path.split(RegExp(r'[/\\]')).last,
+    ));
+    try {
+      final streamed = await request.send().timeout(_detectTimeout);
+      if (streamed.statusCode != 200) return [];
+      final body = jsonDecode(await streamed.stream.bytesToString()) as Map<String, dynamic>;
+      final rawList = (body['detections'] as List?) ?? [];
+      final results = <FoodNutrition>[];
+      for (final d in rawList) {
+        final name = (d['food_name'] as String?) ?? '';
+        if (name.isEmpty) continue;
+        // YOLO 클래스명은 detection 컬렉션(400개)에서 영양정보 조회
+        final found = await searchFood(name, collection: 'detection');
+        results.add(found.isNotEmpty ? found.first : FoodNutrition(name: name));
+      }
+      return results;
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// 음식 이름으로 영양정보 검색
-  static Future<List<FoodNutrition>> searchFood(String query) async {
+  /// collection: 'nutrition'(검색/추천 기본) | 'detection'(YOLO 탐지 매핑)
+  static Future<List<FoodNutrition>> searchFood(String query, {String collection = 'nutrition'}) async {
     final res = await http.get(
-      Uri.parse('$_baseUrl/food/search?q=${Uri.encodeComponent(query)}&k=1'),
+      Uri.parse('$_baseUrl/food/search?q=${Uri.encodeComponent(query)}&k=1&collection=$collection'),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
     ).timeout(_searchTimeout);
 

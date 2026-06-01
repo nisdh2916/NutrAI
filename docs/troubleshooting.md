@@ -1047,3 +1047,29 @@ padding: EdgeInsets.fromLTRB(12, 10, 12, MediaQuery.of(context).padding.bottom +
 ```
 
 **관련 파일:** `app/lib/screens/onboarding_chat_screen.dart` → `_buildInputBar()`
+
+---
+
+## 40. YOLO 탐지 결과가 영양정보로 매핑되지 않음 + 카메라 탐지가 목업
+
+**증상:** ① 카메라로 음식을 찍어도 실제 YOLO(`/detect`)가 호출되지 않고 하드코딩된 음식 목록이 표시됨. ② 영양 검색/추천이 쓰는 ChromaDB(K-FCDB 범용 16천건)에는 외식 복합메뉴가 없어, YOLO 400클래스 중 27%(전주비빔밥·돼지국밥 등)가 영양정보 매핑 실패.
+
+**원인:**
+- 프론트(`food_add_screen`)가 `_FoodDB.aiDetected` 목업만 추가하고 `ChatService.detectFoods`(실제 `/detect` 호출)가 삭제돼 있었음.
+- 영양 DB가 단일 `nutrition` 컬렉션(K-FCDB)뿐이라, YOLO 탐지 매핑과 LLM 추천이 같은 풀을 공유 → 탐지 정확도/추천 품질이 상충.
+
+**해결:** ChromaDB를 **2개 컬렉션으로 분리**하고 탐지 흐름을 복원.
+- `detection`(400) : 음식분류 AI 데이터, YOLO 클래스와 1:1. 탐지 결과 영양 매핑 전용.
+- `nutrition`(K-FCDB + 질환 가이드라인) : LLM 추천·검색·RAG 전용 (외식메뉴 제외 → 추천 노이즈 방지).
+```python
+# rag_pipeline.get_collection(name="nutrition"|"detection") — 컬렉션별 캐시
+# routes_food: GET /food/search?...&collection=detection|nutrition
+```
+```dart
+// chat_service: detectFoods() 복원 → /detect 호출 후 탐지명을 detection 컬렉션에서 조회
+final found = await searchFood(name, collection: 'detection');
+// food_add_screen: 카메라/갤러리 → _analyzeImage() → ChatService.detectFoods(File)
+```
+빌드: `ai/scripts/db/build_full_db.py` (음식분류_AI_데이터_영양DB.xlsx + 20251229_음식DB 19495건.xlsx 필요).
+
+**관련 파일:** `ai/scripts/db/build_full_db.py`, `ai/rag_engine/rag_pipeline.py` → `get_collection()`, `server/api/routes_food.py` → `get_food_search()`, `app/lib/services/chat_service.dart` → `detectFoods()`/`searchFood()`, `app/lib/screens/food_add_screen.dart` → `_analyzeImage()`
