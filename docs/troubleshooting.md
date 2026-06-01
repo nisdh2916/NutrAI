@@ -1000,3 +1000,50 @@ if (bd.year == y && bd.month == m && bd.day == d && !bd.isAfter(DateTime.now()))
 ```
 
 **관련 파일:** `app/lib/screens/onboarding_chat_screen.dart` → `_handleInput()`
+
+---
+
+## 38. release APK에서 서버 연결 실패 (디버그/에뮬레이터에선 정상)
+
+**증상:** `flutter run`(디버그)이나 에뮬레이터에서는 서버 통신이 되는데, release APK를 실기기에 설치하면 모든 서버 호출(채팅·추천·검색·알레르기)이 실패. 학교 서버(Docker, Tailscale IP)에 붙지 못함.
+
+**원인:** 세 가지가 겹침.
+1. `INTERNET` 권한이 `app/src/debug`·`app/src/profile` 매니페스트에만 있고 **main 매니페스트엔 없어** release 빌드에 인터넷 권한이 빠짐.
+2. `usesCleartextTraffic` 미설정 → Android 9+(API 28+)에서 `http://` 평문 통신 차단.
+3. base URL이 `http://127.0.0.1:8000`(로컬 adb reverse 전제)이라 실기기에서 서버에 도달 못 함. 실제 백엔드는 `nutrai-server` 컨테이너가 호스트 포트 8001로 노출(`8001:8000`), 주소는 서버 Tailscale IP.
+
+**해결:**
+```xml
+<!-- app/src/main/AndroidManifest.xml -->
+<uses-permission android:name="android.permission.INTERNET"/>
+<application ... android:usesCleartextTraffic="true">
+```
+```dart
+// chat_service.dart / allergen_service.dart
+static const _baseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://100.127.151.47:8001', // 서버 Tailscale IP + 8001:8000 매핑
+);
+// 로컬 테스트: flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000
+```
+
+**관련 파일:** `app/android/app/src/main/AndroidManifest.xml`, `app/lib/services/chat_service.dart`, `app/lib/services/allergen_service.dart`
+
+---
+
+## 39. 온보딩 챗봇 입력창이 하단 시스템 네비게이션 바에 가려짐
+
+**증상:** 온보딩 챗봇 화면에서 하단 입력창("이름을 입력해주세요")이 안드로이드 3버튼 네비게이션 바에 가려 텍스트·버튼이 눌리지 않음. 키보드를 열면(Scaffold resize) 가려지지 않아 발견이 늦음.
+
+**원인:** `_buildInputBar()`의 하단 패딩이 고정 `20`px이고 시스템 네비게이션 바 인셋(`MediaQuery.padding.bottom`)을 더하지 않음. 3버튼 네비바가 있는 기기에선 20px로 부족. (`ai_chat_screen`의 입력바는 `padding.bottom`을 더해 이미 올바르게 처리하고 있었음.)
+
+**해결:**
+```dart
+// 변경 전
+padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
+
+// 변경 후 (시스템 인셋만큼 더함; 키보드 열리면 padding.bottom=0 + Scaffold resize)
+padding: EdgeInsets.fromLTRB(12, 10, 12, MediaQuery.of(context).padding.bottom + 12),
+```
+
+**관련 파일:** `app/lib/screens/onboarding_chat_screen.dart` → `_buildInputBar()`
