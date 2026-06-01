@@ -56,7 +56,7 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
       'quick': ['남성', '여성']
     },
     // 3
-    {'text': '나이가 어떻게 되세요?', 'input': 'age', 'hint': '예: 25'},
+    {'text': '생년월일이 어떻게 되세요?', 'input': 'birthDate', 'hint': '예: 19900115 (8자리)'},
     // 4
     {
       'text': '건강 목표를 선택해주세요!',
@@ -175,7 +175,17 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
         _profile.name = value.trim();
         break;
       case 3:
-        _profile.age = int.tryParse(value.trim());
+        final digits = value.trim().replaceAll(RegExp(r'[^0-9]'), '');
+        if (digits.length == 8) {
+          final y = int.tryParse(digits.substring(0, 4));
+          final m = int.tryParse(digits.substring(4, 6));
+          final d = int.tryParse(digits.substring(6, 8));
+          if (y != null && m != null && d != null) {
+            try {
+              _profile.birthDate = DateTime(y, m, d);
+            } catch (_) {}
+          }
+        }
         break;
       case 6:
         _profile.allergy = value.trim();

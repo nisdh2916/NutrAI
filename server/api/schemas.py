@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -8,11 +9,24 @@ class HealthResponse(BaseModel):
     version: str = "0.1.0"
 
 
+class NutritionInfo(BaseModel):
+    kcal: float = 0.0
+    carb_g: float = 0.0
+    protein_g: float = 0.0
+    fat_g: float = 0.0
+    sodium_mg: float = 0.0
+    sugar_g: float = 0.0
+    weight_g: float = 0.0
+
+
 class DetectionItem(BaseModel):
     food_name: str
     confidence: float = Field(ge=0.0, le=1.0)
     bbox: list[int]
     count: int = Field(ge=1)
+    quantity_class: str = "Q3"        # Q1~Q5 (1인분 기준)
+    quantity_ratio: float = 1.0       # 0.2~2.0 (1인분=1.0)
+    nutrition: Optional[NutritionInfo] = None
 
 
 class DetectResponse(BaseModel):

@@ -467,7 +467,6 @@ const _kCategoryMeta = <String, ({IconData icon, String desc, Color color})>{
 
 ---
 
-<<<<<<< HEAD
 ## 20. Flutter 위젯 테스트가 AppState Provider 없이 앱을 렌더링함
 
 **증상:** `flutter test` 실행 시 `_RootRouter`가 `context.watch<AppState>()`를 호출하는 단계에서 `ProviderNotFoundException`이 발생함. Provider를 추가한 뒤에도 온보딩 화면의 지연 타이머가 남아 테스트가 종료되지 않음.
@@ -867,3 +866,96 @@ yield full_response
 ```
 
 **관련 파일:** `ai/rag_engine/rag_pipeline.py` → `stream_recommendation()`
+
+---
+
+## 33. YOLO가 엉뚱한 음식을 탐지 (수수부꾸미, 굴국 등)
+
+**증상:** 삼계탕 사진을 찍으면 "수수부꾸미", "굴국" 같은 무관한 음식이 탐지됨. 신뢰도가 낮은 오탐(false positive)이 결과에 포함됨.
+
+**원인:** `/detect` 엔드포인트가 YOLO를 기본 `conf` 값(0.25)으로 실행하여, 신뢰도 25~39% 수준의 엉뚱한 음식까지 반환함.
+
+**해결:**
+```python
+# 변경 전
+cls_results = classify_model(img, verbose=False)
+
+# 변경 후
+# conf 0.4 미만 탐지는 제외
+cls_results = classify_model(img, verbose=False, conf=0.4)
+```
+
+**관련 파일:** `server/api/routes_detect.py` → `post_detect()`
+
+---
+
+## 34. 음식 검색 시 엉뚱한 음식이 표시됨 (곰탕 검색 → 깍두기)
+
+**증상:** 앱에서 "곰탕"을 검색하면 깍두기, 무말랭이, 도라지무침 등 무관한 음식이 표시됨. ChromaDB에 곰탕이 실제로 있음에도 불구하고 검색되지 않음.
+
+**원인:** `/food/search` 엔드포인트가 임베딩 유사도 검색만 사용. KR-SBERT로 "곰탕"을 임베딩하면 의미적으로 유사하지만 다른 음식(발효식품 등)을 우선 반환함.
+
+**해결:**
+```python
+# 변경 전: 시맨틱 검색만 사용
+emb = model.encode(q, ...).tolist()
+sem_res = collection.query(query_embeddings=[emb], n_results=k)
+
+# 변경 후: 키워드 직접 포함 검색 → 시맨틱 보완
+# 1단계: 음식명 직접 포함 검색
+keyword_res = collection.get(
+    where_document={"$contains": q},
+    limit=min(k, total),
+    include=["documents"],
+)
+docs = keyword_res.get("documents", []) or []
+
+# 2단계: 부족하면 시맨틱으로 보완
+if len(docs) < k:
+    emb = model.encode(q, ...).tolist()
+    sem_res = collection.query(query_embeddings=[emb], n_results=k)
+    # 중복 제거 후 병합
+```
+
+**관련 파일:** `server/api/routes_food.py` → `get_food_search()`
+
+---
+
+## 35. 앱 음식 검색이 서버 DB를 조회하지 않아 400개 음식이 검색 안 됨
+
+**증상:** "빠른 선택" 그리드에 하드코딩된 20개 음식만 표시됨. 검색창에 입력해도 서버 ChromaDB의 400개 음식이 검색되지 않음.
+
+**원인:** `_onSearch()`가 `appState.searchFoods()`(로컬 SQLite)만 호출함. 신규 설치 시 로컬 DB가 비어 있어 항상 내장 20개 목록(`_FoodDB.search`)만 표시됨.
+
+**해결:**
+```dart
+// 변경 전: 로컬 SQLite → 내장 목록 순서
+final dbResults = await appState.searchFoods(q);
+if (dbResults.isNotEmpty) { ... }
+else { setState(() => _searchResults = _FoodDB.search(q)); }
+
+// 변경 후: 서버 API → 로컬 SQLite → 내장 목록 순서
+// 1순위: 서버 ChromaDB (400개 음식)
+final apiResults = await ChatService.searchFood(q, k: 5);
+if (apiResults.isNotEmpty) {
+  setState(() => _searchResults = apiResults.map(...).toList());
+  return;
+}
+
+// 2순위: 로컬 SQLite (사용자가 직접 추가한 음식)
+final dbResults = await appState.searchFoods(q);
+if (dbResults.isNotEmpty) { ... }
+else { setState(() => _searchResults = _FoodDB.search(q)); }
+```
+
+`ChatService.searchFood`에 `k` 파라미터 추가 (기본값 1 → 검색 시 5 사용):
+```dart
+static Future<List<FoodNutrition>> searchFood(String query, {int k = 1}) async {
+  final res = await http.get(
+    Uri.parse('$_baseUrl/food/search?q=${Uri.encodeComponent(query)}&k=$k'),
+    ...
+  );
+}
+```
+
+**관련 파일:** `app/lib/screens/food_add_screen.dart` → `_onSearch()`, `app/lib/services/chat_service.dart` → `searchFood()`
