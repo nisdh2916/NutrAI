@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +6,7 @@ import '../models/user_profile.dart';
 import '../models/meal_models.dart';
 import '../models/db_models.dart';
 import '../providers/app_state.dart';
+import '../services/chat_service.dart';
 import '../theme/app_theme.dart';
 import 'ai_chat_screen.dart';
 import 'food_add_screen.dart';
@@ -527,46 +529,113 @@ class _DonutPainter extends CustomPainter {
       old.carb != carb || old.protein != protein || old.fat != fat;
 }
 
-// ── 맞춤 팁 배너 ─────────────────────────────────
-class _TipBanner extends StatelessWidget {
+// ── 맞춤 팁 배너 (AI 스트리밍) ───────────────────
+class _TipBanner extends StatefulWidget {
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      gradient: const LinearGradient(
-        colors: [Color(0xFFFEF3C7), Color(0xFFFEF9E7)],
-      ),
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      border: Border.all(color: const Color(0xFFFDE68A)),
-    ),
-    child: Row(children: [
-      Container(
-        width: 36, height: 36,
-        decoration: BoxDecoration(
-          color: const Color(0xFFFCD34D),
-          borderRadius: BorderRadius.circular(10),
+  State<_TipBanner> createState() => _TipBannerState();
+}
+
+class _TipBannerState extends State<_TipBanner> {
+  String _tip = '';
+  bool _loading = true;
+  StreamSubscription<String>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _generate();
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _generate() async {
+    if (mounted) setState(() { _tip = ''; _loading = true; });
+    _sub?.cancel();
+    try {
+      final appState = context.read<AppState>();
+      final user = appState.user;
+      final meals = await appState.getMealsForDate(DateTime.now());
+      if (!mounted) return;
+
+      final mealSummary = meals.isEmpty
+          ? '오늘 식단 기록 없음'
+          : meals.map((m) => '${m.meal.label}: ${m.summary}').join(', ');
+
+      final prompt =
+          '사용자의 오늘 식단: $mealSummary\n'
+          '걸음 수·운동은 언급하지 말고, 오늘 식단·영양 상태를 바탕으로 '
+          '한 문장(30자 이내)으로 핵심 조언만 작성하세요. 마크다운 금지.';
+
+      _sub = ChatService.streamMessage(message: prompt, user: user, mode: 'report')
+          .listen(
+        (chunk) { if (mounted) setState(() { _tip += chunk; _loading = false; }); },
+        onError: (_) { if (mounted) setState(() { _loading = false; _tip = '오늘도 균형 잡힌 식사를 해보세요!'; }); },
+        onDone: () { if (mounted) setState(() => _loading = false); },
+      );
+    } catch (_) {
+      if (mounted) setState(() { _loading = false; _tip = '오늘도 균형 잡힌 식사를 해보세요!'; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFEF3C7), Color(0xFFFEF9E7)],
         ),
-        child: const Icon(Icons.lightbulb_rounded,
-            size: 20, color: Color(0xFF92400E)),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: const Color(0xFFFDE68A)),
       ),
-      const SizedBox(width: 12),
-      const Expanded(child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('오늘의 맞춤 팁',
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
-                  color: Color(0xFF92400E), letterSpacing: 0.04)),
-          SizedBox(height: 2),
-          Text('오늘 걸음 수가 평소보다 적어요',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
-                  color: Color(0xFF78350F), letterSpacing: -0.01)),
-          SizedBox(height: 1),
-          Text('저녁은 가볍게 · 채소 위주로 드세요',
-              style: TextStyle(fontSize: 11, color: Color(0xFF78350F), height: 1.3)),
-        ],
-      )),
-    ]),
-  );
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Container(
+          width: 36, height: 36,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFCD34D),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.lightbulb_rounded,
+              size: 20, color: Color(0xFF92400E)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('오늘의 맞춤 팁',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                    color: Color(0xFF92400E), letterSpacing: 0.04)),
+            const SizedBox(height: 4),
+            if (_loading && _tip.isEmpty)
+              const SizedBox(
+                height: 10, width: 10,
+                child: CircularProgressIndicator(
+                    strokeWidth: 1.5, color: Color(0xFF92400E)),
+              )
+            else
+              Text(
+                _loading ? '$_tip▌' : _tip,
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500,
+                    color: Color(0xFF78350F), height: 1.4),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        )),
+        GestureDetector(
+          onTap: _generate,
+          child: const Padding(
+            padding: EdgeInsets.only(left: 8),
+            child: Icon(Icons.refresh_rounded, size: 15, color: Color(0xFF92400E)),
+          ),
+        ),
+      ]),
+    );
+  }
 }
 
 // ── 섹션 헤더 ────────────────────────────────────

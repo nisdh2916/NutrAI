@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../models/chat_models.dart';
 import '../models/db_models.dart';
 
@@ -14,7 +16,8 @@ class ChatService {
   ); // adb reverse 터널링
 
   // 타임아웃 상수 — 호출 종류별 명확화
-  static const Duration _streamTimeout   = Duration(seconds: 120);
+  static const Duration _streamTimeout   = Duration(seconds: 300);
+  static const Duration _detectTimeout   = Duration(seconds: 30);
   static const Duration _chatTimeout     = Duration(seconds: 180);
   static const Duration _profileTimeout  = Duration(seconds: 60);
   static const Duration _searchTimeout   = Duration(seconds: 15);
@@ -25,6 +28,7 @@ class ChatService {
     UserProfileEntity? user,
     List<String> detectedFoods, {
     List<Map<String, dynamic>>? mealHistory,
+    String mode = 'chat',
   }) => {
     'message': message,
     'user_profile': {
@@ -39,6 +43,7 @@ class ChatService {
       'target_kcal': user?.targetKcal,
     },
     'detected_foods': detectedFoods,
+    'mode': mode,
     if (mealHistory != null) 'meal_history': mealHistory,
   };
 
@@ -47,10 +52,11 @@ class ChatService {
     UserProfileEntity? user,
     List<String> detectedFoods = const [],
     List<Map<String, dynamic>>? mealHistory,
+    String mode = 'chat',
   }) async* {
     final request = http.Request('POST', Uri.parse('$_baseUrl/chat/stream'));
     request.headers['Content-Type'] = 'application/json; charset=utf-8';
-    request.body = jsonEncode(_buildBody(message, user, detectedFoods, mealHistory: mealHistory));
+    request.body = jsonEncode(_buildBody(message, user, detectedFoods, mealHistory: mealHistory, mode: mode));
 
     final client = http.Client();
     String buffer = '';
@@ -141,10 +147,40 @@ class ChatService {
     }).toList();
   }
 
+  /// 이미지를 /detect API에 전송하고 감지된 음식의 영양정보 반환
+  static Future<List<FoodNutrition>> detectFoods(File imageFile) async {
+    final bytes = await imageFile.readAsBytes();
+    final request = http.MultipartRequest('POST', Uri.parse('$_baseUrl/detect'));
+    final ext = imageFile.path.split('.').last.toLowerCase();
+    final mime = ext == 'png' ? MediaType('image', 'png') : MediaType('image', 'jpeg');
+    request.files.add(http.MultipartFile.fromBytes(
+      'image',
+      bytes,
+      filename: imageFile.path.split(RegExp(r'[/\\]')).last,
+      contentType: mime,
+    ));
+    try {
+      final streamed = await request.send().timeout(_detectTimeout);
+      if (streamed.statusCode != 200) return [];
+      final body = jsonDecode(await streamed.stream.bytesToString()) as Map<String, dynamic>;
+      final rawList = (body['detections'] as List?) ?? [];
+      final results = <FoodNutrition>[];
+      for (final d in rawList) {
+        final name = (d['food_name'] as String?) ?? '';
+        if (name.isEmpty) continue;
+        final found = await searchFood(name);
+        results.add(found.isNotEmpty ? found.first : FoodNutrition(name: name));
+      }
+      return results;
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// 음식 이름으로 영양정보 검색
-  static Future<List<FoodNutrition>> searchFood(String query) async {
+  static Future<List<FoodNutrition>> searchFood(String query, {int k = 1}) async {
     final res = await http.get(
-      Uri.parse('$_baseUrl/food/search?q=${Uri.encodeComponent(query)}&k=1'),
+      Uri.parse('$_baseUrl/food/search?q=${Uri.encodeComponent(query)}&k=$k'),
       headers: {'Content-Type': 'application/json; charset=utf-8'},
     ).timeout(_searchTimeout);
 

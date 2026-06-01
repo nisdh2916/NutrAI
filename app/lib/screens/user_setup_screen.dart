@@ -16,12 +16,13 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _nameCtrl;
-  late final TextEditingController _ageCtrl;
+  final TextEditingController _birthDateCtrl = TextEditingController();
   final TextEditingController _heightCtrl = TextEditingController();
   final TextEditingController _weightCtrl = TextEditingController();
   late final TextEditingController _allergyCtrl;
   late final TextEditingController _conditionCtrl;
 
+  DateTime? _birthDate;
   String _selectedGender = '남';
   late String _selectedGoal;
   late String _selectedActivity;
@@ -30,9 +31,8 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.profile.name);
-    _ageCtrl = TextEditingController(
-      text: widget.profile.age != null ? widget.profile.age.toString() : '',
-    );
+    _birthDate = widget.profile.birthDate;
+    if (_birthDate != null) _birthDateCtrl.text = _formatDate(_birthDate!);
     _selectedGender = widget.profile.gender;
     _selectedGoal = widget.profile.goal;
     _selectedActivity = widget.profile.activityLevel;
@@ -43,12 +43,57 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _ageCtrl.dispose();
+    _birthDateCtrl.dispose();
     _heightCtrl.dispose();
     _weightCtrl.dispose();
     _allergyCtrl.dispose();
     _conditionCtrl.dispose();
     super.dispose();
+  }
+
+  String _formatDate(DateTime d) =>
+      '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
+
+  Future<void> _pickBirthDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _birthDate ?? DateTime(now.year - 30),
+      firstDate: DateTime(1900),
+      lastDate: now,
+    );
+    if (picked != null) {
+      setState(() {
+        _birthDate = picked;
+        _birthDateCtrl.text = _formatDate(picked);
+      });
+    }
+  }
+
+  // 만나이 계산
+  int? get _internationalAge {
+    if (_birthDate == null) return null;
+    final now = DateTime.now();
+    int a = now.year - _birthDate!.year;
+    if (now.month < _birthDate!.month ||
+        (now.month == _birthDate!.month && now.day < _birthDate!.day)) {
+      a--;
+    }
+    return a;
+  }
+
+  // 세는 나이 계산
+  int? get _koreanAge {
+    if (_birthDate == null) return null;
+    return DateTime.now().year - _birthDate!.year + 1;
+  }
+
+  String get _ageDisplayText {
+    final k = _koreanAge;
+    final i = _internationalAge;
+    if (k == null) return '';
+    if (i != null && i != k) return '$k세 (만 $i세)';
+    return '$k세';
   }
 
   // ── 실시간 계산 ──
@@ -62,7 +107,7 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
   double? get _bmr {
     final h = double.tryParse(_heightCtrl.text);
     final w = double.tryParse(_weightCtrl.text);
-    final age = int.tryParse(_ageCtrl.text);
+    final age = _internationalAge;
     if (h == null || w == null || age == null) return null;
     return _selectedGender == '남'
         ? 88.362 + (13.397 * w) + (4.799 * h) - (5.677 * age)
@@ -97,7 +142,7 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
     final profile = UserProfile(
       name: _nameCtrl.text.trim(),
       gender: _selectedGender,
-      age: int.tryParse(_ageCtrl.text),
+      birthDate: _birthDate,
       height: double.tryParse(_heightCtrl.text),
       weight: double.tryParse(_weightCtrl.text),
       goal: _selectedGoal,
@@ -153,28 +198,32 @@ class _UserSetupScreenState extends State<UserSetupScreen> {
             ),
             const SizedBox(height: 22),
 
-            // ── 나이 ──
+            // ── 생년월일 ──
             _HorizField(
-              label: '나이',
-              child: Row(children: [
-                Expanded(
-                  child: _InlineInput(
-                    controller: _ageCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    onChanged: (_) => setState(() {}),
-                    validator: (v) {
-                      final n = int.tryParse(v ?? '');
-                      if (n == null || n <= 0 || n > 120) return '올바른 나이';
-                      return null;
-                    },
+              label: '생년월일',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    onTap: _pickBirthDate,
+                    child: AbsorbPointer(
+                      child: _InlineInput(
+                        controller: _birthDateCtrl,
+                        validator: (_) =>
+                            _birthDate == null ? '생년월일을 선택해주세요' : null,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                const Text('세',
-                    style: TextStyle(
-                        fontSize: 15, color: AppColors.textSecondary)),
-              ]),
+                  if (_birthDate != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      _ageDisplayText,
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.green600),
+                    ),
+                  ],
+                ],
+              ),
             ),
             const SizedBox(height: 22),
 

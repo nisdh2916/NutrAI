@@ -49,7 +49,7 @@ class ProfileSummaryScreen extends StatelessWidget {
               _InfoItem('성별', profile.gender == '남' ? '남성' : '여성'),
               _InfoItem('키', profile.height != null ? '${profile.height}cm' : '—'),
               _InfoItem('몸무게', profile.weight != null ? '${profile.weight}kg' : '—'),
-              _InfoItem('나이', profile.age != null ? '${profile.age}세' : '—'),
+              _InfoItem('나이', profile.ageDisplayText),
               _InfoItem('BMI', _bmiText),
               _InfoItem('기초대사량(BMR)', _bmrText),
             ],
@@ -76,7 +76,7 @@ class ProfileSummaryScreen extends StatelessWidget {
           await appState.saveUser(
             nickname:      profile.name.isNotEmpty ? profile.name : '사용자',
             gender:        profile.gender,
-            age:           profile.age,
+            age:           profile.internationalAge,
             heightCm:      profile.height,
             weightKg:      profile.weight,
             targetKcal:    profile.bmr,

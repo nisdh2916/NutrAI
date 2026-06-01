@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  # ── FastAPI 백엔드 ──────────────────────────────────────────────────────────
+  nutrai-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nutrai-server
+    restart: unless-stopped
+    ports:
+      - "8001:8000"   # 포트 8000은 portainer가 사용 중이므로 8001로 변경
+    volumes:
+      - chroma_data:/app/ai/rag_engine/chroma_db
+      - ./ai/models:/app/ai/models:ro
+    environment:
+      # 기존 ollama 컨테이너 주소 (host 네트워크로 접근)
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - NUTRAI_LLM_MODEL=${NUTRAI_LLM_MODEL:-qwen3:8b}
+      - NUTRAI_LLM_TIMEOUT=${NUTRAI_LLM_TIMEOUT:-120}
+      - NUTRAI_LLM_KEEP_ALIVE=${NUTRAI_LLM_KEEP_ALIVE:-1h}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+volumes:
+  chroma_data:

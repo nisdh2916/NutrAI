@@ -136,7 +136,7 @@ class _CalendarScreenState extends State<CalendarScreen>
       context,
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => FoodAddScreen(initialMealLabel: label),
+        builder: (_) => FoodAddScreen(initialMealLabel: label, initialDate: _selected),
       ),
     );
   }
@@ -414,21 +414,25 @@ class _WeekBody extends StatelessWidget {
         ),
 
         // ── 당일 통계 3칸 ──
-        const SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: Row(children: [
-              _StatMini(label: '총 섭취', value: '0', unit: 'kcal'),
-              SizedBox(width: 8),
-              _StatMini(label: '끼니 수', value: '0', unit: '/ 3'),
-              SizedBox(width: 8),
-              _StatMini(
-                  label: '달성률',
-                  value: '0',
-                  unit: '%',
-                  valueColor: AppColors.brandText),
-            ]),
-          ),
+        SliverToBoxAdapter(
+          child: Builder(builder: (ctx) {
+            final totalKcal = meals.fold(0.0, (s, m) => s + m.totalKcal);
+            final mealCount = meals.length;
+            final targetKcal = ctx.read<AppState>().user?.targetKcal;
+            final pct = (targetKcal != null && targetKcal > 0)
+                ? (totalKcal / targetKcal * 100).round()
+                : 0;
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: Row(children: [
+                _StatMini(label: '총 섭취', value: '${totalKcal.round()}', unit: 'kcal'),
+                const SizedBox(width: 8),
+                _StatMini(label: '끼니 수', value: '$mealCount', unit: '/ 3'),
+                const SizedBox(width: 8),
+                _StatMini(label: '달성률', value: '$pct', unit: '%', valueColor: AppColors.brandText),
+              ]),
+            );
+          }),
         ),
 
         // ── 끼니 타임라인 ──
