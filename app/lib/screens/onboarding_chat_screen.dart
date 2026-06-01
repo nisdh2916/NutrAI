@@ -181,9 +181,15 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
           final m = int.tryParse(digits.substring(4, 6));
           final d = int.tryParse(digits.substring(6, 8));
           if (y != null && m != null && d != null) {
-            try {
-              _profile.birthDate = DateTime(y, m, d);
-            } catch (_) {}
+            final bd = DateTime(y, m, d);
+            // DateTime은 범위를 벗어난 월/일을 조용히 정규화하므로(예: 13월→다음해, 2월30일→3월)
+            // 입력값과 그대로 일치하고 미래가 아닐 때만 생년월일로 채택
+            if (bd.year == y &&
+                bd.month == m &&
+                bd.day == d &&
+                !bd.isAfter(DateTime.now())) {
+              _profile.birthDate = bd;
+            }
           }
         }
         break;

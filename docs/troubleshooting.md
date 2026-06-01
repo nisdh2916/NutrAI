@@ -959,3 +959,50 @@ static Future<List<FoodNutrition>> searchFood(String query, {int k = 1}) async {
 ```
 
 **관련 파일:** `app/lib/screens/food_add_screen.dart` → `_onSearch()`, `app/lib/services/chat_service.dart` → `searchFood()`
+
+---
+
+## 36. MySQL 접속 URL에 자격증명이 하드코딩되어 저장소에 노출됨
+
+**증상:** `server/db/mysql_db.py`의 `MYSQL_URL` 기본값에 실제 DB 사용자/비밀번호/호스트가 그대로 박혀 있어, 브랜치를 main에 병합하면 자격증명이 git 히스토리에 영구 기록됨.
+
+**원인:** `os.getenv("MYSQL_URL", "<자격증명 포함 기본 URL>")` 형태로 폴백 기본값에 비밀번호를 넣어둠.
+
+**해결:** 기본값을 제거하고 환경변수 미설정 시 명시적으로 에러를 발생시킴(자격증명은 env 전용). `mysql_db`는 미등록 라우터 `routes_camera`만 import하므로 라이브 앱/테스트에는 영향 없음.
+```python
+# 변경 전
+MYSQL_URL = os.getenv(
+    "MYSQL_URL",
+    "mysql+pymysql://<user>:<password>@<host>:<port>/<db>"  # 자격증명 노출
+)
+
+# 변경 후
+MYSQL_URL = os.getenv("MYSQL_URL")
+if not MYSQL_URL:
+    raise RuntimeError("MYSQL_URL 환경변수가 설정되어 있지 않습니다. ...")
+```
+> 주의: 노출됐던 비밀번호는 git 히스토리에 남으므로 별도로 **로테이션** 필요.
+
+**관련 파일:** `server/db/mysql_db.py`
+
+---
+
+## 37. 온보딩 생년월일 8자리 입력에서 잘못된 월/일이 조용히 다른 날짜로 저장됨
+
+**증상:** 생년월일에 `19901345`(13월 45일)처럼 잘못 입력해도 검증 없이 통과되어 엉뚱한 출생일(→ 잘못된 만나이·BMR·권장 칼로리)이 저장됨.
+
+**원인:** Dart의 `DateTime(1990, 13, 45)`은 예외를 던지지 않고 범위를 벗어난 값을 다음 달/해로 **정규화**함(13월 → 이듬해 1월). 따라서 감싸고 있던 `try/catch`는 동작하지 않는 死코드였고, 월/일 범위 및 미래 날짜 검증이 전혀 없었음.
+
+**해결:** 생성한 `DateTime`이 입력한 연/월/일과 그대로 일치하고 미래가 아닐 때만 채택(round-trip 검증).
+```dart
+// 변경 전
+try { _profile.birthDate = DateTime(y, m, d); } catch (_) {}
+
+// 변경 후
+final bd = DateTime(y, m, d);
+if (bd.year == y && bd.month == m && bd.day == d && !bd.isAfter(DateTime.now())) {
+  _profile.birthDate = bd;
+}
+```
+
+**관련 파일:** `app/lib/screens/onboarding_chat_screen.dart` → `_handleInput()`
