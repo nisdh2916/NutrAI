@@ -30,7 +30,7 @@ SIMILARITY_THRESHOLD = 1.0
 FETCH_MULTIPLIER = 2  # 쿼리당 k*2개 후보 검색 (다중 쿼리이므로 1개당 multiplier 줄임)
 
 _embed_model: SentenceTransformer | None = None
-_collection = None
+_collections: dict = {}
 _llm: ChatOllama | None = None
 
 
@@ -73,17 +73,21 @@ def _get_llm() -> ChatOllama:
     return _llm
 
 
-def get_collection():
-    global _collection
-    if _collection is None:
+def get_collection(name: str = "nutrition"):
+    """ChromaDB 컬렉션 반환 (컬렉션별 캐시).
+
+    name="nutrition" : K-FCDB + 가이드라인 (LLM 추천/검색/RAG)
+    name="detection" : 음식분류 400 (YOLO 탐지 결과 영양 매핑)
+    """
+    if name not in _collections:
         if not CHROMA_DIR.exists():
             raise RuntimeError(f"ChromaDB 경로가 존재하지 않습니다: {CHROMA_DIR}")
         client = chromadb.PersistentClient(path=str(CHROMA_DIR))
         try:
-            _collection = client.get_collection("nutrition")
+            _collections[name] = client.get_collection(name)
         except Exception:
-            raise RuntimeError("ChromaDB 'nutrition' 컬렉션이 없습니다. build_nutrition_db.py를 먼저 실행하세요.")
-    return _collection
+            raise RuntimeError(f"ChromaDB '{name}' 컬렉션이 없습니다. build_full_db.py를 먼저 실행하세요.")
+    return _collections[name]
 
 
 # ── 시스템 프롬프트 ────────────────────────────────

@@ -68,6 +68,9 @@ ai/rag_engine/build_checkpoint.json
 # 영양 DB 원본 데이터 (대용량, git 미포함)
 data/nutrition_db/*.xlsx
 data/nutrition_db/*.csv
+# 단, build_full_db.py 가 쓰는 빌드 입력은 포함 (서버 재현용)
+!data/nutrition_db/음식분류_AI_데이터_영양DB.xlsx
+!data/nutrition_db/20251229_음식DB 19495건.xlsx
 
 # KDRI 가이드라인 PDF (대용량, git 미포함)
 data/guidelines/*.pdf
