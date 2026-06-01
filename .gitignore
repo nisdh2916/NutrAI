@@ -81,3 +81,14 @@ skills-lock.json
 
 # Flutter DevTools 자동 생성 파일
 app/devtools_options.yaml
+
+# 루트에서 flutter 실행 시 잘못 생성되는 플랫폼 산출물 (정식 프로젝트는 app/ 하위)
+/android/
+/ios/
+/macos/
+/linux/
+/windows/
+/web/
+
+# 구 SQL 폴더 (docs/db/ 로 이동됨)
+/SQL/
