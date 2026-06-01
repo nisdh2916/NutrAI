@@ -33,7 +33,6 @@ class ChatRequest(BaseModel):
     user_profile: UserProfile = Field(default_factory=UserProfile)
     detected_foods: list[str] = Field(default_factory=list)
     meal_history: list[MealHistoryItem] = Field(default_factory=list)
-    mode: str = "chat"  # "chat" | "report"
 
 
 class ChatResponse(BaseModel):
@@ -76,7 +75,6 @@ async def chat_stream(req: ChatRequest):
                 user_profile=req.user_profile.model_dump(exclude_none=False),
                 detected_foods=req.detected_foods or None,
                 meal_history=meal_history,
-                mode=req.mode,
             ):
                 yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
         except (ImportError, RuntimeError) as e:

@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 
 class DatabaseHelper {
   static const _dbName    = 'nutrai.db';
-  static const _dbVersion = 4;
+  static const _dbVersion = 3;
 
   // 싱글턴
   DatabaseHelper._();
@@ -69,19 +69,6 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE local_user_allergy (
-        id            INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id       INTEGER NOT NULL,
-        allergy_code  TEXT NOT NULL,
-        allergy_name  TEXT NOT NULL,
-        created_at    TEXT NOT NULL,
-        updated_at    TEXT NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES user_profile(id),
-        UNIQUE (user_id, allergy_code)
-      )
-    ''');
-
-    await db.execute('''
       CREATE TABLE meal (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         meal_no    TEXT,
@@ -89,7 +76,6 @@ class DatabaseHelper {
         meal_type  TEXT NOT NULL,
         eaten_at   TEXT NOT NULL,
         memo       TEXT,
-        photo_path TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY (user_id) REFERENCES user_profile(id)
@@ -125,7 +111,6 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX idx_meal_eaten_at ON meal(eaten_at)');
     await db.execute('CREATE INDEX idx_meal_food_meal_id ON meal_food(meal_id)');
     await db.execute('CREATE INDEX idx_meal_food_food_id ON meal_food(food_id)');
-    await db.execute('CREATE INDEX idx_local_user_allergy_user_id ON local_user_allergy(user_id)');
 
     // 초기 샘플 데이터 삽입
     await _insertSampleData(db);
@@ -148,24 +133,6 @@ class DatabaseHelper {
       ''');
       await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_chat_created_at ON chat_message(created_at)'
-      );
-    }
-    if (oldV < 4) {
-      await db.execute('ALTER TABLE meal ADD COLUMN photo_path TEXT');
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS local_user_allergy (
-          id            INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id       INTEGER NOT NULL,
-          allergy_code  TEXT NOT NULL,
-          allergy_name  TEXT NOT NULL,
-          created_at    TEXT NOT NULL,
-          updated_at    TEXT NOT NULL,
-          FOREIGN KEY (user_id) REFERENCES user_profile(id),
-          UNIQUE (user_id, allergy_code)
-        )
-      ''');
-      await db.execute(
-        'CREATE INDEX IF NOT EXISTS idx_local_user_allergy_user_id ON local_user_allergy(user_id)'
       );
     }
   }

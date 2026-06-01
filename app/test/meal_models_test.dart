@@ -169,8 +169,8 @@ void main() {
     test('dinner → 저녁', () {
       expect(_meal(type: 'dinner').label, '저녁');
     });
-    test('snack → 기타', () {
-      expect(_meal(type: 'snack').label, '기타');
+    test('snack → 간식', () {
+      expect(_meal(type: 'snack').label, '간식');
     });
     test('알 수 없는 값 → 원문 그대로', () {
       expect(_meal(type: 'brunch').label, 'brunch');
@@ -191,7 +191,7 @@ void main() {
       expect(MealEntity.typeFromLabel('간식'), 'snack');
     });
     test('알 수 없는 값 → breakfast(기본값)', () {
-      expect(MealEntity.typeFromLabel('모름'), 'breakfast');
+      expect(MealEntity.typeFromLabel('야식'), 'breakfast');
     });
   });
 }
