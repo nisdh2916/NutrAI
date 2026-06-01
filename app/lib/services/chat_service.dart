@@ -10,8 +10,8 @@ class ChatService {
   // 실제 배포 시 환경변수로 관리
   static const String _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000',
-  ); // adb reverse 터널링
+    defaultValue: 'http://100.127.151.47:8001',
+  ); // 학교 서버(Tailscale IP) — nutrai-server 컨테이너 8001:8000 매핑. 로컬은 --dart-define=API_BASE_URL=http://127.0.0.1:8000
 
   // 타임아웃 상수 — 호출 종류별 명확화
   static const Duration _streamTimeout   = Duration(seconds: 120);

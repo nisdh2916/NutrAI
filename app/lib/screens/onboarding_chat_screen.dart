@@ -417,7 +417,9 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
   Widget _buildInputBar() {
     return Container(
       color: AppColors.white,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
+      // 하단 시스템 네비게이션 바 인셋만큼 패딩을 더해 입력창이 가려지지 않게 함
+      // (키보드가 열리면 viewInsets로 Scaffold가 resize되고 padding.bottom은 0이 됨)
+      padding: EdgeInsets.fromLTRB(12, 10, 12, MediaQuery.of(context).padding.bottom + 12),
       child: Row(
         children: [
           Expanded(
