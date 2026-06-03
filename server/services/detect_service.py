@@ -112,7 +112,7 @@ def _estimate_quantity(img_array: np.ndarray, bbox: list[int]) -> dict:
 
 def detect_foods(
     image_bytes: bytes,
-    conf_threshold: float = 0.1,
+    conf_threshold: float = 0.35,
     iou_threshold: float  = 0.45,
     imgsz: int            = 640,
 ) -> dict:
