@@ -11,9 +11,9 @@ class UserProfileEntity {
   final double? weightKg;
   final String? activityLevel; // '낮음' | '보통' | '높음'
   final double? targetKcal;
-  final String? goal;          // '다이어트' | '근육 증가' | '체중 유지' | '건강 관리'
-  final String? allergy;       // 쉼표 구분: '유제품,견과류'
-  final String? condition;     // 쉼표 구분: '당뇨,고혈압'
+  final String? goal; // '다이어트' | '근육 증가' | '체중 유지' | '건강 관리'
+  final String? allergy; // 쉼표 구분: '유제품,견과류'
+  final String? condition; // 쉼표 구분: '당뇨,고혈압'
   final String createdAt;
   final String updatedAt;
 
@@ -58,61 +58,70 @@ class UserProfileEntity {
     return '비만';
   }
 
-  factory UserProfileEntity.fromMap(Map<String, dynamic> m) => UserProfileEntity(
-    id:            m['id'] as int?,
-    memberNo:      m['member_no'] as String?,
-    nickname:      m['nickname'] as String,
-    gender:        m['gender'] as String?,
-    age:           m['age'] as int?,
-    heightCm:      m['height_cm'] as double?,
-    weightKg:      m['weight_kg'] as double?,
-    activityLevel: m['activity_level'] as String?,
-    targetKcal:    m['target_kcal'] as double?,
-    goal:          m['goal'] as String?,
-    allergy:       m['allergy'] as String?,
-    condition:     m['condition'] as String?,
-    createdAt:     m['created_at'] as String,
-    updatedAt:     m['updated_at'] as String,
-  );
+  factory UserProfileEntity.fromMap(Map<String, dynamic> m) =>
+      UserProfileEntity(
+        id: m['id'] as int?,
+        memberNo: m['member_no'] as String?,
+        nickname: m['nickname'] as String,
+        gender: m['gender'] as String?,
+        age: m['age'] as int?,
+        heightCm: m['height_cm'] as double?,
+        weightKg: m['weight_kg'] as double?,
+        activityLevel: m['activity_level'] as String?,
+        targetKcal: m['target_kcal'] as double?,
+        goal: m['goal'] as String?,
+        allergy: m['allergy'] as String?,
+        condition: m['condition'] as String?,
+        createdAt: m['created_at'] as String,
+        updatedAt: m['updated_at'] as String,
+      );
 
   Map<String, dynamic> toMap() => {
-    if (id != null) 'id': id,
-    'member_no':       memberNo,
-    'nickname':        nickname,
-    'gender':          gender,
-    'age':             age,
-    'height_cm':       heightCm,
-    'weight_kg':       weightKg,
-    'activity_level':  activityLevel,
-    'target_kcal':     targetKcal,
-    'goal':            goal,
-    'allergy':         allergy,
-    'condition':       condition,
-    'created_at':      createdAt,
-    'updated_at':      updatedAt,
-  };
+        if (id != null) 'id': id,
+        'member_no': memberNo,
+        'nickname': nickname,
+        'gender': gender,
+        'age': age,
+        'height_cm': heightCm,
+        'weight_kg': weightKg,
+        'activity_level': activityLevel,
+        'target_kcal': targetKcal,
+        'goal': goal,
+        'allergy': allergy,
+        'condition': condition,
+        'created_at': createdAt,
+        'updated_at': updatedAt,
+      };
 
   UserProfileEntity copyWith({
-    String? nickname, String? gender, int? age,
-    double? heightCm, double? weightKg,
-    String? activityLevel, double? targetKcal,
-    String? goal, String? allergy, String? condition,
+    String? nickname,
+    String? gender,
+    int? age,
+    double? heightCm,
+    double? weightKg,
+    String? activityLevel,
+    double? targetKcal,
+    String? goal,
+    String? allergy,
+    String? condition,
     String? updatedAt,
-  }) => UserProfileEntity(
-    id: id, memberNo: memberNo,
-    nickname:      nickname      ?? this.nickname,
-    gender:        gender        ?? this.gender,
-    age:           age           ?? this.age,
-    heightCm:      heightCm      ?? this.heightCm,
-    weightKg:      weightKg      ?? this.weightKg,
-    activityLevel: activityLevel ?? this.activityLevel,
-    targetKcal:    targetKcal    ?? this.targetKcal,
-    goal:          goal          ?? this.goal,
-    allergy:       allergy       ?? this.allergy,
-    condition:     condition     ?? this.condition,
-    createdAt:     createdAt,
-    updatedAt:     updatedAt     ?? this.updatedAt,
-  );
+  }) =>
+      UserProfileEntity(
+        id: id,
+        memberNo: memberNo,
+        nickname: nickname ?? this.nickname,
+        gender: gender ?? this.gender,
+        age: age ?? this.age,
+        heightCm: heightCm ?? this.heightCm,
+        weightKg: weightKg ?? this.weightKg,
+        activityLevel: activityLevel ?? this.activityLevel,
+        targetKcal: targetKcal ?? this.targetKcal,
+        goal: goal ?? this.goal,
+        allergy: allergy ?? this.allergy,
+        condition: condition ?? this.condition,
+        createdAt: createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -142,28 +151,28 @@ class FoodEntity {
   });
 
   factory FoodEntity.fromMap(Map<String, dynamic> m) => FoodEntity(
-    id:        m['id'] as int?,
-    foodNo:    m['food_no'] as String?,
-    foodName:  m['food_name'] as String,
-    kcal:      (m['kcal'] as num).toDouble(),
-    carbG:     (m['carb_g'] as num).toDouble(),
-    proteinG:  (m['protein_g'] as num).toDouble(),
-    fatG:      (m['fat_g'] as num).toDouble(),
-    createdAt: m['created_at'] as String,
-    updatedAt: m['updated_at'] as String,
-  );
+        id: m['id'] as int?,
+        foodNo: m['food_no'] as String?,
+        foodName: m['food_name'] as String,
+        kcal: (m['kcal'] as num).toDouble(),
+        carbG: (m['carb_g'] as num).toDouble(),
+        proteinG: (m['protein_g'] as num).toDouble(),
+        fatG: (m['fat_g'] as num).toDouble(),
+        createdAt: m['created_at'] as String,
+        updatedAt: m['updated_at'] as String,
+      );
 
   Map<String, dynamic> toMap() => {
-    if (id != null) 'id': id,
-    'food_no':   foodNo,
-    'food_name': foodName,
-    'kcal':      kcal,
-    'carb_g':    carbG,
-    'protein_g': proteinG,
-    'fat_g':     fatG,
-    'created_at':createdAt,
-    'updated_at':updatedAt,
-  };
+        if (id != null) 'id': id,
+        'food_no': foodNo,
+        'food_name': foodName,
+        'kcal': kcal,
+        'carb_g': carbG,
+        'protein_g': proteinG,
+        'fat_g': fatG,
+        'created_at': createdAt,
+        'updated_at': updatedAt,
+      };
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -174,8 +183,8 @@ class MealEntity {
   final int? id;
   final String? mealNo;
   final int userId;
-  final String mealType;  // 'breakfast' | 'lunch' | 'dinner' | 'snack'
-  final String eatenAt;   // ISO8601 문자열
+  final String mealType; // 'breakfast' | 'lunch' | 'dinner' | 'snack'
+  final String eatenAt; // ISO8601 문자열
   final String? memo;
   final String? photoPath;
   final String createdAt;
@@ -195,13 +204,26 @@ class MealEntity {
 
   // meal_type → 한국어 라벨
   String get label {
-    const m = {'breakfast': '아침', 'lunch': '점심', 'dinner': '저녁', 'snack': '기타', 'late_night': '야식'};
+    const m = {
+      'breakfast': '아침',
+      'lunch': '점심',
+      'dinner': '저녁',
+      'snack': '간식',
+      'late_night': '간식',
+    };
     return m[mealType] ?? mealType;
   }
 
   // 한국어 라벨 → meal_type
   static String typeFromLabel(String label) {
-    const m = {'아침': 'breakfast', '점심': 'lunch', '저녁': 'dinner', '기타': 'snack', '간식': 'snack', '야식': 'late_night'};
+    const m = {
+      '아침': 'breakfast',
+      '점심': 'lunch',
+      '저녁': 'dinner',
+      '기타': 'snack',
+      '간식': 'snack',
+      '야식': 'snack',
+    };
     return m[label] ?? 'breakfast';
   }
 
@@ -209,8 +231,8 @@ class MealEntity {
   String get timeDisplay {
     try {
       final dt = DateTime.parse(eatenAt);
-      final h  = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-      final m  = dt.minute.toString().padLeft(2, '0');
+      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final m = dt.minute.toString().padLeft(2, '0');
       final ap = dt.hour < 12 ? 'AM' : 'PM';
       return '$h:$m $ap';
     } catch (_) {
@@ -219,28 +241,28 @@ class MealEntity {
   }
 
   factory MealEntity.fromMap(Map<String, dynamic> m) => MealEntity(
-    id:        m['id'] as int?,
-    mealNo:    m['meal_no'] as String?,
-    userId:    m['user_id'] as int,
-    mealType:  m['meal_type'] as String,
-    eatenAt:   m['eaten_at'] as String,
-    memo:      m['memo'] as String?,
-    photoPath: m['photo_path'] as String?,
-    createdAt: m['created_at'] as String,
-    updatedAt: m['updated_at'] as String,
-  );
+        id: m['id'] as int?,
+        mealNo: m['meal_no'] as String?,
+        userId: m['user_id'] as int,
+        mealType: m['meal_type'] as String,
+        eatenAt: m['eaten_at'] as String,
+        memo: m['memo'] as String?,
+        photoPath: m['photo_path'] as String?,
+        createdAt: m['created_at'] as String,
+        updatedAt: m['updated_at'] as String,
+      );
 
   Map<String, dynamic> toMap() => {
-    if (id != null) 'id': id,
-    'meal_no':    mealNo,
-    'user_id':    userId,
-    'meal_type':  mealType,
-    'eaten_at':   eatenAt,
-    'memo':       memo,
-    'photo_path': photoPath,
-    'created_at': createdAt,
-    'updated_at': updatedAt,
-  };
+        if (id != null) 'id': id,
+        'meal_no': mealNo,
+        'user_id': userId,
+        'meal_type': mealType,
+        'eaten_at': eatenAt,
+        'memo': memo,
+        'photo_path': photoPath,
+        'created_at': createdAt,
+        'updated_at': updatedAt,
+      };
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -266,24 +288,25 @@ class MealFoodEntity {
   });
 
   factory MealFoodEntity.fromMap(Map<String, dynamic> m) => MealFoodEntity(
-    id:           m['id'] as int?,
-    mealId:       m['meal_id'] as int,
-    foodId:       m['food_id'] as int,
-    amountG:      m['amount_g'] != null ? (m['amount_g'] as num).toDouble() : null,
-    servingCount: (m['serving_count'] as num? ?? 1).toDouble(),
-    createdAt:    m['created_at'] as String,
-    updatedAt:    m['updated_at'] as String,
-  );
+        id: m['id'] as int?,
+        mealId: m['meal_id'] as int,
+        foodId: m['food_id'] as int,
+        amountG:
+            m['amount_g'] != null ? (m['amount_g'] as num).toDouble() : null,
+        servingCount: (m['serving_count'] as num? ?? 1).toDouble(),
+        createdAt: m['created_at'] as String,
+        updatedAt: m['updated_at'] as String,
+      );
 
   Map<String, dynamic> toMap() => {
-    if (id != null) 'id': id,
-    'meal_id':      mealId,
-    'food_id':      foodId,
-    'amount_g':     amountG,
-    'serving_count':servingCount,
-    'created_at':   createdAt,
-    'updated_at':   updatedAt,
-  };
+        if (id != null) 'id': id,
+        'meal_id': mealId,
+        'food_id': foodId,
+        'amount_g': amountG,
+        'serving_count': servingCount,
+        'created_at': createdAt,
+        'updated_at': updatedAt,
+      };
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -295,10 +318,10 @@ class MealWithFoods {
 
   const MealWithFoods({required this.meal, required this.foods});
 
-  double get totalKcal    => foods.fold(0.0, (s, f) => s + f.totalKcal);
-  double get totalCarbG   => foods.fold(0.0, (s, f) => s + f.totalCarbG);
-  double get totalProteinG=> foods.fold(0.0, (s, f) => s + f.totalProteinG);
-  double get totalFatG    => foods.fold(0.0, (s, f) => s + f.totalFatG);
+  double get totalKcal => foods.fold(0.0, (s, f) => s + f.totalKcal);
+  double get totalCarbG => foods.fold(0.0, (s, f) => s + f.totalCarbG);
+  double get totalProteinG => foods.fold(0.0, (s, f) => s + f.totalProteinG);
+  double get totalFatG => foods.fold(0.0, (s, f) => s + f.totalFatG);
 
   String get summary {
     if (foods.isEmpty) return '—';
@@ -314,8 +337,8 @@ class MealFoodJoin {
 
   const MealFoodJoin({required this.mealFood, required this.food});
 
-  double get totalKcal     => food.kcal     * mealFood.servingCount;
-  double get totalCarbG    => food.carbG    * mealFood.servingCount;
+  double get totalKcal => food.kcal * mealFood.servingCount;
+  double get totalCarbG => food.carbG * mealFood.servingCount;
   double get totalProteinG => food.proteinG * mealFood.servingCount;
-  double get totalFatG     => food.fatG     * mealFood.servingCount;
+  double get totalFatG => food.fatG * mealFood.servingCount;
 }

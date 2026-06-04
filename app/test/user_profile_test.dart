@@ -66,14 +66,14 @@ void main() {
   group('UserProfileEntity.bmr — Mifflin-St Jeor', () {
     test('남성 공식: 88.362 + 13.397W + 4.799H - 5.677A', () {
       // 170cm, 70kg, 30세 남성
-      final expected = 88.362 + (13.397 * 70) + (4.799 * 170) - (5.677 * 30);
+      const expected = 88.362 + (13.397 * 70) + (4.799 * 170) - (5.677 * 30);
       expect(_profile(height: 170, weight: 70, age: 30, gender: '남').bmr,
           closeTo(expected, 0.001));
     });
 
     test('여성 공식: 447.593 + 9.247W + 3.098H - 4.330A', () {
       // 160cm, 55kg, 25세 여성
-      final expected = 447.593 + (9.247 * 55) + (3.098 * 160) - (4.330 * 25);
+      const expected = 447.593 + (9.247 * 55) + (3.098 * 160) - (4.330 * 25);
       expect(_profile(height: 160, weight: 55, age: 25, gender: '여').bmr,
           closeTo(expected, 0.001));
     });

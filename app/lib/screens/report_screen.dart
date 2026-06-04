@@ -352,13 +352,15 @@ class _DailyTabState extends State<_DailyTab> {
               fat: totalF,
             ),
             const SizedBox(height: 14),
-            if (meals.isNotEmpty) _AiInsightCard(
-              key: ValueKey('daily_${_dateKey(widget.selected)}'),
-              title: 'AI 코치',
-              icon: Icons.tips_and_updates_rounded,
-              prompt: _buildDailyPrompt(meals, totalK, totalC, totalP, totalF),
-              user: context.read<AppState>().user,
-            ),
+            if (meals.isNotEmpty)
+              _AiInsightCard(
+                key: ValueKey('daily_${_dateKey(widget.selected)}'),
+                title: 'AI 코치',
+                icon: Icons.tips_and_updates_rounded,
+                prompt:
+                    _buildDailyPrompt(meals, totalK, totalC, totalP, totalF),
+                user: context.read<AppState>().user,
+              ),
             if (meals.isEmpty) _EmptyReport(),
           ])),
         ),
@@ -433,7 +435,9 @@ class _MealThumbnailRow extends StatelessWidget {
                             style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: meal != null ? color : AppColors.textMuted)),
+                                color: meal != null
+                                    ? color
+                                    : AppColors.textMuted)),
                         Text(meal != null ? _times[i] : '—',
                             style: const TextStyle(
                                 fontSize: 10, color: AppColors.textMuted)),
@@ -588,8 +592,8 @@ class _NutrRow extends StatelessWidget {
 }
 
 // ── 프롬프트 빌더 (top-level) ──────────────────────
-String _buildDailyPrompt(List<MealRecord> meals, double kcal,
-    double carb, double protein, double fat) {
+String _buildDailyPrompt(List<MealRecord> meals, double kcal, double carb,
+    double protein, double fat) {
   final total = carb + protein + fat;
   final cPct = total > 0 ? (carb / total * 100).round() : 0;
   final pPct = total > 0 ? (protein / total * 100).round() : 0;
@@ -604,8 +608,7 @@ String _buildDailyPrompt(List<MealRecord> meals, double kcal,
       '사용자 건강 목표와 상태를 반영해 맞춤 분석해주세요.';
 }
 
-String _buildWeeklyPrompt(
-    List<double> data, List<List<MealRecord>> weekMeals) {
+String _buildWeeklyPrompt(List<double> data, List<List<MealRecord>> weekMeals) {
   final recorded = data.where((v) => v > 0).length;
   final avgK = recorded > 0 ? data.fold(0.0, (s, v) => s + v) / 7 : 0.0;
   final avgP = weekMeals.fold(
@@ -632,7 +635,8 @@ String _buildMonthlyPrompt(Map<String, double> kcalMap, int activeDays,
   final best = kcalMap.entries.isEmpty
       ? null
       : kcalMap.entries.reduce((a, b) => a.value > b.value ? a : b);
-  final bestStr = best != null ? ' | 최고 기록일: ${best.key} (${best.value.round()}kcal)' : '';
+  final bestStr =
+      best != null ? ' | 최고 기록일: ${best.key} (${best.value.round()}kcal)' : '';
   return '${cursor.year}년 ${cursor.month}월 월간 식습관 리포트를 작성해주세요.\n'
       '기록한 날: $activeDays / $daysInMonth일 | 월 총 ${monthTotal.round()}kcal | 일 평균 ${avgK.round()}kcal$bestStr\n\n'
       '개별 음식이나 메뉴를 나열하지 마세요. 아래 3가지를 통합해서 3~4문장으로 간결하게 작성해주세요:\n'
@@ -686,7 +690,13 @@ class _AiInsightCardState extends State<_AiInsightCard> {
 
   Future<void> _generate() async {
     _sub?.cancel();
-    if (mounted) setState(() { _text = ''; _loading = true; _error = false; });
+    if (mounted) {
+      setState(() {
+        _text = '';
+        _loading = true;
+        _error = false;
+      });
+    }
     try {
       final stream = ChatService.streamMessage(
         message: widget.prompt,
@@ -695,17 +705,32 @@ class _AiInsightCardState extends State<_AiInsightCard> {
       );
       _sub = stream.listen(
         (chunk) {
-          if (mounted) setState(() { _text += chunk; _loading = false; });
+          if (mounted) {
+            setState(() {
+              _text += chunk;
+              _loading = false;
+            });
+          }
         },
         onError: (_) {
-          if (mounted) setState(() { _loading = false; _error = true; });
+          if (mounted) {
+            setState(() {
+              _loading = false;
+              _error = true;
+            });
+          }
         },
         onDone: () {
           if (mounted) setState(() => _loading = false);
         },
       );
     } catch (_) {
-      if (mounted) setState(() { _loading = false; _error = true; });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = true;
+        });
+      }
     }
   }
 
@@ -760,8 +785,7 @@ class _AiInsightCardState extends State<_AiInsightCard> {
             ),
             SizedBox(width: 8),
             Text('AI 분석 중...',
-                style:
-                    TextStyle(fontSize: 13, color: AppColors.brandText)),
+                style: TextStyle(fontSize: 13, color: AppColors.brandText)),
           ])
         else if (_error)
           Row(children: [
@@ -770,8 +794,7 @@ class _AiInsightCardState extends State<_AiInsightCard> {
             const SizedBox(width: 6),
             const Expanded(
               child: Text('서버에 연결할 수 없어요.',
-                  style:
-                      TextStyle(fontSize: 13, color: AppColors.brandText)),
+                  style: TextStyle(fontSize: 13, color: AppColors.brandText)),
             ),
             GestureDetector(
               onTap: _generate,
@@ -1206,7 +1229,7 @@ class _NutrAvgRow extends StatelessWidget {
             style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: over ? const Color(0xFFEF4444) : AppColors.text)),
+                color: over ? AppColors.red : AppColors.text)),
         Text(' / ${goal.round()}g',
             style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
       ]),
@@ -1217,14 +1240,13 @@ class _NutrAvgRow extends StatelessWidget {
           value: ratio,
           minHeight: 5,
           backgroundColor: AppColors.lineSoft,
-          valueColor: AlwaysStoppedAnimation<Color>(
-              over ? const Color(0xFFEF4444) : color),
+          valueColor:
+              AlwaysStoppedAnimation<Color>(over ? AppColors.red : color),
         ),
       ),
     ]);
   }
 }
-
 
 // ── 통계 카드 (주간/월간 공용) ─────────────────────
 class _StatCard extends StatelessWidget {
@@ -1608,7 +1630,6 @@ class _MonthlyTabState extends State<_MonthlyTab> {
     ]);
   }
 }
-
 
 // ── 빈 리포트 상태 ─────────────────────────────────
 class _EmptyReport extends StatelessWidget {

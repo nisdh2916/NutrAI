@@ -29,5 +29,17 @@ services:
       start_period: 60s
       retries: 3
 
+  # ── ChromaDB 초기화/재빌드 ─────────────────────────────────────────────────
+  # 최초 배포 또는 `docker compose down -v` 이후 한 번 실행:
+  #   docker compose --profile init run --rm init-chroma
+  init-chroma:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles: ["init"]
+    command: ["python", "ai/scripts/db/build_full_db.py"]
+    volumes:
+      - chroma_data:/app/ai/rag_engine/chroma_db
+
 volumes:
   chroma_data:

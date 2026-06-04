@@ -11,10 +11,11 @@ class MealState {
   List<MealWithFoods> _todayMeals = [];
   List<MealWithFoods> get todayMeals => _todayMeals;
 
-  double get todayKcal     => _todayMeals.fold(0.0, (s, m) => s + m.totalKcal);
-  double get todayCarbG    => _todayMeals.fold(0.0, (s, m) => s + m.totalCarbG);
-  double get todayProteinG => _todayMeals.fold(0.0, (s, m) => s + m.totalProteinG);
-  double get todayFatG     => _todayMeals.fold(0.0, (s, m) => s + m.totalFatG);
+  double get todayKcal => _todayMeals.fold(0.0, (s, m) => s + m.totalKcal);
+  double get todayCarbG => _todayMeals.fold(0.0, (s, m) => s + m.totalCarbG);
+  double get todayProteinG =>
+      _todayMeals.fold(0.0, (s, m) => s + m.totalProteinG);
+  double get todayFatG => _todayMeals.fold(0.0, (s, m) => s + m.totalFatG);
 
   Future<void> loadToday(int userId) async {
     _todayMeals = await _mealRepo.getTodayMeals(userId);
@@ -34,9 +35,13 @@ class MealState {
     if (exact != null) return exact.id!;
     final now = DateTime.now().toIso8601String();
     return _foodRepo.createFood(FoodEntity(
-      foodName: name, kcal: kcal,
-      carbG: carbG, proteinG: proteinG, fatG: fatG,
-      createdAt: now, updatedAt: now,
+      foodName: name,
+      kcal: kcal,
+      carbG: carbG,
+      proteinG: proteinG,
+      fatG: fatG,
+      createdAt: now,
+      updatedAt: now,
     ));
   }
 
@@ -49,11 +54,12 @@ class MealState {
     required List<({int foodId, double? amountG, double servingCount})> foods,
   }) async {
     await _mealRepo.saveMealWithFoods(
-      userId:   userId,
+      userId: userId,
       mealType: mealType,
-      eatenAt:  eatenAt,
-      memo:     memo,
-      foods:    foods,
+      eatenAt: eatenAt,
+      memo: memo,
+      photoPath: photoPath,
+      foods: foods,
     );
     await loadToday(userId);
   }
@@ -69,14 +75,14 @@ class MealState {
   Future<Map<String, double>> getMonthlyKcal(int userId, int year, int month) =>
       _mealRepo.getMonthlyKcal(userId, year, month);
 
-  Future<List<String>> getRecordedDates(int userId, DateTime from, DateTime to) =>
+  Future<List<String>> getRecordedDates(
+          int userId, DateTime from, DateTime to) =>
       _mealRepo.getRecordedDates(userId, from, to);
 
   Future<List<FoodEntity>> searchFoods(String query) =>
       _foodRepo.searchFoods(query);
 
-  Future<List<FoodEntity>> getAllFoods() =>
-      _foodRepo.getAllFoods();
+  Future<List<FoodEntity>> getAllFoods() => _foodRepo.getAllFoods();
 
   void clear() => _todayMeals = [];
 }

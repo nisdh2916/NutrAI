@@ -161,7 +161,7 @@ class SettingsScreen extends StatelessWidget {
             icon: Icons.delete_outline_rounded,
             label: '모든 데이터 삭제',
             sub: '식단 기록과 프로필이 모두 삭제돼요',
-            color: Colors.red,
+            color: AppColors.red,
             onTap: () => _confirmReset(context),
           ),
         ],
