@@ -467,7 +467,6 @@ const _kCategoryMeta = <String, ({IconData icon, String desc, Color color})>{
 
 ---
 
-<<<<<<< HEAD
 ## 20. Flutter 위젯 테스트가 AppState Provider 없이 앱을 렌더링함
 
 **증상:** `flutter test` 실행 시 `_RootRouter`가 `context.watch<AppState>()`를 호출하는 단계에서 `ProviderNotFoundException`이 발생함. Provider를 추가한 뒤에도 온보딩 화면의 지연 타이머가 남아 테스트가 종료되지 않음.
@@ -741,3 +740,107 @@ body data(몸무게/나이)가 있을 때만 자동 계산, 없으면 0(제한 �
 ChromaDB 재빌드 필요 (`python ai/scripts/build_nutrition_db.py`).
 
 **관련 파일:** `ai/scripts/build_nutrition_db.py` → `tag_row()`
+
+---
+
+## 29. AI 리포트/팁 응답에 `**음식명**` 마크다운이 그대로 노출
+
+**증상:** 일간·주간·월간 리포트와 홈 오늘의 팁 AI 응답에서 `**김치찌개**` 같은 마크다운 볼드 문법이 플레인 텍스트로 노출됨. Flutter 측 프롬프트에 "마크다운 금지"를 명시해도 효과 없음.
+
+**원인:** 서버 `rag_pipeline.py`의 `SYSTEM_PROMPT`가 모든 요청에 동일하게 적용되는데, 이 프롬프트가 마크다운 형식을 사용하도록 LLM을 조건화하고 있었음. Flutter 측 user-turn 프롬프트 지시는 system prompt에 묻혀 무시됨.
+
+**해결:** 서버에 `mode` 파라미터를 추가해 리포트 요청 시 별도 `REPORT_SYSTEM_PROMPT` 적용:
+```python
+# ai/rag_engine/rag_pipeline.py
+REPORT_SYSTEM_PROMPT = """...
+마크다운 문법을 절대 사용하지 마세요.
+음식 항목을 나열하지 마세요.
+3~4문장 평문으로만 답하세요.
+..."""
+
+def build_messages(messages, context="", mode="chat"):
+    sys = REPORT_SYSTEM_PROMPT if mode == "report" else SYSTEM_PROMPT
+    ...
+
+def stream_recommendation(..., mode="chat"):
+    if mode == "report":
+        # RAG 검색 생략, 바로 LLM 호출
+        yield from _stream_ollama_raw(messages)
+        return
+```
+
+```dart
+// app/lib/services/chat_service.dart
+Stream<String> streamMessage(String msg, {..., String mode = 'chat'}) { ... }
+
+// app/lib/screens/report_screen.dart
+ChatService.instance.streamMessage(prompt, mode: 'report');
+```
+
+**관련 파일:** `ai/rag_engine/rag_pipeline.py` → `REPORT_SYSTEM_PROMPT`, `build_messages()`, `stream_recommendation()`; `server/api/routes_chat.py` → `ChatRequest`; `app/lib/services/chat_service.dart` → `streamMessage()`; `app/lib/screens/report_screen.dart` → `_AiInsightCardState._generate()`; `app/lib/screens/home_screen.dart` → `_TipBannerState`
+
+---
+
+## 30. 다른 날짜 선택 후 식단 추가 시 당일 기준으로 중복 체크됨
+
+**증상:** 캘린더에서 어제 날짜를 선택하고 "아침 추가"를 누르면 "아침 식단이 이미 기록되어 있습니다"라는 오류가 뜸. 실제로는 선택한 날짜가 아닌 오늘을 기준으로 중복 여부를 확인하고 있었음.
+
+**원인:** `calendar_screen.dart`의 `_onAddMeal()`이 `FoodAddScreen(initialMealLabel: label)`만 전달하고 `initialDate`를 넘기지 않아, 음식 추가 화면 내부에서 `DateTime.now()`를 기준으로 중복을 체크했음.
+
+**해결:**
+```dart
+// 변경 전 (calendar_screen.dart _onAddMeal)
+FoodAddScreen(initialMealLabel: label)
+
+// 변경 후
+FoodAddScreen(initialMealLabel: label, initialDate: _selected)
+```
+
+**관련 파일:** `app/lib/screens/calendar_screen.dart` → `_onAddMeal()`
+
+---
+
+## 31. 캘린더 식단 통계(총 섭취/끼니 수/달성률)가 0으로 표시
+
+**증상:** 캘린더 화면 하단 요약 카드의 총 섭취 칼로리, 끼니 수, 달성률이 항상 0 또는 0%로 고정 표시됨.
+
+**원인:** `_WeekBody`(주간 탭) 통계 카드가 `'0'`으로 하드코딩되어 있었음.
+
+**해결:**
+```dart
+// 변경 전
+Text('0'),  // 총 섭취
+Text('0'),  // 끼니 수
+Text('0%'), // 달성률
+
+// 변경 후 (Builder로 AppState 접근)
+Builder(builder: (ctx) {
+  final appState = ctx.read<AppState>();
+  final totalKcal = meals.fold<double>(0, (s, m) => s + m.kcal);
+  final mealCount = meals.length;
+  final target = appState.user?.targetKcal ?? 2000;
+  final pct = target > 0 ? (totalKcal / target * 100).round() : 0;
+  return Text('${totalKcal.round()} kcal');
+})
+```
+
+**관련 파일:** `app/lib/screens/calendar_screen.dart` → `_WeekBody` 통계 카드 영역
+
+---
+
+## 32. 홈 화면 오늘의 맞춤 팁 텍스트가 잘림
+
+**증상:** 홈 화면 팁 배너에서 AI가 생성한 팁 텍스트가 박스 밖으로 잘려 일부가 보이지 않음.
+
+**원인:** `_TipBannerState.build()`의 `fontSize: 13`이 너무 커서 한 줄에 들어가지 않고 오버플로우 발생.
+
+**해결:**
+```dart
+// 변경 전
+style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)
+
+// 변경 후
+style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500)
+```
+
+**관련 파일:** `app/lib/screens/home_screen.dart` → `_TipBannerState.build()`

@@ -258,20 +258,37 @@ class _DailyOverviewCard extends StatelessWidget {
                       carb: totalCarb, protein: totalProtein, fat: totalFat,
                     ),
                   ),
-                  Column(mainAxisSize: MainAxisSize.min, children: [
-                    Text(
-                      totalKcal.round().toString(),
-                      style: const TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.w800,
-                          color: AppColors.text, letterSpacing: -0.03),
-                    ),
-                    Text(
-                      '/ ${goalKcal.round()} kcal',
-                      style: const TextStyle(
-                          fontSize: 10, fontWeight: FontWeight.w600,
-                          color: AppColors.textMuted),
-                    ),
-                  ]),
+                  Builder(builder: (ctx) {
+                    final diff = totalKcal - goalKcal;
+                    final isOver = diff > 0;
+                    final diffColor = isOver
+                        ? const Color(0xFFEF4444)
+                        : const Color(0xFF3182F6);
+                    return Column(mainAxisSize: MainAxisSize.min, children: [
+                      Text(
+                        totalKcal.round().toString(),
+                        style: const TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.w800,
+                            color: AppColors.text, letterSpacing: -0.03),
+                      ),
+                      Text(
+                        '/ ${goalKcal.round()} kcal',
+                        style: const TextStyle(
+                            fontSize: 10, fontWeight: FontWeight.w600,
+                            color: AppColors.textMuted),
+                      ),
+                      if (diff.abs() >= 1)
+                        Text(
+                          isOver
+                              ? '+${diff.round()}'
+                              : '-${diff.abs().round()}',
+                          style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: diffColor),
+                        ),
+                    ]);
+                  }),
                 ]),
               ),
               const SizedBox(width: 14),
@@ -307,16 +324,29 @@ class _DailyOverviewCard extends StatelessWidget {
                 Expanded(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('오늘 남은 칼로리',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                            color: AppColors.textMuted)),
+                    Text(
+                      totalKcal > goalKcal ? '초과 칼로리' : '오늘 남은 칼로리',
+                      style: const TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w600,
+                          color: AppColors.textMuted),
+                    ),
                     const SizedBox(height: 2),
                     Row(crossAxisAlignment: CrossAxisAlignment.baseline,
                         textBaseline: TextBaseline.alphabetic,
                         children: [
-                          Text(remaining.toString(),
-                              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800,
-                                  color: AppColors.text, letterSpacing: -0.03)),
+                          Text(
+                            totalKcal > goalKcal
+                                ? '+${(totalKcal - goalKcal).round()}'
+                                : remaining.toString(),
+                            style: TextStyle(
+                                fontSize: 28, fontWeight: FontWeight.w800,
+                                color: totalKcal > goalKcal
+                                    ? const Color(0xFFEF4444)
+                                    : totalKcal < goalKcal
+                                        ? const Color(0xFF3182F6)
+                                        : AppColors.text,
+                                letterSpacing: -0.03),
+                          ),
                           const SizedBox(width: 3),
                           const Text('kcal', style: TextStyle(
                               fontSize: 13, fontWeight: FontWeight.w600,
@@ -327,12 +357,17 @@ class _DailyOverviewCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.brandSoft,
+                    color: totalKcal > goalKcal
+                        ? const Color(0xFFFEE2E2)
+                        : AppColors.brandSoft,
                     borderRadius: BorderRadius.circular(AppRadius.pill),
                   ),
                   child: Text('$achievePct% 달성',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
-                          color: AppColors.brandText)),
+                      style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700,
+                          color: totalKcal > goalKcal
+                              ? const Color(0xFFDC2626)
+                              : AppColors.brandText)),
                 ),
               ],
             ),

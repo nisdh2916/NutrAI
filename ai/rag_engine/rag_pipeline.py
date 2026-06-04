@@ -654,7 +654,7 @@ def stream_recommendation(
     if mode == "report":
         messages = build_messages("", user_query, user_profile, mode="report")
         for chunk in _stream_ollama_raw(messages):
-            yield chunk
+            yield chunk.replace("**", "")
         return
 
     remaining_kcal, _, queries = _preprocess_query(
