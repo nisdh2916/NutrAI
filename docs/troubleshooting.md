@@ -1162,3 +1162,32 @@ Text(totalKcal > goalKcal ? '+${(totalKcal - goalKcal).round()}' : remaining.toS
 ```
 
 **관련 파일:** `app/lib/screens/home_screen.dart` → `_DailyOverviewCard`
+
+---
+
+## 44. RAG 채팅이 질문 의도와 무관한 메뉴 추천·템플릿·칼로리 경고를 출력함
+
+**증상:** `다리가 아파요`, `햄버거 먹어도 될까요?` 같은 질문에도 저나트륨 음식 3개를 추천하고, `음식명 (칼로리: Xkcal)` 템플릿이 그대로 노출되거나 `184.2kcal`에서 `2kcal`만 이상치로 경고함.
+
+**원인:** 채팅 프롬프트가 모든 질문을 메뉴 3개 추천 형식으로 강제했고, 스트리밍 응답은 `post_process()`를 거치지 않아 템플릿 제거·칼로리 검증 보정이 적용되지 않았음. 또한 칼로리 정규식이 소수점을 지원하지 않아 `184.2kcal`의 끝자리 `2kcal`을 별도 값으로 오인함.
+
+**해결:**
+```python
+# 변경 전
+SystemMessage(content=SYSTEM_PROMPT)
+for chunk in _stream_ollama_raw(messages):
+    yield chunk
+_KCAL_RE = re.compile(r"(\d+)\s*kcal", re.IGNORECASE)
+
+# 변경 후
+intent = _classify_chat_intent(user_query)
+system_prompt = SYSTEM_PROMPT if intent == "menu_recommendation" else GENERAL_CHAT_SYSTEM_PROMPT
+SystemMessage(content=system_prompt)
+
+full_response = "".join(_stream_ollama_raw(messages))
+yield post_process(full_response, user_profile, remaining_kcal=remaining_kcal)
+
+_KCAL_RE = re.compile(r"(?<![\d.])(\d+(?:\.\d+)?)\s*kcal(?![A-Za-z0-9.])", re.IGNORECASE)
+```
+
+**관련 파일:** `ai/rag_engine/rag_pipeline.py` → `_classify_chat_intent()`/`build_messages()`/`post_process()`/`stream_recommendation()`, `server/tests/test_rag_pipeline.py` → `TestChatPromptAndStreaming`

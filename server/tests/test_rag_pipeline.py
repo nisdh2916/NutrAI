@@ -1,11 +1,58 @@
-"""ai/rag_engine/rag_pipeline.py 순수 함수 단위 테스트. ChromaDB/LLM mock 없음."""
+"""ai/rag_engine/rag_pipeline.py 순수 함수 단위 테스트. 외부 RAG/LLM 의존성은 스텁 처리."""
 from __future__ import annotations
 
+import importlib.util
 import sys
+import types
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+
+def _install_optional_rag_stubs() -> None:
+    """Keep pure RAG unit tests runnable without heavyweight local deps."""
+    if importlib.util.find_spec("chromadb") is None:
+        chromadb = types.ModuleType("chromadb")
+        chromadb.PersistentClient = lambda *args, **kwargs: None
+        sys.modules["chromadb"] = chromadb
+
+    if importlib.util.find_spec("sentence_transformers") is None:
+        sentence_transformers = types.ModuleType("sentence_transformers")
+
+        class SentenceTransformer:
+            def __init__(self, *args, **kwargs):
+                pass
+
+        sentence_transformers.SentenceTransformer = SentenceTransformer
+        sys.modules["sentence_transformers"] = sentence_transformers
+
+    if importlib.util.find_spec("langchain_ollama") is None:
+        langchain_ollama = types.ModuleType("langchain_ollama")
+
+        class ChatOllama:
+            def __init__(self, *args, **kwargs):
+                pass
+
+        langchain_ollama.ChatOllama = ChatOllama
+        sys.modules["langchain_ollama"] = langchain_ollama
+
+    if importlib.util.find_spec("langchain_core") is None:
+        langchain_core = types.ModuleType("langchain_core")
+        messages = types.ModuleType("langchain_core.messages")
+
+        class _Message:
+            def __init__(self, content: str):
+                self.content = content
+
+        messages.HumanMessage = _Message
+        messages.SystemMessage = _Message
+        sys.modules["langchain_core"] = langchain_core
+        sys.modules["langchain_core.messages"] = messages
+
+
+_install_optional_rag_stubs()
+
+from ai.rag_engine import rag_pipeline
 from ai.rag_engine.rag_pipeline import (
     _build_allergen_warning,
     _build_meal_status_str,
@@ -18,7 +65,9 @@ from ai.rag_engine.rag_pipeline import (
     _rewrite_queries,
     _strip_think_streaming,
     _validate_kcal,
+    build_messages,
     post_process,
+    stream_recommendation,
 )
 
 
@@ -178,8 +227,17 @@ class TestValidateKcal:
         assert "⚠️" not in result
 
     def test_too_low_kcal_flagged(self):
-        result = _validate_kcal("이 음식은 30kcal입니다")
+        result = _validate_kcal("이 음식은 2kcal입니다")
         assert "⚠️" in result
+
+    def test_decimal_kcal_not_split_into_low_value_warning(self):
+        result = _validate_kcal("황태해장국 184.2kcal 추천합니다")
+        assert "2kcal ⚠️" not in result
+        assert "⚠️" not in result
+
+    def test_small_soup_kcal_not_flagged(self):
+        result = _validate_kcal("미소된장국 38kcal 추천합니다")
+        assert "⚠️" not in result
 
     def test_too_high_kcal_flagged(self):
         result = _validate_kcal("이 음식은 2500kcal입니다")
@@ -246,6 +304,64 @@ class TestPostProcess:
         raw = "**비빔밥** (550kcal)\n맛있습니다."
         result = post_process(raw, {"allergy": "유제품"})
         assert not result.startswith("> ⚠️")
+
+    def test_template_placeholder_removed(self):
+        raw = "음식명 (칼로리: Xkcal)\n추천 이유: 설명 1~2문장\n\n**현미밥** (칼로리: 130kcal)"
+        result = post_process(raw, {})
+        assert "Xkcal" not in result
+        assert "설명 1~2문장" not in result
+        assert "현미밥" in result
+
+
+# ── chat prompt / streaming regression ────────────────────────
+class TestChatPromptAndStreaming:
+    def test_food_decision_prompt_does_not_force_menu_template(self):
+        messages = build_messages("햄버거 | 칼로리 600kcal", "햄버거 먹어도 될까요?", {})
+        assert "추천 메뉴 3개" not in messages[0].content
+        assert "음식명** (칼로리: Xkcal)" not in messages[0].content
+
+    def test_medical_question_prompt_does_not_force_food_recommendations(self):
+        messages = build_messages("", "다리가 아파요", {})
+        assert "추천 메뉴 3개" not in messages[0].content
+        assert "의료기관" in messages[0].content or "진단" in messages[0].content
+
+    def test_stream_response_runs_post_process(self, monkeypatch):
+        monkeypatch.setattr(
+            rag_pipeline,
+            "_preprocess_query",
+            lambda user_query, user_profile, detected_foods, meal_history: (None, "", [user_query]),
+        )
+        monkeypatch.setattr(
+            rag_pipeline,
+            "_retrieve_multi",
+            lambda queries, user_profile, k: ([], "현미밥 | 칼로리 130kcal"),
+        )
+        monkeypatch.setattr(
+            rag_pipeline,
+            "_stream_ollama_raw",
+            lambda messages: iter([
+                "음식명 (칼로리: Xkcal)\n추천 이유: 설명 1~2문장\n\n",
+                "**현미밥** (칼로리: 130kcal)\n추천 이유: 예시",
+            ]),
+        )
+
+        result = "".join(stream_recommendation("햄버거 먹어도 될까요?", {}))
+
+        assert "Xkcal" not in result
+        assert "설명 1~2문장" not in result
+        assert "현미밥" in result
+
+    def test_medical_concern_stream_returns_direct_safety_answer(self, monkeypatch):
+        monkeypatch.setattr(
+            rag_pipeline,
+            "_retrieve_multi",
+            lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("RAG should not run")),
+        )
+
+        result = "".join(stream_recommendation("다리가 아파요", {}))
+
+        assert "의료기관" in result
+        assert "식단만으로 원인을 판단하기 어렵습니다" in result
 
 
 # ── _build_profile_str ─────────────────────────────────────────
