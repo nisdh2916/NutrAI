@@ -242,6 +242,29 @@ def _search_single(search_query: str, n_results: int) -> tuple[list[str], list[f
     return docs, dists
 
 
+def _retrieve_condition_guidelines(condition: str, query: str, n: int = 2) -> list[str]:
+    """
+    질환 조건에 해당하는 가이드라인 문서를 메타데이터 필터로 확실히 확보.
+    시맨틱 유사도가 낮아도 항상 포함되도록 보장.
+    """
+    embed_model = _get_embed_model()
+    query_embedding = embed_model.encode(query, convert_to_numpy=True).tolist()
+    collection = get_collection()
+    try:
+        results = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=min(n, collection.count()),
+            where={"$and": [
+                {"category": {"$eq": "가이드라인"}},
+                {"condition": {"$eq": condition}},
+            ]},
+            include=["documents", "distances"],
+        )
+        return results["documents"][0] if results["documents"] else []
+    except Exception:
+        return []
+
+
 def _retrieve_multi(
     queries: list[str],
     user_profile: dict,
@@ -250,42 +273,51 @@ def _retrieve_multi(
     """
     다중 쿼리 검색 + 중복 제거 + 유사도 필터 + 알레르기 제거 + 상위 k개
 
-    각 쿼리마다 k*FETCH_MULTIPLIER개 검색 → 문서별 최고 유사도 유지 →
-    임계값 필터 → 알레르기 제거 → 정렬 후 상위 k개
+    질환이 있을 경우 해당 가이드라인 2개를 메타데이터 필터로 먼저 확보한 뒤
+    나머지 슬롯을 시맨틱 검색으로 채워 가이드라인이 항상 컨텍스트에 포함되도록 보장.
     """
     allergens = _extract_allergens(user_profile)
+    condition = user_profile.get("condition", "").strip()
 
     def _has_allergen(doc: str) -> bool:
         return bool(allergens) and any(kw in doc for kw in allergens)
 
-    # 쿼리별 검색 → 문서별 최고 유사도(최솟값) 보존
+    # ── 1단계: 질환 가이드라인 우선 확보 (메타데이터 필터) ──────
+    guide_docs: list[str] = []
+    if condition:
+        guide_query = f"{condition} 맞춤 식단 가이드라인"
+        guide_docs = [d for d in _retrieve_condition_guidelines(condition, guide_query, n=2)
+                      if not _has_allergen(d)]
+    guide_set = set(guide_docs)
+    semantic_k = k - len(guide_docs)
+
+    # ── 2단계: 나머지 슬롯 시맨틱 검색으로 채움 ─────────────────
     best_dist: dict[str, float] = {}
     for q in queries:
         docs, dists = _search_single(q, k * FETCH_MULTIPLIER)
         for doc, dist in zip(docs, dists):
+            if doc in guide_set:
+                continue  # 이미 확보한 가이드라인 중복 방지
             if doc not in best_dist or dist < best_dist[doc]:
                 best_dist[doc] = dist
 
-    # 유사도 기준 정렬
     sorted_docs = sorted(best_dist.items(), key=lambda x: x[1])
 
-    # 1차: 임계값 + 알레르기 필터
     filtered = [doc for doc, dist in sorted_docs
                 if dist <= SIMILARITY_THRESHOLD and not _has_allergen(doc)]
 
-    # 2차: 임계값 완화 fallback (알레르기 필터는 유지)
-    if len(filtered) < k:
+    if len(filtered) < semantic_k:
         extra = [doc for doc, _ in sorted_docs
                  if doc not in filtered and not _has_allergen(doc)]
-        filtered += extra[:k - len(filtered)]
+        filtered += extra[:semantic_k - len(filtered)]
 
-    # 카테고리 다양성 적용 (동일 카테고리 최대 2개)
     diverse = _diversify_docs(filtered, max_per_category=2)
-    if len(diverse) < k:
+    if len(diverse) < semantic_k:
         already = set(diverse)
-        diverse += [d for d in filtered if d not in already][:k - len(diverse)]
+        diverse += [d for d in filtered if d not in already][:semantic_k - len(diverse)]
 
-    retrieved_docs = diverse[:k]
+    # 가이드라인 먼저, 시맨틱 검색 결과 뒤에 배치
+    retrieved_docs = guide_docs + diverse[:semantic_k]
     return retrieved_docs, _format_context(retrieved_docs)
 
 
