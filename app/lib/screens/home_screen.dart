@@ -108,7 +108,7 @@ class HomeScreen extends StatelessWidget {
                   ],
                 )),
                 IconButton(
-                  icon: const Icon(Icons.notifications_none_rounded,
+                  icon: const Icon(Icons.settings_rounded,
                       color: AppColors.textSub, size: 22),
                   onPressed: onGoToSettings,
                 ),

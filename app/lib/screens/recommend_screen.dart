@@ -16,7 +16,7 @@ class RecommendScreen extends StatefulWidget {
   State<RecommendScreen> createState() => _RecommendScreenState();
 }
 
-const _kCategories = ['전체', '다이어트', '기호별', '질환맞춤', '건강기능식품'];
+const _kCategories = ['전체', '다이어트', '기호별', '질환맞춤'];
 
 const _kCategoryMeta = <String, ({IconData icon, String desc, Color color})>{
   '전체': (
@@ -38,11 +38,6 @@ const _kCategoryMeta = <String, ({IconData icon, String desc, Color color})>{
     icon: Icons.medical_services_rounded,
     desc: '등록된 질환(당뇨·고혈압 등)에 맞는 식단',
     color: Color(0xFF8B5CF6)
-  ),
-  '건강기능식품': (
-    icon: Icons.medication_rounded,
-    desc: '건강기능식품 DB 기반 영양 보충 추천',
-    color: Color(0xFF22A447)
   ),
 };
 
