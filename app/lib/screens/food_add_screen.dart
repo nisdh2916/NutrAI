@@ -117,7 +117,7 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   List<MealFood> _searchResults = [];
 
-  static const _mealLabels = ['아침', '점심', '저녁', '기타'];
+  static const _mealLabels = ['아침', '점심', '저녁', '간식'];
   static const _mealColors = [
     AppColors.breakfast,
     AppColors.lunch,
@@ -530,6 +530,7 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
                           kcal: 0));
                     }),
                     child: Container(
+                      constraints: const BoxConstraints(minHeight: 44),
                       padding: const EdgeInsets.symmetric(vertical: 11),
                       decoration: BoxDecoration(
                         color: AppColors.surface,
@@ -627,7 +628,7 @@ class _MealSelector extends StatelessWidget {
               onTap: () => onChanged(labels[i]),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                height: 42,
+                height: 44,
                 decoration: BoxDecoration(
                   color: isSel ? colors[i] : AppColors.lineSoft,
                   borderRadius: BorderRadius.circular(10),
@@ -893,18 +894,18 @@ class _DetectedFoodRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEF2F2),
+                  color: AppColors.redSoft,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.warning_amber_rounded,
-                      size: 11, color: Color(0xFFEF4444)),
+                      size: 11, color: AppColors.red),
                   SizedBox(width: 2),
                   Text('알레르기',
                       style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFFEF4444))),
+                          color: AppColors.red)),
                 ]),
               ),
             ],
@@ -919,7 +920,7 @@ class _DetectedFoodRow extends StatelessWidget {
               child: Text('⚠ ${allergens.join(', ')} 포함',
                   style: const TextStyle(
                       fontSize: 11,
-                      color: Color(0xFFEF4444),
+                      color: AppColors.red,
                       fontWeight: FontWeight.w600)),
             ),
         ])),
@@ -929,6 +930,7 @@ class _DetectedFoodRow extends StatelessWidget {
           onTap: onEdit,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: AppColors.lineSoft,
@@ -947,8 +949,8 @@ class _DetectedFoodRow extends StatelessWidget {
         GestureDetector(
           onTap: onRemove,
           child: Container(
-            width: 28,
-            height: 28,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
             child: const Icon(Icons.close_rounded,
                 size: 16, color: AppColors.textMuted),
@@ -1184,13 +1186,14 @@ class _AllergyWarningBanner extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFFFEF2F2),
+          color: AppColors.redSoft,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFFECACA), width: 1),
+          border: Border.all(
+              color: AppColors.red.withValues(alpha: 0.24), width: 1),
         ),
         child: Row(children: [
           const Icon(Icons.warning_amber_rounded,
-              size: 20, color: Color(0xFFEF4444)),
+              size: 20, color: AppColors.red),
           const SizedBox(width: 10),
           Expanded(
               child: Column(
@@ -1200,11 +1203,10 @@ class _AllergyWarningBanner extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFFDC2626))),
+                        color: AppColors.red)),
                 const SizedBox(height: 2),
                 Text('${triggered.join(', ')} 성분이 포함된 음식이 있어요.',
-                    style: const TextStyle(
-                        fontSize: 12, color: Color(0xFFEF4444))),
+                    style: const TextStyle(fontSize: 12, color: AppColors.red)),
               ])),
         ]),
       ),

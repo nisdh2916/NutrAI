@@ -136,7 +136,8 @@ class _CalendarScreenState extends State<CalendarScreen>
       context,
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => FoodAddScreen(initialMealLabel: label, initialDate: _selected),
+        builder: (_) =>
+            FoodAddScreen(initialMealLabel: label, initialDate: _selected),
       ),
     );
   }
@@ -425,11 +426,16 @@ class _WeekBody extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
               child: Row(children: [
-                _StatMini(label: '총 섭취', value: '${totalKcal.round()}', unit: 'kcal'),
+                _StatMini(
+                    label: '총 섭취', value: '${totalKcal.round()}', unit: 'kcal'),
                 const SizedBox(width: 8),
                 _StatMini(label: '끼니 수', value: '$mealCount', unit: '/ 3'),
                 const SizedBox(width: 8),
-                _StatMini(label: '달성률', value: '$pct', unit: '%', valueColor: AppColors.brandText),
+                _StatMini(
+                    label: '달성률',
+                    value: '$pct',
+                    unit: '%',
+                    valueColor: AppColors.brandText),
               ]),
             );
           }),
@@ -1293,7 +1299,7 @@ class _MealDetailSheet extends StatelessWidget {
               Navigator.pop(context);
               onDelete();
             },
-            child: const Text('삭제', style: TextStyle(color: Colors.red)),
+            child: const Text('삭제', style: TextStyle(color: AppColors.red)),
           ),
         ],
       ),

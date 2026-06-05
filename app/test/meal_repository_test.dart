@@ -20,16 +20,22 @@ void main() {
     userRepo = UserRepository();
     final now = DateTime.now().toIso8601String();
     userId = await userRepo.createUser(UserProfileEntity(
-      nickname: '테스트유저', createdAt: now, updatedAt: now,
+      nickname: '테스트유저',
+      createdAt: now,
+      updatedAt: now,
     ));
   });
 
   Future<int> seedFood() async {
     final now = DateTime.now().toIso8601String();
     return foodRepo.createFood(FoodEntity(
-      foodName: '테스트음식', kcal: 200.0,
-      carbG: 30.0, proteinG: 10.0, fatG: 5.0,
-      createdAt: now, updatedAt: now,
+      foodName: '테스트음식',
+      kcal: 200.0,
+      carbG: 30.0,
+      proteinG: 10.0,
+      fatG: 5.0,
+      createdAt: now,
+      updatedAt: now,
     ));
   }
 
@@ -59,6 +65,20 @@ void main() {
       expect(meals.first.meal.mealType, 'dinner');
     });
 
+    test('persists photoPath with saved meal', () async {
+      final foodId = await seedFood();
+      final today = DateTime.now();
+      await repo.saveMealWithFoods(
+        userId: userId,
+        mealType: 'snack',
+        eatenAt: today,
+        photoPath: '/tmp/nutrai-meal.jpg',
+        foods: [(foodId: foodId, amountG: null, servingCount: 1.0)],
+      );
+      final meals = await repo.getMealsForDate(userId, today);
+      expect(meals.first.meal.photoPath, '/tmp/nutrai-meal.jpg');
+    });
+
     test('saved foods are retrievable in meal', () async {
       final foodId = await seedFood();
       final today = DateTime.now();
@@ -77,12 +97,18 @@ void main() {
       final id1 = await seedFood();
       final now2 = DateTime.now().toIso8601String();
       final id2 = await foodRepo.createFood(FoodEntity(
-        foodName: '두번째음식', kcal: 150.0,
-        carbG: 20.0, proteinG: 8.0, fatG: 3.0,
-        createdAt: now2, updatedAt: now2,
+        foodName: '두번째음식',
+        kcal: 150.0,
+        carbG: 20.0,
+        proteinG: 8.0,
+        fatG: 3.0,
+        createdAt: now2,
+        updatedAt: now2,
       ));
       await repo.saveMealWithFoods(
-        userId: userId, mealType: 'lunch', eatenAt: DateTime.now(),
+        userId: userId,
+        mealType: 'lunch',
+        eatenAt: DateTime.now(),
         foods: [
           (foodId: id1, amountG: null, servingCount: 1.0),
           (foodId: id2, amountG: null, servingCount: 0.5),
@@ -103,11 +129,15 @@ void main() {
       final foodId = await seedFood();
       final now2 = DateTime.now().toIso8601String();
       final userId2 = await userRepo.createUser(UserProfileEntity(
-        nickname: '유저2', createdAt: now2, updatedAt: now2,
+        nickname: '유저2',
+        createdAt: now2,
+        updatedAt: now2,
       ));
       final today = DateTime.now();
       await repo.saveMealWithFoods(
-        userId: userId, mealType: 'lunch', eatenAt: today,
+        userId: userId,
+        mealType: 'lunch',
+        eatenAt: today,
         foods: [(foodId: foodId, amountG: null, servingCount: 1.0)],
       );
       expect(await repo.getMealsForDate(userId, today), hasLength(1));
@@ -118,7 +148,9 @@ void main() {
       final foodId = await seedFood();
       final yesterday = DateTime.now().subtract(const Duration(days: 1));
       await repo.saveMealWithFoods(
-        userId: userId, mealType: 'lunch', eatenAt: yesterday,
+        userId: userId,
+        mealType: 'lunch',
+        eatenAt: yesterday,
         foods: [(foodId: foodId, amountG: null, servingCount: 1.0)],
       );
       expect(await repo.getMealsForDate(userId, DateTime.now()), isEmpty);
@@ -130,7 +162,9 @@ void main() {
       final foodId = await seedFood();
       final today = DateTime.now();
       final mealId = await repo.saveMealWithFoods(
-        userId: userId, mealType: 'lunch', eatenAt: today,
+        userId: userId,
+        mealType: 'lunch',
+        eatenAt: today,
         foods: [(foodId: foodId, amountG: null, servingCount: 1.0)],
       );
       await repo.deleteMeal(mealId);
@@ -140,7 +174,8 @@ void main() {
 
   group('MealRepository - hasMealTypeForDate', () {
     test('returns false when meal type not recorded', () async {
-      final result = await repo.hasMealTypeForDate(userId, 'breakfast', DateTime.now());
+      final result =
+          await repo.hasMealTypeForDate(userId, 'breakfast', DateTime.now());
       expect(result, false);
     });
 
@@ -148,7 +183,9 @@ void main() {
       final foodId = await seedFood();
       final today = DateTime.now();
       await repo.saveMealWithFoods(
-        userId: userId, mealType: 'breakfast', eatenAt: today,
+        userId: userId,
+        mealType: 'breakfast',
+        eatenAt: today,
         foods: [(foodId: foodId, amountG: null, servingCount: 1.0)],
       );
       expect(await repo.hasMealTypeForDate(userId, 'breakfast', today), true);
@@ -158,7 +195,9 @@ void main() {
       final foodId = await seedFood();
       final today = DateTime.now();
       await repo.saveMealWithFoods(
-        userId: userId, mealType: 'breakfast', eatenAt: today,
+        userId: userId,
+        mealType: 'breakfast',
+        eatenAt: today,
         foods: [(foodId: foodId, amountG: null, servingCount: 1.0)],
       );
       expect(await repo.hasMealTypeForDate(userId, 'lunch', today), false);
@@ -167,17 +206,23 @@ void main() {
 
   group('MealRepository - getRecordedDates', () {
     test('returns empty list when no meals', () async {
-      expect(await repo.getRecordedDates(userId, DateTime(2024, 1, 1), DateTime(2024, 1, 31)), isEmpty);
+      expect(
+          await repo.getRecordedDates(
+              userId, DateTime(2024, 1, 1), DateTime(2024, 1, 31)),
+          isEmpty);
     });
 
     test('returns dates with meals in range', () async {
       final foodId = await seedFood();
       final date = DateTime(2024, 6, 15, 12);
       await repo.saveMealWithFoods(
-        userId: userId, mealType: 'lunch', eatenAt: date,
+        userId: userId,
+        mealType: 'lunch',
+        eatenAt: date,
         foods: [(foodId: foodId, amountG: null, servingCount: 1.0)],
       );
-      final dates = await repo.getRecordedDates(userId, DateTime(2024, 6, 1), DateTime(2024, 6, 30));
+      final dates = await repo.getRecordedDates(
+          userId, DateTime(2024, 6, 1), DateTime(2024, 6, 30));
       expect(dates, contains('2024-06-15'));
     });
   });

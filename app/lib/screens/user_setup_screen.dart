@@ -424,10 +424,10 @@ class _InlineInput extends StatelessWidget {
                 const BorderSide(color: AppColors.green400, width: 1.5)),
         errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Colors.red)),
+            borderSide: const BorderSide(color: AppColors.red)),
         focusedErrorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Colors.red, width: 1.5)),
+            borderSide: const BorderSide(color: AppColors.red, width: 1.5)),
       ),
     );
   }

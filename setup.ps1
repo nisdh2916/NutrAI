@@ -5,7 +5,7 @@ param(
     [switch]$SkipModel
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $ROOT = $PSScriptRoot
 
 function Write-Step($step, $msg) { Write-Host "" ; Write-Host "[Step $step] $msg" -ForegroundColor Cyan }
@@ -55,7 +55,7 @@ Write-Step 2 "Python 패키지 확인 (langchain 계열)"
 
 $pkgsMissing = $false
 foreach ($pkg in @("langchain", "langchain_ollama", "langchain_community", "langchain_core")) {
-    $result = python -c "import $pkg" 2>&1
+    python -c "import $pkg" | Out-Null
     if ($LASTEXITCODE -ne 0) { $pkgsMissing = $true; break }
 }
 

@@ -321,6 +321,7 @@ class _DailyTabState extends State<_DailyTab> {
     final totalC = meals.fold(0.0, (s, m) => s + m.totalCarb);
     final totalP = meals.fold(0.0, (s, m) => s + m.totalProtein);
     final totalF = meals.fold(0.0, (s, m) => s + m.totalFat);
+    final targetKcal = context.read<AppState>().user?.targetKcal;
     final sel = widget.selected;
     final dateStr =
         '${sel.year}년 ${_monthKr[sel.month]} ${sel.day}일 ${_weekdayKr[sel.weekday]}요일';
@@ -344,21 +345,36 @@ class _DailyTabState extends State<_DailyTab> {
                     letterSpacing: 0)),
             const SizedBox(height: 14),
             _MealThumbnailRow(meals: meals, onRecordMeal: _openFoodAdd),
+            Builder(builder: (ctx) {
+              const std = ['아침', '점심', '저녁'];
+              final extra = meals.where((m) => !std.contains(m.label)).toList();
+              if (extra.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+                  _ExtraMealsRow(meals: extra, onRecordMeal: _openFoodAdd),
+                ],
+              );
+            }),
             const SizedBox(height: 14),
             _NutritionCard(
               totalKcal: totalK,
               carb: totalC,
               protein: totalP,
               fat: totalF,
+              targetKcal: targetKcal,
             ),
             const SizedBox(height: 14),
-            if (meals.isNotEmpty) _AiInsightCard(
-              key: ValueKey('daily_${_dateKey(widget.selected)}'),
-              title: 'AI 코치',
-              icon: Icons.tips_and_updates_rounded,
-              prompt: _buildDailyPrompt(meals, totalK, totalC, totalP, totalF),
-              user: context.read<AppState>().user,
-            ),
+            if (meals.isNotEmpty)
+              _AiInsightCard(
+                key: ValueKey('daily_${_dateKey(widget.selected)}'),
+                title: 'AI 코치',
+                icon: Icons.tips_and_updates_rounded,
+                prompt:
+                    _buildDailyPrompt(meals, totalK, totalC, totalP, totalF),
+                user: context.read<AppState>().user,
+              ),
             if (meals.isEmpty) _EmptyReport(),
           ])),
         ),
@@ -433,7 +449,9 @@ class _MealThumbnailRow extends StatelessWidget {
                             style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: meal != null ? color : AppColors.textMuted)),
+                                color: meal != null
+                                    ? color
+                                    : AppColors.textMuted)),
                         Text(meal != null ? _times[i] : '—',
                             style: const TextStyle(
                                 fontSize: 10, color: AppColors.textMuted)),
@@ -456,14 +474,84 @@ class _MealThumbnailRow extends StatelessWidget {
   }
 }
 
+// ── 기타 식사 행 (간식·야식 등 비표준 끼니) ───────────
+class _ExtraMealsRow extends StatelessWidget {
+  final List<MealRecord> meals;
+  final ValueChanged<String>? onRecordMeal;
+  const _ExtraMealsRow({required this.meals, this.onRecordMeal});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: List.generate(meals.length, (i) {
+        final meal = meals[i];
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: i < meals.length - 1 ? 10 : 0),
+            child: Material(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              child: InkWell(
+                onTap: () => onRecordMeal?.call(meal.label),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    boxShadow: AppShadows.card,
+                  ),
+                  child: Row(children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppColors.lineSoft,
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.coffee_rounded,
+                            size: 16, color: AppColors.textSub),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(meal.label,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textSub)),
+                          Text('${meal.totalKcal.round()}kcal',
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textMuted)),
+                        ],
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
 // ── 영양소 도넛 카드 ───────────────────────────────
 class _NutritionCard extends StatelessWidget {
   final double totalKcal, carb, protein, fat;
+  final double? targetKcal;
   const _NutritionCard({
     required this.totalKcal,
     required this.carb,
     required this.protein,
     required this.fat,
+    this.targetKcal,
   });
 
   @override
@@ -497,20 +585,36 @@ class _NutritionCard extends StatelessWidget {
                 size: const Size(120, 120),
                 painter: _DonutPainter(carb: carb, protein: protein, fat: fat),
               ),
-              Column(mainAxisSize: MainAxisSize.min, children: [
-                Text('${totalKcal.round()}',
-                    style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.text,
-                        letterSpacing: 0,
-                        fontFeatures: [FontFeature.tabularFigures()])),
-                const Text('kcal',
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textMuted)),
-              ]),
+              Builder(builder: (ctx) {
+                final tgt = targetKcal;
+                final diff = (tgt != null && tgt > 0) ? totalKcal - tgt : null;
+                return Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text('${totalKcal.round()}',
+                      style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.text,
+                          letterSpacing: 0,
+                          fontFeatures: [FontFeature.tabularFigures()])),
+                  const Text('kcal',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textMuted)),
+                  if (diff != null && diff.abs() >= 1)
+                    Text(
+                      diff < 0
+                          ? '-${diff.abs().round()}'
+                          : '+${diff.round()}',
+                      style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: diff < 0
+                              ? const Color(0xFF3182F6)
+                              : const Color(0xFFEF4444)),
+                    ),
+                ]);
+              }),
             ]),
           ),
           const SizedBox(width: 20),
@@ -588,8 +692,8 @@ class _NutrRow extends StatelessWidget {
 }
 
 // ── 프롬프트 빌더 (top-level) ──────────────────────
-String _buildDailyPrompt(List<MealRecord> meals, double kcal,
-    double carb, double protein, double fat) {
+String _buildDailyPrompt(List<MealRecord> meals, double kcal, double carb,
+    double protein, double fat) {
   final total = carb + protein + fat;
   final cPct = total > 0 ? (carb / total * 100).round() : 0;
   final pPct = total > 0 ? (protein / total * 100).round() : 0;
@@ -604,8 +708,7 @@ String _buildDailyPrompt(List<MealRecord> meals, double kcal,
       '사용자 건강 목표와 상태를 반영해 맞춤 분석해주세요.';
 }
 
-String _buildWeeklyPrompt(
-    List<double> data, List<List<MealRecord>> weekMeals) {
+String _buildWeeklyPrompt(List<double> data, List<List<MealRecord>> weekMeals) {
   final recorded = data.where((v) => v > 0).length;
   final avgK = recorded > 0 ? data.fold(0.0, (s, v) => s + v) / 7 : 0.0;
   final avgP = weekMeals.fold(
@@ -632,7 +735,8 @@ String _buildMonthlyPrompt(Map<String, double> kcalMap, int activeDays,
   final best = kcalMap.entries.isEmpty
       ? null
       : kcalMap.entries.reduce((a, b) => a.value > b.value ? a : b);
-  final bestStr = best != null ? ' | 최고 기록일: ${best.key} (${best.value.round()}kcal)' : '';
+  final bestStr =
+      best != null ? ' | 최고 기록일: ${best.key} (${best.value.round()}kcal)' : '';
   return '${cursor.year}년 ${cursor.month}월 월간 식습관 리포트를 작성해주세요.\n'
       '기록한 날: $activeDays / $daysInMonth일 | 월 총 ${monthTotal.round()}kcal | 일 평균 ${avgK.round()}kcal$bestStr\n\n'
       '개별 음식이나 메뉴를 나열하지 마세요. 아래 3가지를 통합해서 3~4문장으로 간결하게 작성해주세요:\n'
@@ -686,7 +790,13 @@ class _AiInsightCardState extends State<_AiInsightCard> {
 
   Future<void> _generate() async {
     _sub?.cancel();
-    if (mounted) setState(() { _text = ''; _loading = true; _error = false; });
+    if (mounted) {
+      setState(() {
+        _text = '';
+        _loading = true;
+        _error = false;
+      });
+    }
     try {
       final stream = ChatService.streamMessage(
         message: widget.prompt,
@@ -695,17 +805,33 @@ class _AiInsightCardState extends State<_AiInsightCard> {
       );
       _sub = stream.listen(
         (chunk) {
-          if (mounted) setState(() { _text += chunk; _loading = false; });
+          final cleaned = chunk.replaceAll('**', '');
+          if (mounted) {
+            setState(() {
+              _text += cleaned;
+              _loading = false;
+            });
+          }
         },
         onError: (_) {
-          if (mounted) setState(() { _loading = false; _error = true; });
+          if (mounted) {
+            setState(() {
+              _loading = false;
+              _error = true;
+            });
+          }
         },
         onDone: () {
           if (mounted) setState(() => _loading = false);
         },
       );
     } catch (_) {
-      if (mounted) setState(() { _loading = false; _error = true; });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = true;
+        });
+      }
     }
   }
 
@@ -760,8 +886,7 @@ class _AiInsightCardState extends State<_AiInsightCard> {
             ),
             SizedBox(width: 8),
             Text('AI 분석 중...',
-                style:
-                    TextStyle(fontSize: 13, color: AppColors.brandText)),
+                style: TextStyle(fontSize: 13, color: AppColors.brandText)),
           ])
         else if (_error)
           Row(children: [
@@ -770,8 +895,7 @@ class _AiInsightCardState extends State<_AiInsightCard> {
             const SizedBox(width: 6),
             const Expanded(
               child: Text('서버에 연결할 수 없어요.',
-                  style:
-                      TextStyle(fontSize: 13, color: AppColors.brandText)),
+                  style: TextStyle(fontSize: 13, color: AppColors.brandText)),
             ),
             GestureDetector(
               onTap: _generate,
@@ -915,7 +1039,13 @@ class _WeeklyTabState extends State<_WeeklyTab> {
         data.isEmpty ? 1.0 : data.reduce(math.max).clamp(1.0, double.infinity);
     final avgK = data.fold(0.0, (s, v) => s + v) / 7;
     final totalK = data.fold(0.0, (s, v) => s + v);
+    final targetKcal = context.read<AppState>().user?.targetKcal ?? 0.0;
     const wd = ['월', '화', '수', '목', '금', '토', '일'];
+
+    Color kcalColor(double kcal) {
+      if (targetKcal <= 0) return AppColors.text;
+      return kcal < targetKcal ? const Color(0xFF3182F6) : const Color(0xFFEF4444);
+    }
 
     return CustomScrollView(slivers: [
       SliverToBoxAdapter(
@@ -929,9 +1059,18 @@ class _WeeklyTabState extends State<_WeeklyTab> {
             delegate: SliverChildListDelegate([
           Row(children: [
             _StatCard(
-                label: '주간 총 칼로리', value: '${totalK.round()}', unit: 'kcal'),
+                label: '주간 총 칼로리',
+                value: '${totalK.round()}',
+                unit: 'kcal',
+                valueColor: targetKcal > 0
+                    ? kcalColor(totalK / 7)
+                    : null),
             const SizedBox(width: 10),
-            _StatCard(label: '일 평균', value: '${avgK.round()}', unit: 'kcal'),
+            _StatCard(
+                label: '일 평균',
+                value: '${avgK.round()}',
+                unit: 'kcal',
+                valueColor: targetKcal > 0 ? kcalColor(avgK) : null),
             const SizedBox(width: 10),
             _StatCard(
                 label: '기록된 날',
@@ -974,9 +1113,10 @@ class _WeeklyTabState extends State<_WeeklyTab> {
                               Text('${data[i].round()}',
                                   style: TextStyle(
                                       fontSize: 9,
+                                      fontWeight: FontWeight.w600,
                                       color: isSel
                                           ? AppColors.brandText
-                                          : AppColors.textMuted)),
+                                          : kcalColor(data[i]))),
                             const SizedBox(height: 3),
                             Semantics(
                               button: true,
@@ -1206,7 +1346,7 @@ class _NutrAvgRow extends StatelessWidget {
             style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: over ? const Color(0xFFEF4444) : AppColors.text)),
+                color: over ? AppColors.red : AppColors.text)),
         Text(' / ${goal.round()}g',
             style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
       ]),
@@ -1217,14 +1357,13 @@ class _NutrAvgRow extends StatelessWidget {
           value: ratio,
           minHeight: 5,
           backgroundColor: AppColors.lineSoft,
-          valueColor: AlwaysStoppedAnimation<Color>(
-              over ? const Color(0xFFEF4444) : color),
+          valueColor:
+              AlwaysStoppedAnimation<Color>(over ? AppColors.red : color),
         ),
       ),
     ]);
   }
 }
-
 
 // ── 통계 카드 (주간/월간 공용) ─────────────────────
 class _StatCard extends StatelessWidget {
@@ -1608,7 +1747,6 @@ class _MonthlyTabState extends State<_MonthlyTab> {
     ]);
   }
 }
-
 
 // ── 빈 리포트 상태 ─────────────────────────────────
 class _EmptyReport extends StatelessWidget {

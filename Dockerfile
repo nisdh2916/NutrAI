@@ -28,6 +28,7 @@ ENV PATH=/root/.local/bin:$PATH
 # 소스 복사 (모델 파일 포함)
 COPY server/ ./server/
 COPY ai/     ./ai/
+COPY data/   ./data/
 
 # 포트 노출
 EXPOSE 8000
