@@ -129,6 +129,17 @@ SYSTEM_PROMPT = """한국어로만 답변하는 NutrAI 영양 코치입니다.
 
 코칭 메시지: 전체 식단 조언 1~2문장"""
 
+GENERAL_CHAT_SYSTEM_PROMPT = """한국어로만 답변하는 NutrAI 영양 코치입니다.
+사용자 질문 의도에 맞게 답변하세요.
+
+[응답 원칙 - 반드시 준수]
+- 사용자가 특정 음식을 먹어도 되는지 묻는 경우, 목록형 메뉴 추천을 만들지 말고 조건부 판단·주의점·대안만 2~4문장으로 답변하세요.
+- 통증이나 증상 질문은 식단만으로 진단하지 말고, 증상이 심하거나 지속되면 의료기관 상담을 권고하세요. 식단 조언은 관련이 있을 때만 보조적으로 제시하세요.
+- [참고 영양 정보]는 근거 자료로만 사용하고, 질문과 무관한 음식 추천을 억지로 만들지 마세요.
+- 알레르기, 질환, 목표 칼로리, 오늘 식단이 있으면 반드시 반영하세요.
+- '음식명', 'Xkcal', '설명 1~2문장' 같은 템플릿 문구를 그대로 출력하지 마세요.
+- 의료적 확정 표현은 사용하지 말고 권고 표현을 사용하세요."""
+
 
 # ── 전처리: 의도·시간대 감지 ─────────────────────
 def _detect_meal_time(user_query: str) -> str:
@@ -153,6 +164,40 @@ def _calc_remaining_kcal(user_profile: dict, meal_history: list[dict] | None) ->
 
 
 _SUPPLEMENT_KEYWORDS = ["영양제", "보충제", "비타민", "건강기능", "영양성분", "미네랄", "오메가"]
+_MEDICAL_CONCERN_KEYWORDS = [
+    "아파", "통증", "저려", "쑤셔", "붓", "부었", "어지러", "메스꺼",
+    "토할", "열나", "숨차", "흉통", "피가", "응급",
+]
+_FOOD_DECISION_KEYWORDS = [
+    "먹어도", "먹어도될", "먹어도 될", "먹어도되", "먹어도 되",
+    "괜찮을까", "괜찮나요", "될까요", "가능할까", "가능한가",
+]
+_MENU_RECOMMEND_KEYWORDS = [
+    "추천", "메뉴", "식단", "뭐먹", "뭐 먹", "먹을까", "골라", "관련음식",
+]
+
+
+def _classify_chat_intent(user_query: str) -> str:
+    normalized = re.sub(r"\s+", "", user_query.lower())
+    lowered = user_query.lower()
+
+    if any(keyword in normalized for keyword in _MEDICAL_CONCERN_KEYWORDS):
+        return "medical_concern"
+    if any(keyword.replace(" ", "") in normalized for keyword in _FOOD_DECISION_KEYWORDS):
+        return "food_decision"
+    if any(keyword in lowered or keyword.replace(" ", "") in normalized for keyword in _MENU_RECOMMEND_KEYWORDS):
+        return "menu_recommendation"
+    return "general"
+
+
+def _build_direct_answer(user_query: str) -> str | None:
+    if _classify_chat_intent(user_query) != "medical_concern":
+        return None
+    return (
+        "다리 통증은 식단만으로 원인을 판단하기 어렵습니다. 통증이 갑자기 심해졌거나 "
+        "붓기·열감·저림·호흡곤란이 동반되거나 며칠 이상 지속되면 의료기관 상담을 권장합니다. "
+        "식사는 회복을 돕는 보조 요소로 보고, 무리한 운동은 피하면서 수분과 균형 잡힌 단백질 섭취를 유지해 주세요."
+    )
 
 
 def _rewrite_queries(
@@ -416,8 +461,10 @@ def build_messages(
         f"[참고 영양 정보]\n{context}",
         f"사용자 질문: {user_query}",
     ]
+    intent = _classify_chat_intent(user_query)
+    system_prompt = SYSTEM_PROMPT if intent == "menu_recommendation" else GENERAL_CHAT_SYSTEM_PROMPT
     return [
-        SystemMessage(content=SYSTEM_PROMPT),
+        SystemMessage(content=system_prompt),
         HumanMessage(content="\n\n".join(sections)),
     ]
 
@@ -441,8 +488,13 @@ def build_prompt(
 
 # ── 포스트 프로세싱 ────────────────────────────────
 _THINK_TAG_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
-_KCAL_RE = re.compile(r"(\d+)\s*kcal", re.IGNORECASE)
+_KCAL_RE = re.compile(r"(?<![\d.])(\d+(?:\.\d+)?)\s*kcal(?![A-Za-z0-9.])", re.IGNORECASE)
 _MULTI_BLANK_RE = re.compile(r"\n{3,}")
+_TEMPLATE_ARTIFACT_LINE_RES = [
+    re.compile(r"^\s*(?:[-*>]\s*)?\*{0,2}음식명\*{0,2}\s*\(칼로리:\s*X\s*kcal\)\s*$", re.IGNORECASE),
+    re.compile(r"^\s*(?:[-*>]\s*)?추천\s*이유:\s*설명\s*1~2문장\s*$", re.IGNORECASE),
+    re.compile(r"^\s*(?:[-*>]\s*)?코칭\s*메시지:\s*전체\s*식단\s*조언\s*1~2문장\s*$", re.IGNORECASE),
+]
 
 
 def _strip_think_streaming(buffer: str, in_think: bool) -> tuple[str, str, bool]:
@@ -471,19 +523,29 @@ def _strip_think_streaming(buffer: str, in_think: bool) -> tuple[str, str, bool]
 def _validate_kcal(answer: str, remaining_kcal: float | None = None) -> str:
     """
     칼로리 유효성 검사:
-    - 절대값: 1~49kcal(영양성분 표기의 0은 제외) 또는 2000kcal 초과 → ⚠️
+    - 절대값: 1~9kcal(영양성분 표기의 0은 제외) 또는 2000kcal 초과 → ⚠️
     - 남은 칼로리 기준: remaining_kcal의 120% 초과 → ⚠️(남은 칼로리 초과)
     """
     def _mark(m: re.Match) -> str:
-        val = int(m.group(1))
+        raw = m.group(1)
+        val = float(raw)
         if val == 0:
             return m.group(0)  # 영양성분 표기의 0kcal은 무시
-        if val < 50 or val > 2000:
-            return f"{val}kcal ⚠️"
+        if val < 10 or val > 2000:
+            return f"{raw}kcal ⚠️"
         if remaining_kcal is not None and val > remaining_kcal * 1.2:
-            return f"{val}kcal ⚠️(남은 {remaining_kcal:.0f}kcal 초과)"
+            return f"{raw}kcal ⚠️(남은 {remaining_kcal:.0f}kcal 초과)"
         return m.group(0)
     return _KCAL_RE.sub(_mark, answer)
+
+
+def _strip_template_artifacts(answer: str) -> str:
+    lines = []
+    for line in answer.splitlines():
+        if any(pattern.match(line.strip()) for pattern in _TEMPLATE_ARTIFACT_LINE_RES):
+            continue
+        lines.append(line)
+    return "\n".join(lines).strip()
 
 
 def _build_allergen_warning(answer: str, allergens: list[str]) -> str:
@@ -514,6 +576,7 @@ def post_process(
     4. 과도한 빈 줄 정규화
     """
     answer = _THINK_TAG_RE.sub("", answer).strip()
+    answer = _strip_template_artifacts(answer)
     answer = _validate_kcal(answer, remaining_kcal)
 
     allergens = _extract_allergens(user_profile)
@@ -553,6 +616,14 @@ def get_recommendation(
         → LLM 생성
         → 후처리(think 제거, 칼로리 검증, 알레르기 이중 확인)
     """
+    direct_answer = _build_direct_answer(user_query)
+    if direct_answer:
+        return {
+            "answer": direct_answer,
+            "sources": [],
+            "detected_foods": detected_foods or [],
+        }
+
     # 전처리
     remaining_kcal = _calc_remaining_kcal(user_profile, meal_history)
     meal_time = _detect_meal_time(user_query)
@@ -661,6 +732,11 @@ def stream_recommendation(
             yield chunk.replace("**", "")
         return
 
+    direct_answer = _build_direct_answer(user_query)
+    if direct_answer:
+        yield direct_answer
+        return
+
     remaining_kcal, _, queries = _preprocess_query(
         user_query, user_profile, detected_foods, meal_history
     )
@@ -671,24 +747,6 @@ def stream_recommendation(
     clean_chunks: list[str] = []
     for chunk in _stream_ollama_raw(messages):
         clean_chunks.append(chunk)
-        yield chunk
 
     full_response = "".join(clean_chunks)
-    allergens = _extract_allergens(user_profile)
-    allergen_warning = _build_allergen_warning(full_response, allergens)
-    if allergen_warning:
-        yield "\n\n" + allergen_warning
-
-    kcal_warnings = [
-        f"{int(m.group(1))}kcal"
-        for m in _KCAL_RE.finditer(full_response)
-        if int(m.group(1)) != 0 and (
-            int(m.group(1)) < 50 or int(m.group(1)) > 2000
-            or (remaining_kcal is not None and int(m.group(1)) > remaining_kcal * 1.2)
-        )
-    ]
-    if kcal_warnings:
-        yield (
-            f"\n\n> ⚠️ 일부 칼로리 정보({', '.join(kcal_warnings)})가 "
-            "목표 범위를 벗어납니다. 참고용으로만 활용하세요."
-        )
+    yield post_process(full_response, user_profile, remaining_kcal=remaining_kcal)
