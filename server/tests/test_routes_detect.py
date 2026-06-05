@@ -1,23 +1,54 @@
-"""POST /detect 엔드포인트 테스트 (현재 mock 응답)."""
+"""POST /detect endpoint tests with the detector service mocked."""
 from __future__ import annotations
 
 import sys
 from io import BytesIO
 from pathlib import Path
 
+import pytest
+from fastapi.testclient import TestClient
+from PIL import Image
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from fastapi.testclient import TestClient
 from server.main import app
 
 client = TestClient(app, raise_server_exceptions=True)
 
-_FAKE_IMAGE = BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 100)
+
+def _valid_image() -> BytesIO:
+    image = Image.new("RGB", (2, 2), color=(255, 255, 255))
+    buf = BytesIO()
+    image.save(buf, format="JPEG")
+    buf.seek(0)
+    return buf
+
+
+@pytest.fixture(autouse=True)
+def fake_detect_foods(monkeypatch):
+    def _fake_detect_foods(_contents: bytes, **_kwargs):
+        return {
+            "detections": [
+                {
+                    "food_name": "비빔밥",
+                    "confidence": 0.91,
+                    "bbox": [0, 0, 2, 2],
+                    "count": 1,
+                    "quantity_class": "Q3",
+                    "quantity_ratio": 1.0,
+                }
+            ],
+            "inference_ms": 12,
+        }
+
+    monkeypatch.setattr("server.api.routes_detect.detect_foods", _fake_detect_foods)
 
 
 def _post_detect():
-    _FAKE_IMAGE.seek(0)
-    return client.post("/detect", files={"image": ("test.jpg", _FAKE_IMAGE, "image/jpeg")})
+    return client.post(
+        "/detect",
+        files={"image": ("test.jpg", _valid_image(), "image/jpeg")},
+    )
 
 
 class TestPostDetect:
@@ -51,3 +82,10 @@ class TestPostDetect:
         for item in detections:
             assert "bbox" in item
             assert len(item["bbox"]) == 4
+
+    def test_rejects_invalid_image(self):
+        response = client.post(
+            "/detect",
+            files={"image": ("bad.jpg", BytesIO(b"not an image"), "image/jpeg")},
+        )
+        assert response.status_code == 400

@@ -1,7 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nutrai/database/food_data.dart';
 import 'package:nutrai/providers/meal_state.dart';
 import 'package:nutrai/providers/user_state.dart';
 import 'helpers/db_test_helper.dart';
+
+const _baseSeedFoodCount = 12;
 
 void main() {
   setUpAll(setUpTestDatabase);
@@ -42,17 +45,29 @@ void main() {
   group('MealState - getOrCreateFood', () {
     test('creates new food and returns id', () async {
       final id = await state.getOrCreateFood(
-        name: '새음식', kcal: 200.0, carbG: 30.0, proteinG: 10.0, fatG: 5.0,
+        name: '새음식',
+        kcal: 200.0,
+        carbG: 30.0,
+        proteinG: 10.0,
+        fatG: 5.0,
       );
       expect(id, greaterThan(0));
     });
 
     test('returns same id for existing food', () async {
       final id1 = await state.getOrCreateFood(
-        name: '중복음식', kcal: 100.0, carbG: 10.0, proteinG: 5.0, fatG: 2.0,
+        name: '중복음식',
+        kcal: 100.0,
+        carbG: 10.0,
+        proteinG: 5.0,
+        fatG: 2.0,
       );
       final id2 = await state.getOrCreateFood(
-        name: '중복음식', kcal: 100.0, carbG: 10.0, proteinG: 5.0, fatG: 2.0,
+        name: '중복음식',
+        kcal: 100.0,
+        carbG: 10.0,
+        proteinG: 5.0,
+        fatG: 2.0,
       );
       expect(id1, id2);
     });
@@ -62,7 +77,11 @@ void main() {
     test('todayMeals populated after saveMeal + loadToday', () async {
       final userId = userState.userId!;
       final foodId = await state.getOrCreateFood(
-        name: '테스트음식', kcal: 300.0, carbG: 50.0, proteinG: 10.0, fatG: 5.0,
+        name: '테스트음식',
+        kcal: 300.0,
+        carbG: 50.0,
+        proteinG: 10.0,
+        fatG: 5.0,
       );
       await state.saveMeal(
         userId: userId,
@@ -80,9 +99,10 @@ void main() {
       expect(results.any((f) => f.foodName == '밥'), true);
     });
 
-    test('getAllFoods returns 12 seed items', () async {
+    test('getAllFoods returns sample and generated nutrition seed items',
+        () async {
       final foods = await state.getAllFoods();
-      expect(foods.length, 12);
+      expect(foods.length, _baseSeedFoodCount + kFoodData.length);
     });
   });
 

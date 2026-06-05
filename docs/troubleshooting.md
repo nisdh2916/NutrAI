@@ -1073,3 +1073,51 @@ final found = await searchFood(name, collection: 'detection');
 빌드: `ai/scripts/db/build_full_db.py` (음식분류_AI_데이터_영양DB.xlsx + 20251229_음식DB 19495건.xlsx 필요).
 
 **관련 파일:** `ai/scripts/db/build_full_db.py`, `ai/rag_engine/rag_pipeline.py` → `get_collection()`, `server/api/routes_food.py` → `get_food_search()`, `app/lib/services/chat_service.dart` → `detectFoods()`/`searchFood()`, `app/lib/screens/food_add_screen.dart` → `_analyzeImage()`
+
+---
+
+## 41. 감사 후 Flutter/Detect/RAG 배포 보완 항목이 한꺼번에 실패함
+
+**증상:** `/audit` 후속 점검에서 Flutter 테스트가 `sqflite_common_ffi` 누락으로 시작조차 못 하거나, 병렬 실행 시 SQLite lock이 발생함. `/detect` 라우트 테스트는 잘못된 JPEG fixture와 실제 YOLO 모델 로딩 때문에 실패함. 앱에서 사진 경로(`photo_path`)를 넘겨도 DB에 저장되지 않았고, 끼니 용어가 `간식/기타/야식`으로 섞여 표시됨. Docker fresh volume에서는 `build_full_db.py` 실행 절차가 없어 추천 RAG DB가 비어 있을 수 있었고, 일부 보조 Python 스크립트는 한 줄로 뭉개져 `compileall`이 실패함.
+
+**원인:** 테스트 의존성과 fixture가 최신 코드 흐름을 따라가지 못함. `MealEntity`에는 `photoPath`가 있었지만 `meal` 테이블과 repository insert 경로에는 `photo_path`가 없었음. `snack` 표시 라벨이 화면마다 다르게 정의돼 있었고, Docker 문서는 현재 compose 구조와 다르게 Ollama/Chroma 초기화 절차를 설명함.
+
+**해결:**
+```dart
+// 변경 전
+static const _dbVersion = 4;
+// meal table: memo TEXT, created_at ...
+await _mealRepo.saveMealWithFoods(..., memo: memo, foods: foods);
+const m = {'snack': '기타', 'late_night': '야식'};
+
+// 변경 후
+static const _dbVersion = 5;
+// meal table: memo TEXT, photo_path TEXT, created_at ...
+await _mealRepo.saveMealWithFoods(
+  ..., memo: memo, photoPath: photoPath, foods: foods,
+);
+const m = {'snack': '간식', 'late_night': '간식'};
+```
+```python
+# 변경 전: routes_detect.py가 라우트 안에서 YOLO 모델을 직접 로드
+classify_model, quantity_model = _get_models()
+
+# 변경 후: 서비스 함수로 위임하고 테스트는 detect_foods를 mock
+result = detect_foods(contents, conf_threshold=0.4)
+return DetectResponse(**result)
+```
+```yaml
+# 변경 후
+dev_dependencies:
+  sqflite_common_ffi: ^2.3.3
+
+# app/dart_test.yaml
+concurrency: 1
+
+# docker-compose.yml
+init-chroma:
+  profiles: ["init"]
+  command: ["python", "ai/scripts/db/build_full_db.py"]
+```
+
+**관련 파일:** `app/lib/database/database_helper.dart` → `_onCreate()`/`_onUpgrade()`, `app/lib/repositories/meal_repository.dart` → `saveMealWithFoods()`, `app/lib/models/db_models.dart` → `label`/`typeFromLabel()`, `server/api/routes_detect.py` → `post_detect()`, `server/tests/test_routes_detect.py`, `docker-compose.yml` → `init-chroma`, `docs/docker-deployment.md`, `ai/scripts/db/add_manual_franchise.py`, `ai/scripts/scrape/scrape_kdclub.py`

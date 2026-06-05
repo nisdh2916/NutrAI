@@ -2,82 +2,83 @@
 
 ## 구성
 
-```
-[Android 앱] ──── HTTP ────▶ [nutrai-server :8000]
-                                      │
-                              ┌───────┴────────┐
-                         YOLOv11m          FastAPI
-                                      │
-                             [ollama :11434]
-                               qwen3:8b
-                             (같은 compose)
+```text
+[Android 앱] ---- HTTP ----> [nutrai-server :8000]
+                                  |
+                         FastAPI / YOLO / RAG
+                                  |
+                 [host.docker.internal:11434]
+                         기존 Ollama 서버
 ```
 
-모든 서비스가 Docker 안에서 동작합니다. 호스트에 별도로 설치할 것이 없습니다.
+현재 `docker-compose.yml`은 FastAPI 서버와 ChromaDB 볼륨을 관리합니다. Ollama는 같은 compose 안에서 띄우지 않고, 호스트 또는 기존 컨테이너의 `http://host.docker.internal:11434` 주소를 사용합니다.
 
----
-
-## 1. Portainer에서 배포
-
-**Stacks → Add stack → Web editor**에 `docker-compose.yml` 내용을 붙여넣고 **Deploy** 클릭.
-
-시작 순서는 자동으로 처리됩니다:
-1. `ollama` 컨테이너 기동
-2. `ollama-pull`이 `qwen3:8b` 자동 다운로드 (~5GB, 최초 1회만)
-3. `nutrai-server` 기동
-
-> **GPU 없는 서버라면** `docker-compose.yml`의 `deploy.resources` 블록을 주석처리하세요.
-
----
-
-## 2. 일반 서버 (CLI)
+## 1. 최초 배포
 
 ```bash
 cp .env.example .env
 
-docker compose up -d --build
-
-# 로그 확인 (모델 다운로드 진행 상황)
-docker compose logs -f ollama-pull
-docker compose logs -f nutrai-server
+docker compose build
+docker compose --profile init run --rm init-chroma
+docker compose up -d nutrai-server
 ```
 
----
+`init-chroma`는 `ai/scripts/db/build_full_db.py`를 실행해서 `chroma_data` 볼륨에 `detection`과 `nutrition` 컬렉션을 생성합니다. 새 서버나 빈 볼륨에서는 이 단계를 먼저 실행해야 `/food/search`, `/detect` 영양 매핑, 추천 RAG가 최신 영양 DB를 사용합니다.
 
-## 3. Android 앱 빌드
+## 2. 일반 재배포
 
-```bash
-# 서버 IP로 APK 빌드
-flutter build apk --dart-define=API_BASE_URL=http://<서버IP>:8000
-
-# USB 연결 (adb reverse 터널)
-adb reverse tcp:8000 tcp:8000
-flutter run
-```
-
----
-
-## 4. 자주 쓰는 명령어
+ChromaDB 볼륨을 지우지 않았다면 서버만 재빌드하면 됩니다.
 
 ```bash
-# 재시작
-docker compose restart
-
-# 중지
-docker compose down
-
-# 코드 변경 후 서버만 재빌드
 docker compose up -d --build nutrai-server
-
-# 모델/DB 포함 전체 초기화
-docker compose down -v
 ```
 
----
+영양 엑셀, 가이드라인, 스크래핑 데이터가 바뀐 경우에는 ChromaDB를 다시 빌드하세요.
+
+```bash
+docker compose --profile init run --rm init-chroma
+docker compose restart nutrai-server
+```
+
+## 3. 전체 초기화
+
+`docker compose down -v`는 `chroma_data` 볼륨도 삭제합니다. 이후에는 반드시 초기화 서비스를 다시 실행해야 합니다.
+
+```bash
+docker compose down -v
+docker compose build
+docker compose --profile init run --rm init-chroma
+docker compose up -d nutrai-server
+```
+
+## 4. 로그와 상태 확인
+
+```bash
+docker compose logs -f nutrai-server
+docker compose ps
+```
+
+헬스체크:
+
+```bash
+curl http://localhost:8001/health
+```
+
+## 5. Android 앱 빌드
+
+```bash
+flutter build apk --dart-define=API_BASE_URL=http://<서버IP>:8001
+```
+
+USB 개발 중 로컬 터널을 쓸 때:
+
+```bash
+adb reverse tcp:8001 tcp:8001
+flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8001
+```
 
 ## 볼륨 용량 참고
 
 | 볼륨 | 내용 | 용량 |
 |------|------|------|
-| `ollama_data` | qwen3:8b 모델 | ~5GB |
-| `chroma_data` | ChromaDB 벡터 DB | 수백MB |
+| `chroma_data` | ChromaDB 벡터 DB | 수백 MB 이상 |

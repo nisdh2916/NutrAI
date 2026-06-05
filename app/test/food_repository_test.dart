@@ -1,7 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nutrai/database/food_data.dart';
 import 'package:nutrai/models/db_models.dart';
 import 'package:nutrai/repositories/food_repository.dart';
 import 'helpers/db_test_helper.dart';
+
+const _baseSeedFoodCount = 12;
 
 void main() {
   setUpAll(setUpTestDatabase);
@@ -24,9 +27,10 @@ void main() {
   }
 
   group('FoodRepository - getAllFoods', () {
-    test('returns sample seed data on fresh DB', () async {
+    test('returns sample and generated nutrition seed data on fresh DB',
+        () async {
       final foods = await repo.getAllFoods();
-      expect(foods.length, 12);
+      expect(foods.length, _baseSeedFoodCount + kFoodData.length);
     });
 
     test('returns foods ordered by food_name', () async {
@@ -101,9 +105,14 @@ void main() {
       final id = await repo.createFood(makeFood(kcal: 100.0));
       final food = await repo.getFoodById(id);
       final updated = FoodEntity(
-        id: food!.id, foodName: food.foodName,
-        kcal: 999.0, carbG: food.carbG, proteinG: food.proteinG, fatG: food.fatG,
-        createdAt: food.createdAt, updatedAt: DateTime.now().toIso8601String(),
+        id: food!.id,
+        foodName: food.foodName,
+        kcal: 999.0,
+        carbG: food.carbG,
+        proteinG: food.proteinG,
+        fatG: food.fatG,
+        createdAt: food.createdAt,
+        updatedAt: DateTime.now().toIso8601String(),
       );
       await repo.updateFood(updated);
       expect((await repo.getFoodById(id))!.kcal, 999.0);
