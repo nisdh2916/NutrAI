@@ -1,186 +1,73 @@
-"""
-식품영양성분 CSV → ChromaDB 벡터 DB 전체 구축 스크립트
+# -*- coding: utf-8 -*-
+"""카테고리·영양소 기반 boolean 메타데이터 태그 계산."""
+from __future__ import annotations
 
-사전 준비:
-  .venv\Scripts\pip install sentence-transformers
+_MORNING_CATS = {"죽 및 스프류", "과일류", "음료 및 차류", "빵 및 과자류",
+                 "유제품류 및 빙과류", "밥류"}
+_LUNCH_CATS   = {"밥류", "면 및 만두류", "국 및 탕류", "찌개 및 전골류",
+                 "구이류", "볶음류", "찜류", "전·적 및 부침류", "조림류",
+                 "튀김류", "나물·숙채류", "생채·무침류", "수·조·어·육류"}
+_DINNER_CATS  = {"밥류", "국 및 탕류", "찌개 및 전골류", "구이류",
+                 "볶음류", "찜류", "수·조·어·육류", "면 및 만두류"}
+_SNACK_CATS   = {"빵 및 과자류", "과일류", "음료 및 차류",
+                 "두류, 견과 및 종실류"}
 
-실행:
-  .venv\Scripts\python ai\scripts\build_nutrition_db.py
-
-데이터:
-  - 음식 데이터   ~15,568건 (중복제거 후)
-  - 가공식품 데이터 ~232,202건 (중복제거 후)
-  - 합계 ~247,770건
-  - 예상 시간: 30분~1시간 (RTX GPU 기준)
-
-특징:
-  - GPU 자동 사용 (CUDA)
-  - 체크포인트 지원 (끊겨도 이어서 시작)
-"""
-import time
-import json
-import pandas as pd
-from pathlib import Path
-from sentence_transformers import SentenceTransformer
-import chromadb
-
-# ── 경로 설정 ────────────────────────────────────────────
-REPO_ROOT   = Path(__file__).parent.parent.parent
-DATA_DIR    = REPO_ROOT / "data" / "nutrition_db"
-CHROMA_DIR  = REPO_ROOT / "ai" / "rag_engine" / "chroma_db"
-CHECKPOINT  = REPO_ROOT / "ai" / "rag_engine" / "build_checkpoint.json"
-
-FOOD_CSV = DATA_DIR / "식품의약품안전처_통합식품영양성분정보(음식)_20251229 (1).csv"
-PROC_CSV = DATA_DIR / "식품의약품안전처_통합식품영양성분정보(가공식품)_20260402.csv"
-
-EMBED_MODEL = "snunlp/KR-SBERT-V40K-klueNLI-augSTS"  # 한국어 특화 모델
-BATCH_SIZE  = 2000  # GPU 사용 시 큰 배치 가능
+_HIGH_SODIUM_CATS = {"젓갈류", "김치류", "장류, 양념류", "장아찌·절임류"}
+_HIGH_SUGAR_CATS  = {"음료 및 차류", "빵 및 과자류", "유제품류 및 빙과류",
+                     "과일류", "장류, 양념류"}
+_NON_DIET_CATS    = {"빵 및 과자류", "유제품류 및 빙과류", "튀김류", "장류, 양념류"}
 
 
-def safe(val, unit=""):
-    if pd.isna(val):
-        return ""
-    return f"{round(float(val), 1)}{unit}"
+def _fval(row: dict, col: str, default: float = 0.0) -> float:
+    try:
+        v = row.get(col)
+        if v is None:
+            return default
+        # pandas NaN guard (works without pandas import)
+        f = float(v)
+        return default if f != f else f  # NaN check: NaN != NaN
+    except (TypeError, ValueError):
+        return default
 
 
-def row_to_doc(row, category="") -> str:
-    name  = str(row.get("식품명", "")).strip()
-    kcal  = safe(row.get("에너지(kcal)"), "kcal")
-    carb  = safe(row.get("탄수화물(g)"), "g")
-    prot  = safe(row.get("단백질(g)"), "g")
-    fat   = safe(row.get("지방(g)"), "g")
-    sod   = safe(row.get("나트륨(mg)"), "mg")
-    fiber = safe(row.get("식이섬유(g)"), "g")
-    sugar = safe(row.get("당류(g)"), "g")
-    calc  = safe(row.get("칼슘(mg)"), "mg")
-    vitc  = safe(row.get("비타민 C(mg)"), "mg")
+def tag_row(row: dict, category: str, source: str = "food") -> dict:
+    """카테고리·영양소 기반 boolean 메타데이터 태그 계산."""
+    kcal    = _fval(row, "에너지(kcal)")
+    protein = _fval(row, "단백질(g)")
+    fat     = _fval(row, "지방(g)")
+    sodium  = _fval(row, "나트륨(mg)")
+    sugar   = _fval(row, "당류(g)")
+    carb    = _fval(row, "탄수화물(g)")
 
-    parts = [name]
-    if category:
-        parts.append(f"분류: {category}")
-    if kcal:  parts.append(f"칼로리 {kcal}")
-    if carb:  parts.append(f"탄수화물 {carb}")
-    if prot:  parts.append(f"단백질 {prot}")
-    if fat:   parts.append(f"지방 {fat}")
-    if sod:   parts.append(f"나트륨 {sod}")
-    if fiber: parts.append(f"식이섬유 {fiber}")
-    if sugar: parts.append(f"당류 {sugar}")
-    if calc:  parts.append(f"칼슘 {calc}")
-    if vitc:  parts.append(f"비타민C {vitc}")
+    is_morning = category in _MORNING_CATS
+    is_lunch   = category in _LUNCH_CATS
+    is_dinner  = category in _DINNER_CATS
+    is_snack   = category in _SNACK_CATS
 
-    ref = row.get("영양성분함량기준량", "100g")
-    parts.append(f"(기준: {ref})")
-
-    return " | ".join(parts)
-
-
-def load_all_docs() -> tuple[list[str], list[dict]]:
-    """전체 문서 로드 → (texts, metadatas)"""
-    texts, metas = [], []
-
-    print("음식 데이터 로드 중...")
-    df = pd.read_csv(FOOD_CSV, encoding="utf-8", low_memory=False)
-    df = df.dropna(subset=["식품명", "에너지(kcal)"]).drop_duplicates(subset=["식품명"])
-    print(f"  → {len(df)}건")
-    for _, row in df.iterrows():
-        cat = str(row.get("식품대분류명", ""))
-        texts.append(row_to_doc(row, cat))
-        metas.append({"source": "음식DB", "category": cat, "name": str(row.get("식품명", ""))})
-
-    print("가공식품 데이터 로드 중...")
-    df = pd.read_csv(PROC_CSV, encoding="utf-8", low_memory=False)
-    df = df.dropna(subset=["식품명", "에너지(kcal)"]).drop_duplicates(subset=["식품명"])
-    print(f"  → {len(df)}건")
-    for _, row in df.iterrows():
-        cat = str(row.get("식품대분류명", row.get("식품기원명", "")))
-        texts.append(row_to_doc(row, cat))
-        metas.append({"source": "가공식품DB", "category": cat, "name": str(row.get("식품명", ""))})
-
-    print(f"총 {len(texts)}개 문서 생성 완료")
-    return texts, metas
-
-
-def load_checkpoint() -> int:
-    if CHECKPOINT.exists():
-        data = json.loads(CHECKPOINT.read_text())
-        return data.get("done", 0)
-    return 0
-
-
-def save_checkpoint(done: int):
-    CHECKPOINT.write_text(json.dumps({"done": done}))
-
-
-def main():
-    import torch
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"디바이스: {device.upper()}")
-
-    # 체크포인트 확인
-    start_from = load_checkpoint()
-    if start_from > 0:
-        print(f"체크포인트 발견: {start_from:,}건부터 이어서 시작")
-    else:
-        # 처음 시작 시 기존 ChromaDB 삭제
-        if CHROMA_DIR.exists():
-            import shutil
-            print("기존 ChromaDB 삭제 중...")
-            shutil.rmtree(CHROMA_DIR)
-
-    texts, metas = load_all_docs()
-    total = len(texts)
-
-    print(f"\n모델 로드 중: {EMBED_MODEL}")
-    model = SentenceTransformer(EMBED_MODEL, device=device)
-
-    # ChromaDB 초기화
-    CHROMA_DIR.mkdir(parents=True, exist_ok=True)
-    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-    collection = client.get_or_create_collection(
-        name="nutrition",
-        metadata={"hnsw:space": "cosine"},
+    is_diet = (
+        (0 < kcal <= 300 and category not in _NON_DIET_CATS)
+        or (protein >= 15 and fat <= 8 and 0 < kcal <= 350)
     )
 
-    print(f"\nEmbedding 시작 (배치 {BATCH_SIZE}건씩)")
-    start = time.time()
+    is_diabetes = (
+        sugar <= 5 and carb <= 30 and kcal > 0
+        and category not in _HIGH_SUGAR_CATS
+    )
 
-    for i in range(start_from, total, BATCH_SIZE):
-        batch_texts = texts[i:i + BATCH_SIZE]
-        batch_metas = metas[i:i + BATCH_SIZE]
-        batch_ids   = [f"doc_{j}" for j in range(i, i + len(batch_texts))]
+    is_hypertension = (
+        0 < sodium <= 300
+        and category not in _HIGH_SODIUM_CATS
+    )
 
-        # GPU 배치 임베딩
-        embeddings = model.encode(
-            batch_texts,
-            batch_size=256,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-        ).tolist()
+    is_supplement = source == "supplement"
 
-        collection.add(
-            ids=batch_ids,
-            embeddings=embeddings,
-            documents=batch_texts,
-            metadatas=batch_metas,
-        )
-
-        done = i + len(batch_texts)
-        save_checkpoint(done)
-
-        elapsed = time.time() - start
-        speed = (done - start_from) / elapsed if elapsed > 0 else 0
-        eta = (total - done) / speed if speed > 0 else 0
-        pct = done * 100 // total
-        print(f"  [{pct:3d}%] {done:,}/{total:,}건  "
-              f"경과: {elapsed/60:.1f}분  남은시간: {eta/60:.1f}분  "
-              f"속도: {speed:.0f}건/초", flush=True)
-
-    total_min = (time.time() - start) / 60
-    CHECKPOINT.unlink(missing_ok=True)  # 체크포인트 삭제
-    print(f"\n완료! 총 소요: {total_min:.1f}분")
-    print(f"ChromaDB 저장 위치: {CHROMA_DIR}")
-    print("서버를 재시작하면 새 데이터가 적용됩니다.")
-
-
-if __name__ == "__main__":
-    main()
+    return {
+        "is_morning":      is_morning,
+        "is_lunch":        is_lunch,
+        "is_dinner":       is_dinner,
+        "is_snack":        is_snack,
+        "is_diet":         is_diet,
+        "is_diabetes":     is_diabetes,
+        "is_hypertension": is_hypertension,
+        "is_supplement":   is_supplement,
+    }

@@ -73,16 +73,36 @@ def _doc_to_result(doc: str) -> FoodSearchResult:
 def get_food_search(
     q: str = Query(..., min_length=1, description="검색어"),
     k: int = Query(5, ge=1, le=20, description="결과 수"),
+    collection: str = Query("nutrition", pattern="^(nutrition|detection)$",
+                            description="조회 컬렉션 — nutrition(검색/추천) | detection(YOLO 탐지 매핑)"),
 ) -> FoodSearchResponse:
-    """ChromaDB에서 음식 시맨틱 검색"""
+    """ChromaDB에서 음식 검색 — 이름 직접 포함 우선, 시맨틱으로 보완"""
     try:
-        from ai.rag_engine.rag_pipeline import get_collection, _get_embed_model
+        from ai.rag_engine.rag_pipeline import get_collection as _get_collection, _get_embed_model
 
-        model = _get_embed_model()
-        emb = model.encode(q, convert_to_numpy=True).tolist()
-        collection = get_collection()
-        results = collection.query(query_embeddings=[emb], n_results=k)
-        docs = results["documents"][0] if results["documents"] else []
-        return FoodSearchResponse(results=[_doc_to_result(d) for d in docs])
+        collection = _get_collection(collection)
+        total = collection.count()
+
+        # 1단계: 음식명 직접 포함 검색
+        keyword_res = collection.get(
+            where_document={"$contains": q},
+            limit=min(k, total),
+            include=["documents"],
+        )
+        docs: list[str] = keyword_res.get("documents", []) or []
+
+        # 2단계: 부족하면 시맨틱으로 보완
+        if len(docs) < k:
+            model = _get_embed_model()
+            emb = model.encode(q, convert_to_numpy=True).tolist()
+            sem_res = collection.query(query_embeddings=[emb], n_results=k)
+            sem_docs = sem_res["documents"][0] if sem_res["documents"] else []
+            seen = set(docs)
+            for doc in sem_docs:
+                if doc not in seen and len(docs) < k:
+                    docs.append(doc)
+                    seen.add(doc)
+
+        return FoodSearchResponse(results=[_doc_to_result(d) for d in docs[:k]])
     except ImportError as e:
         raise HTTPException(status_code=503, detail=str(e))

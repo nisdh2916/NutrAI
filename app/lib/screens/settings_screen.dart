@@ -2,20 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
-
-const _kAllergens = [
-  '유제품',
-  '견과류',
-  '갑각류',
-  '밀',
-  '글루텐',
-  '계란',
-  '대두',
-  '복숭아',
-  '토마토',
-  '고등어',
-  '조개류',
-];
+import '../services/allergen_service.dart';
 
 const _kConditions = [
   '당뇨',
@@ -341,7 +328,7 @@ class _HealthEditSheetState extends State<_HealthEditSheet> {
                   title: '알레르기',
                   icon: Icons.warning_amber_rounded,
                   color: const Color(0xFFE8A838),
-                  items: _kAllergens,
+                  items: AllergenService.instance.categories,
                   selected: _allergies,
                   onToggle: (v) => setState(() {
                     if (_allergies.contains(v)) {

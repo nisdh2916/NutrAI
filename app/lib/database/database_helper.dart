@@ -1,9 +1,10 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'food_data.dart';
 
 class DatabaseHelper {
   static const _dbName    = 'nutrai.db';
-  static const _dbVersion = 3;
+  static const _dbVersion = 4;
 
   // 싱글턴
   DatabaseHelper._();
@@ -135,14 +136,30 @@ class DatabaseHelper {
         'CREATE INDEX IF NOT EXISTS idx_chat_created_at ON chat_message(created_at)'
       );
     }
+    if (oldV < 4) {
+      // 영양DB 400개 외식메뉴 추가
+      final now = DateTime.now().toIso8601String();
+      for (final f in kFoodData) {
+        // 중복 방지: 동일 이름 없을 때만 삽입
+        final existing = await db.query(
+          'food',
+          where: 'food_name = ?',
+          whereArgs: [f['food_name']],
+          limit: 1,
+        );
+        if (existing.isEmpty) {
+          await db.insert('food', {...f, 'created_at': now, 'updated_at': now});
+        }
+      }
+    }
   }
 
   // ── 샘플 데이터 (LD_Sample.sql 기준) ─────────────
   Future<void> _insertSampleData(Database db) async {
     final now = DateTime.now().toIso8601String();
 
-    // food 12개
-    final foods = [
+    // 기본 12개 샘플
+    final baseFoods = [
       {'id': 1,  'food_no': 'F001', 'food_name': '밥',         'kcal': 300.0, 'carb_g': 68.0, 'protein_g': 6.0,  'fat_g': 1.0},
       {'id': 2,  'food_no': 'F002', 'food_name': '계란후라이', 'kcal': 90.0,  'carb_g': 1.0,  'protein_g': 6.0,  'fat_g': 7.0},
       {'id': 3,  'food_no': 'F003', 'food_name': '김치',       'kcal': 20.0,  'carb_g': 4.0,  'protein_g': 1.0,  'fat_g': 0.0},
@@ -156,7 +173,12 @@ class DatabaseHelper {
       {'id': 11, 'food_no': 'F011', 'food_name': '사과',       'kcal': 95.0,  'carb_g': 25.0, 'protein_g': 0.0,  'fat_g': 0.0},
       {'id': 12, 'food_no': 'F012', 'food_name': '요거트',     'kcal': 120.0, 'carb_g': 15.0, 'protein_g': 5.0,  'fat_g': 4.0},
     ];
-    for (final f in foods) {
+    for (final f in baseFoods) {
+      await db.insert('food', {...f, 'created_at': now, 'updated_at': now});
+    }
+
+    // 영양DB 400개 외식메뉴 삽입
+    for (final f in kFoodData) {
       await db.insert('food', {...f, 'created_at': now, 'updated_at': now});
     }
   }

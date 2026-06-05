@@ -97,12 +97,13 @@ class MealRepository {
         '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final db = await _db.database;
 
-    // 해당 날짜 meal 목록
+    // 해당 날짜 meal 목록 — 아침/점심/저녁/기타 순 고정 정렬
     final mealRows = await db.query(
       'meal',
       where: 'user_id = ? AND DATE(eaten_at) = ?',
       whereArgs: [userId, dateStr],
-      orderBy: 'eaten_at ASC',
+      orderBy:
+          "CASE meal_type WHEN 'breakfast' THEN '00:00' WHEN 'lunch' THEN '12:00' WHEN 'dinner' THEN '18:00' ELSE strftime('%H:%M', eaten_at) END ASC",
     );
 
     final result = <MealWithFoods>[];
@@ -165,6 +166,19 @@ class MealRepository {
     return getMealsForDate(userId, DateTime.now());
   }
 
+  /// 특정 날짜에 해당 meal_type이 이미 존재하는지 확인
+  Future<bool> hasMealTypeForDate(
+      int userId, String mealType, DateTime date) async {
+    final db = await _db.database;
+    final rows = await db.query(
+      'meal',
+      where: 'user_id = ? AND meal_type = ? AND DATE(eaten_at) = ?',
+      whereArgs: [userId, mealType, _dateStr(date)],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
   /// 날짜 범위 내 기록된 날짜 목록
   Future<List<String>> getRecordedDates(
       int userId, DateTime from, DateTime to) async {
@@ -208,7 +222,7 @@ class MealRepository {
     ''', [mealId]);
 
     return rows
-        .map((r) => MealFoodJoin(
+        .map<MealFoodJoin>((r) => MealFoodJoin(
               mealFood: MealFoodEntity.fromMap({
                 'id': r['mf_id'],
                 'meal_id': r['mf_meal_id'],

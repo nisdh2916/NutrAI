@@ -56,3 +56,42 @@ app.*.map.json
 
 # Generated local vector stores
 ai/rag_engine/chroma_db/
+
+app/build/
+android/.gradle/
+.metadata
+
+# ChromaDB 벡터 DB (빌드 산출물)
+ai/rag_engine/chroma_db/
+ai/rag_engine/build_checkpoint.json
+
+# 영양 DB 원본 데이터 (대용량, git 미포함)
+data/nutrition_db/*.xlsx
+data/nutrition_db/*.csv
+# 단, build_full_db.py 가 쓰는 빌드 입력은 포함 (서버 재현용)
+!data/nutrition_db/음식분류_AI_데이터_영양DB.xlsx
+!data/nutrition_db/20251229_음식DB 19495건.xlsx
+
+# KDRI 가이드라인 PDF (대용량, git 미포함)
+data/guidelines/*.pdf
+
+# 개인 AI 도구 설정 (Claude Code, Junie, Impeccable)
+.claude/
+.agents/
+.junie/
+skills-lock.json
+.impeccable.md
+
+# Flutter DevTools 자동 생성 파일
+app/devtools_options.yaml
+
+# 루트에서 flutter 실행 시 잘못 생성되는 플랫폼 산출물 (정식 프로젝트는 app/ 하위)
+/android/
+/ios/
+/macos/
+/linux/
+/windows/
+/web/
+
+# 구 SQL 폴더 (docs/db/ 로 이동됨)
+/SQL/
