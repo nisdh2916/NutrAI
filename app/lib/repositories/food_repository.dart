@@ -39,6 +39,28 @@ class FoodRepository {
     return rows.map(FoodEntity.fromMap).toList();
   }
 
+  // ── 카테고리 목록 ──────────────────────────────
+  Future<List<String>> getCategories() async {
+    final db   = await _db.database;
+    final rows = await db.rawQuery(
+      "SELECT DISTINCT category FROM food WHERE category IS NOT NULL AND category != '' ORDER BY category ASC",
+    );
+    return rows.map((r) => r['category'] as String).toList();
+  }
+
+  // ── 카테고리로 음식 검색 ────────────────────────
+  Future<List<FoodEntity>> getFoodsByCategory(String category, {int limit = 100}) async {
+    final db   = await _db.database;
+    final rows = await db.query(
+      'food',
+      where: 'category = ?',
+      whereArgs: [category],
+      orderBy: 'food_name ASC',
+      limit: limit,
+    );
+    return rows.map(FoodEntity.fromMap).toList();
+  }
+
   // ── 이름으로 검색 (LIKE) ───────────────────────
   Future<List<FoodEntity>> searchFoods(String query) async {
     if (query.trim().isEmpty) return getAllFoods();

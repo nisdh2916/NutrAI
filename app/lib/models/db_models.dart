@@ -122,6 +122,7 @@ class FoodEntity {
   final int? id;
   final String? foodNo;
   final String foodName;
+  final String? category;
   final double kcal;
   final double carbG;
   final double proteinG;
@@ -133,6 +134,7 @@ class FoodEntity {
     this.id,
     this.foodNo,
     required this.foodName,
+    this.category,
     required this.kcal,
     required this.carbG,
     required this.proteinG,
@@ -145,6 +147,7 @@ class FoodEntity {
     id:        m['id'] as int?,
     foodNo:    m['food_no'] as String?,
     foodName:  m['food_name'] as String,
+    category:  m['category'] as String?,
     kcal:      (m['kcal'] as num).toDouble(),
     carbG:     (m['carb_g'] as num).toDouble(),
     proteinG:  (m['protein_g'] as num).toDouble(),
@@ -157,6 +160,7 @@ class FoodEntity {
     if (id != null) 'id': id,
     'food_no':   foodNo,
     'food_name': foodName,
+    if (category != null) 'category': category,
     'kcal':      kcal,
     'carb_g':    carbG,
     'protein_g': proteinG,

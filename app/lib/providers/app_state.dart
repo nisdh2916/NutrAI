@@ -202,6 +202,11 @@ class AppState extends ChangeNotifier {
   Future<List<FoodEntity>> getInitialFoods({int limit = 100}) =>
       _foodRepo.getInitialFoods(limit: limit);
 
+  Future<List<String>> getFoodCategories() => _foodRepo.getCategories();
+
+  Future<List<FoodEntity>> getFoodsByCategory(String category, {int limit = 100}) =>
+      _foodRepo.getFoodsByCategory(category, limit: limit);
+
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 사용자 초기화 (프로필 재설정 / 로그아웃)
   // 설정 화면에서 호출 → _RootRouter가 온보딩으로 전환

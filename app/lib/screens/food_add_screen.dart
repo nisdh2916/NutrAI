@@ -126,6 +126,10 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
   // 초기 빠른 선택 목록 (DB에서 로드)
   List<MealFood> _quickFoods = [];
 
+  // 카테고리 필터
+  List<String> _categories = [];
+  String? _selectedCategory; // null = 전체
+
   static const _mealLabels = ['아침', '점심', '저녁', '기타'];
   static const _mealColors = [
     AppColors.breakfast,
@@ -139,24 +143,41 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
     super.initState();
     _mealLabel = widget.initialMealLabel;
     _searchCtrl.addListener(_onSearch);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadQuickFoods());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadInitialData());
   }
 
-  Future<void> _loadQuickFoods() async {
+  Future<void> _loadInitialData() async {
     if (!mounted) return;
     final appState = context.read<AppState>();
-    final foods = await appState.getInitialFoods(limit: 100);
+    final results = await Future.wait([
+      appState.getInitialFoods(limit: 100),
+      appState.getFoodCategories(),
+    ]);
+    if (!mounted) return;
+    final foods = results[0] as List<dynamic>;
+    final cats  = results[1] as List<dynamic>;
+    setState(() {
+      _quickFoods = foods.cast<FoodEntity>().map((f) => MealFood(
+            name: f.foodName, kcal: f.kcal,
+            carb: f.carbG, protein: f.proteinG, fat: f.fatG,
+          )).toList();
+      _categories = cats.cast<String>();
+    });
+  }
+
+  Future<void> _onCategorySelected(String? category) async {
+    setState(() => _selectedCategory = category);
+    if (!mounted) return;
+    final appState = context.read<AppState>();
+    final foods = category == null
+        ? await appState.getInitialFoods(limit: 100)
+        : await appState.getFoodsByCategory(category, limit: 100);
     if (!mounted) return;
     setState(() {
-      _quickFoods = foods
-          .map((f) => MealFood(
-                name: f.foodName,
-                kcal: f.kcal,
-                carb: f.carbG,
-                protein: f.proteinG,
-                fat: f.fatG,
-              ))
-          .toList();
+      _quickFoods = foods.map((f) => MealFood(
+            name: f.foodName, kcal: f.kcal,
+            carb: f.carbG, protein: f.proteinG, fat: f.fatG,
+          )).toList();
     });
   }
 
@@ -436,7 +457,15 @@ Future<void> _analyzeImage(String imagePath) async {
                     childCount: _searchResults.length,
                   )),
                 )
-              else
+              else ...[
+                if (_categories.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _CategoryChips(
+                      categories: _categories,
+                      selected: _selectedCategory,
+                      onSelect: _onCategorySelected,
+                    ),
+                  ),
                 SliverToBoxAdapter(
                     child: _QuickFoodGrid(
                   foods: _quickFoods,
@@ -445,6 +474,7 @@ Future<void> _analyzeImage(String imagePath) async {
                     _state = _ScreenState.confirmed;
                   }),
                 )),
+              ],
             ],
 
             // ── 분석 중 ──
@@ -1431,6 +1461,58 @@ class _QuickFoodGrid extends StatelessWidget {
           },
         ),
       ]),
+    );
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 카테고리 칩 필터
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+class _CategoryChips extends StatelessWidget {
+  final List<String> categories;
+  final String? selected;
+  final ValueChanged<String?> onSelect;
+
+  const _CategoryChips({
+    required this.categories,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+        itemCount: categories.length + 1,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (ctx, i) {
+          final isAll = i == 0;
+          final label = isAll ? '전체' : categories[i - 1];
+          final isSelected = isAll ? selected == null : selected == label;
+          return GestureDetector(
+            onTap: () => onSelect(isAll ? null : label),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.brand : AppColors.lineSoft,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? Colors.white : AppColors.textSub,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

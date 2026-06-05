@@ -4,7 +4,7 @@ import 'food_data.dart';
 
 class DatabaseHelper {
   static const _dbName    = 'nutrai.db';
-  static const _dbVersion = 4;
+  static const _dbVersion = 6;
 
   // 싱글턴
   DatabaseHelper._();
@@ -60,6 +60,7 @@ class DatabaseHelper {
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         food_no    TEXT,
         food_name  TEXT NOT NULL,
+        category   TEXT,
         kcal       REAL NOT NULL DEFAULT 0,
         carb_g     REAL NOT NULL DEFAULT 0,
         protein_g  REAL NOT NULL DEFAULT 0,
@@ -150,6 +151,29 @@ class DatabaseHelper {
         if (existing.isEmpty) {
           await db.insert('food', {...f, 'created_at': now, 'updated_at': now});
         }
+      }
+    }
+    if (oldV < 5) {
+      final columns = await db.rawQuery('PRAGMA table_info(meal)');
+      final hasPhotoPath = columns.any((c) => c['name'] == 'photo_path');
+      if (!hasPhotoPath) {
+        await db.execute('ALTER TABLE meal ADD COLUMN photo_path TEXT');
+      }
+    }
+    if (oldV < 6) {
+      final cols = await db.rawQuery('PRAGMA table_info(food)');
+      final hasCategory = cols.any((c) => c['name'] == 'category');
+      if (!hasCategory) {
+        await db.execute('ALTER TABLE food ADD COLUMN category TEXT');
+      }
+      final now = DateTime.now().toIso8601String();
+      for (final f in kFoodData) {
+        await db.update(
+          'food',
+          {'category': f['category'], 'updated_at': now},
+          where: 'food_name = ?',
+          whereArgs: [f['food_name']],
+        );
       }
     }
   }
