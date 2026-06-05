@@ -86,7 +86,7 @@ async def post_detect(
         raise HTTPException(status_code=400, detail="빈 이미지 파일입니다.")
 
     try:
-        result = detect_foods(image_bytes, conf_threshold=0.55)
+        result = detect_foods(image_bytes, conf_threshold=0.7)
     except FileNotFoundError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except RuntimeError as e:
