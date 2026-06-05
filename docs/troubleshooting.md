@@ -467,7 +467,6 @@ const _kCategoryMeta = <String, ({IconData icon, String desc, Color color})>{
 
 ---
 
-<<<<<<< HEAD
 ## 20. Flutter 위젯 테스트가 AppState Provider 없이 앱을 렌더링함
 
 **증상:** `flutter test` 실행 시 `_RootRouter`가 `context.watch<AppState>()`를 호출하는 단계에서 `ProviderNotFoundException`이 발생함. Provider를 추가한 뒤에도 온보딩 화면의 지연 타이머가 남아 테스트가 종료되지 않음.
@@ -741,3 +740,461 @@ body data(몸무게/나이)가 있을 때만 자동 계산, 없으면 0(제한 �
 ChromaDB 재빌드 필요 (`python ai/scripts/build_nutrition_db.py`).
 
 **관련 파일:** `ai/scripts/build_nutrition_db.py` → `tag_row()`
+
+---
+
+## 29. RAG 챗봇이 같은 음식에 대해 다른 칼로리를 반환 (된장찌개 125kcal vs 250kcal)
+
+**증상:** 같은 음식(된장찌개)을 다른 대화에서 물었을 때 응답 칼로리가 다름 (125kcal / 250kcal). 이전에 수정한 40kcal 표시 버그(#항목)와는 별개로 계속 불일치가 발생함.
+
+**원인:**
+1. ChromaDB에 `된장찌개` (46kcal/100g), `된장찌개_냉이` (19kcal), `된장찌개_달래` (35kcal) 등 여러 항목이 존재 — 쿼리마다 다른 항목이 검색됨
+2. LLM(qwen3:8b, temperature=0.6)이 SYSTEM_PROMPT의 "× 2.5" 배율 지시를 비결정적으로 적용하여 같은 기준값에서도 다른 결과 출력
+
+**해결:**
+```python
+# 변경 전: LLM이 100g 값을 직접 받아 스스로 배율 계산
+context = "\n".join(f"{i}. {doc.replace('|', ', ')}" for i, doc in enumerate(docs, 1))
+
+# SYSTEM_PROMPT에 배율 지시
+# 국·찌개류: 1인분 약 250g → 100g 칼로리 × 2.5
+# ...
+
+# 변경 후: _format_context()에서 미리 계산하여 컨텍스트에 포함
+_SERVING_MULTIPLIER = {
+    "찌개 및 전골류": 2.5,
+    "국 및 탕류": 2.5,
+    "밥류": 2.1,
+    # ...
+}
+
+def _add_serving_kcal(doc: str) -> str:
+    # 카테고리 → 배율 → 1인분 kcal 계산 후 문서에 추가
+    # 예: "된장찌개 | 칼로리 46kcal | ... | 1인분 기준: 115kcal (2.5배 환산)"
+    ...
+
+# SYSTEM_PROMPT 변경
+# "1인분 기준 값이 이미 계산되어 있습니다. 그 값을 그대로 사용하세요."
+```
+
+**관련 파일:** `ai/rag_engine/rag_pipeline.py` → `_add_serving_kcal()`, `_format_context()`, `SYSTEM_PROMPT`
+
+---
+
+## 30. RAG 임베딩 검색이 음식명 직접 질문에서 완전히 엉뚱한 문서를 반환
+
+**증상:** "된장찌개 칼로리가 얼마야?" 질문에 LLM이 "데이터에 없다"고 답변. 실제로 ChromaDB에는 된장찌개 항목이 있음.
+
+**원인:**
+1. ChromaDB 컬렉션이 L2 거리(`hnsw:space: l2`)를 사용하고 임베딩이 non-normalized → 거리값이 250+ 로 비정상적으로 큼 (정상 범위: 0~2)
+2. KR-SBERT로 "된장찌개 칼로리가 얼마야?"를 임베딩하면 구조화 데이터 문서 "된장찌개 | 분류: 찌개 및 전골류 | 칼로리 46.0kcal | ..."와 semantic similarity가 낮음 → 엉뚱한 문서(볶음밥, 샌드위치)를 top-k로 반환
+
+**해결:**
+```python
+# 변경 전: 임베딩 검색만 사용
+best_dist: dict[str, float] = {}
+for q in queries:
+    docs, dists = _search_single(q, k * FETCH_MULTIPLIER)
+    ...
+
+# 변경 후: 하이브리드 검색 (키워드 직접 매칭 + 임베딩)
+# 1단계: where_document.$contains로 음식명 키워드가 포함된 문서 직접 확보
+keyword_docs = []
+for q in queries:
+    for kw in _extract_food_keywords(q):
+        for doc in _search_by_keyword(kw, k):
+            keyword_docs.append(doc)
+
+# 2단계: 임베딩 검색 결과와 합쳐서 키워드 결과 우선 배치
+merged = keyword_docs + filtered (중복 제거)
+
+# 직접 영양 질문 감지 → LLM 우회, RAG 데이터 즉시 반환
+if _NUTRITION_QUESTION_RE.search(user_query):
+    for kw in _extract_food_keywords(user_query):
+        direct = _build_direct_nutrition_answer(kw, retrieved_docs)
+        if direct:
+            return {"answer": direct, ...}
+```
+
+**관련 파일:** `ai/rag_engine/rag_pipeline.py` → `_search_by_keyword()`, `_extract_food_keywords()`, `_build_direct_nutrition_answer()`, `_retrieve_multi()`, `stream_recommendation()`
+
+---
+
+## 31. 채팅 응답에 "음식명 (칼로리: Xkcal)" 플레이스홀더가 그대로 출력됨
+
+**증상:** 채팅 화면에 실제 음식명 대신 "음식명 (칼로리: 185kcal)" 또는 "**음식명** 현미밥 (칼로리: 130kcal)" 형태로 출력됨
+
+**원인:** qwen3:8b가 SYSTEM_PROMPT의 포맷 예시 `**음식명**`을 플레이스홀더로 인식하지 못하고 그대로 출력하거나, 레이블처럼 앞에 붙이는 동작을 보임
+
+**해결:**
+```python
+# post_process() 및 stream_recommendation()에서 아티팩트 제거
+_ARTIFACT_LABEL_RE = re.compile(
+    r"\*\*(음식명|실제 음식 이름|...)\*\*\s+(?!\()([^(\n]+?)\s*(\([^\n]*)?"
+)
+
+def _remove_format_artifacts(text: str) -> str:
+    # 패턴 A: "**음식명** 현미밥 (칼로리: 315kcal)" → "**현미밥** (칼로리: 315kcal)"
+    text = _ARTIFACT_LABEL_RE.sub(lambda m: f"**{m.group(2).strip()}**{...}", text)
+    # 패턴 B: "**음식명** (칼로리: Xkcal)" → 줄 전체 제거
+    text = _ARTIFACT_EMPTY_RE.sub("", text)
+    return text
+```
+
+**관련 파일:** `ai/rag_engine/rag_pipeline.py` → `_remove_format_artifacts()`, `post_process()`, `stream_recommendation()`
+
+---
+
+## 32. 채팅 스트리밍 중 칼로리 텍스트가 "(칼"에서 잘림
+
+**증상:** 스트리밍 응답 중 "닭가슴살 샐러드 (칼" 처럼 칼로리 텍스트가 "(칼"에서 잘려 표시됨
+
+**원인:** `_remove_format_artifacts()`가 **부분 LLM 청크**에 적용되는 문제. 구 스트리밍 코드는 LLM 토큰을 하나씩 Flutter에 전달할 때마다 아티팩트 제거를 실행했음. 이때 청크가 `**음식명** 닭가슴살 샐러드 (칼`처럼 잘린 상태이면 `_ARTIFACT_LABEL_RE`의 `(\([^\n]*)?` 그룹이 불완전한 `(칼`만 캡처하고, 나머지 `로리: 135kcal)`는 아직 도착하지 않았으므로 최종 출력이 `**닭가슴살 샐러드** (칼`로 잘림.
+
+**해결:** `stream_recommendation()`에서 모든 LLM 청크를 먼저 모두 수집한 뒤, 완성된 텍스트에 한 번만 `_remove_format_artifacts()`를 적용하고 하나의 SSE 이벤트로 전달:
+```python
+# 변경 전 (부분 청크마다 아티팩트 제거 → 잘림 발생)
+for chunk in _stream_ollama_raw(messages):
+    yield _remove_format_artifacts(chunk)
+
+# 변경 후 (전체 수집 후 한 번에 처리)
+raw_chunks: list[str] = []
+for chunk in _stream_ollama_raw(messages):
+    raw_chunks.append(chunk)
+full_response = _remove_format_artifacts("".join(raw_chunks))
+yield full_response
+```
+
+**관련 파일:** `ai/rag_engine/rag_pipeline.py` → `stream_recommendation()`
+
+---
+
+## 33. YOLO가 엉뚱한 음식을 탐지 (수수부꾸미, 굴국 등)
+
+**증상:** 삼계탕 사진을 찍으면 "수수부꾸미", "굴국" 같은 무관한 음식이 탐지됨. 신뢰도가 낮은 오탐(false positive)이 결과에 포함됨.
+
+**원인:** `/detect` 엔드포인트가 YOLO를 기본 `conf` 값(0.25)으로 실행하여, 신뢰도 25~39% 수준의 엉뚱한 음식까지 반환함.
+
+**해결:**
+```python
+# 변경 전
+cls_results = classify_model(img, verbose=False)
+
+# 변경 후
+# conf 0.4 미만 탐지는 제외
+cls_results = classify_model(img, verbose=False, conf=0.4)
+```
+
+**관련 파일:** `server/api/routes_detect.py` → `post_detect()`
+
+---
+
+## 34. 음식 검색 시 엉뚱한 음식이 표시됨 (곰탕 검색 → 깍두기)
+
+**증상:** 앱에서 "곰탕"을 검색하면 깍두기, 무말랭이, 도라지무침 등 무관한 음식이 표시됨. ChromaDB에 곰탕이 실제로 있음에도 불구하고 검색되지 않음.
+
+**원인:** `/food/search` 엔드포인트가 임베딩 유사도 검색만 사용. KR-SBERT로 "곰탕"을 임베딩하면 의미적으로 유사하지만 다른 음식(발효식품 등)을 우선 반환함.
+
+**해결:**
+```python
+# 변경 전: 시맨틱 검색만 사용
+emb = model.encode(q, ...).tolist()
+sem_res = collection.query(query_embeddings=[emb], n_results=k)
+
+# 변경 후: 키워드 직접 포함 검색 → 시맨틱 보완
+# 1단계: 음식명 직접 포함 검색
+keyword_res = collection.get(
+    where_document={"$contains": q},
+    limit=min(k, total),
+    include=["documents"],
+)
+docs = keyword_res.get("documents", []) or []
+
+# 2단계: 부족하면 시맨틱으로 보완
+if len(docs) < k:
+    emb = model.encode(q, ...).tolist()
+    sem_res = collection.query(query_embeddings=[emb], n_results=k)
+    # 중복 제거 후 병합
+```
+
+**관련 파일:** `server/api/routes_food.py` → `get_food_search()`
+
+---
+
+## 35. 앱 음식 검색이 서버 DB를 조회하지 않아 400개 음식이 검색 안 됨
+
+**증상:** "빠른 선택" 그리드에 하드코딩된 20개 음식만 표시됨. 검색창에 입력해도 서버 ChromaDB의 400개 음식이 검색되지 않음.
+
+**원인:** `_onSearch()`가 `appState.searchFoods()`(로컬 SQLite)만 호출함. 신규 설치 시 로컬 DB가 비어 있어 항상 내장 20개 목록(`_FoodDB.search`)만 표시됨.
+
+**해결:**
+```dart
+// 변경 전: 로컬 SQLite → 내장 목록 순서
+final dbResults = await appState.searchFoods(q);
+if (dbResults.isNotEmpty) { ... }
+else { setState(() => _searchResults = _FoodDB.search(q)); }
+
+// 변경 후: 서버 API → 로컬 SQLite → 내장 목록 순서
+// 1순위: 서버 ChromaDB (400개 음식)
+final apiResults = await ChatService.searchFood(q, k: 5);
+if (apiResults.isNotEmpty) {
+  setState(() => _searchResults = apiResults.map(...).toList());
+  return;
+}
+
+// 2순위: 로컬 SQLite (사용자가 직접 추가한 음식)
+final dbResults = await appState.searchFoods(q);
+if (dbResults.isNotEmpty) { ... }
+else { setState(() => _searchResults = _FoodDB.search(q)); }
+```
+
+`ChatService.searchFood`에 `k` 파라미터 추가 (기본값 1 → 검색 시 5 사용):
+```dart
+static Future<List<FoodNutrition>> searchFood(String query, {int k = 1}) async {
+  final res = await http.get(
+    Uri.parse('$_baseUrl/food/search?q=${Uri.encodeComponent(query)}&k=$k'),
+    ...
+  );
+}
+```
+
+**관련 파일:** `app/lib/screens/food_add_screen.dart` → `_onSearch()`, `app/lib/services/chat_service.dart` → `searchFood()`
+
+---
+
+## 36. MySQL 접속 URL에 자격증명이 하드코딩되어 저장소에 노출됨
+
+**증상:** `server/db/mysql_db.py`의 `MYSQL_URL` 기본값에 실제 DB 사용자/비밀번호/호스트가 박혀 있어, 브랜치를 병합하면 자격증명이 git 히스토리에 영구 기록됨.
+
+**원인:** `os.getenv("MYSQL_URL", "<자격증명 포함 기본 URL>")` 형태로 폴백 기본값에 비밀번호를 넣어둠.
+
+**해결:** 기본값 제거, 환경변수 미설정 시 명시적 에러(자격증명은 env 전용). `mysql_db`는 미등록 라우터 `routes_camera`만 import하므로 라이브 앱/테스트에는 영향 없음.
+```python
+# 변경 전
+MYSQL_URL = os.getenv("MYSQL_URL", "mysql+pymysql://<user>:<password>@<host>:<port>/<db>")
+
+# 변경 후
+MYSQL_URL = os.getenv("MYSQL_URL")
+if not MYSQL_URL:
+    raise RuntimeError("MYSQL_URL 환경변수가 설정되어 있지 않습니다. ...")
+```
+> 주의: 노출됐던 비밀번호는 git 히스토리에 남으므로 별도로 **로테이션** 필요.
+
+**관련 파일:** `server/db/mysql_db.py`
+
+---
+
+## 37. 온보딩 생년월일 8자리 입력에서 잘못된 월/일이 조용히 다른 날짜로 저장됨
+
+**증상:** 생년월일에 `19901345`(13월 45일)처럼 잘못 입력해도 검증 없이 통과되어 엉뚱한 출생일(→ 잘못된 만나이·BMR·권장 칼로리)이 저장됨.
+
+**원인:** Dart의 `DateTime(1990, 13, 45)`은 예외를 던지지 않고 범위를 벗어난 값을 다음 달/해로 **정규화**함(13월 → 이듬해). 감싸던 `try/catch`는 동작하지 않는 死코드였고 월/일·미래 날짜 검증이 없었음.
+
+**해결:** 생성한 `DateTime`이 입력한 연/월/일과 그대로 일치하고 미래가 아닐 때만 채택(round-trip 검증).
+```dart
+// 변경 후
+final bd = DateTime(y, m, d);
+if (bd.year == y && bd.month == m && bd.day == d && !bd.isAfter(DateTime.now())) {
+  _profile.birthDate = bd;
+}
+```
+
+**관련 파일:** `app/lib/screens/onboarding_chat_screen.dart` → `_handleInput()`
+
+---
+
+## 38. release APK에서 서버 연결 실패 (디버그/에뮬레이터에선 정상)
+
+**증상:** `flutter run`(디버그)이나 에뮬레이터에서는 서버 통신이 되는데, release APK를 실기기에 설치하면 모든 서버 호출(채팅·추천·검색·알레르기)이 실패. 학교 서버(Docker, Tailscale IP)에 붙지 못함.
+
+**원인:** 세 가지가 겹침.
+1. `INTERNET` 권한이 `app/src/debug`·`app/src/profile` 매니페스트에만 있고 **main 매니페스트엔 없어** release 빌드에 인터넷 권한이 빠짐.
+2. `usesCleartextTraffic` 미설정 → Android 9+(API 28+)에서 `http://` 평문 통신 차단.
+3. base URL이 `http://127.0.0.1:8000`(로컬 adb reverse 전제)이라 실기기에서 서버에 도달 못 함. 실제 백엔드는 `nutrai-server` 컨테이너가 호스트 포트 8001로 노출(`8001:8000`), 주소는 서버 Tailscale IP.
+
+**해결:**
+```xml
+<!-- app/src/main/AndroidManifest.xml -->
+<uses-permission android:name="android.permission.INTERNET"/>
+<application ... android:usesCleartextTraffic="true">
+```
+```dart
+// chat_service.dart / allergen_service.dart
+static const _baseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://100.127.151.47:8001', // 서버 Tailscale IP + 8001:8000 매핑
+);
+// 로컬 테스트: flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000
+```
+
+**관련 파일:** `app/android/app/src/main/AndroidManifest.xml`, `app/lib/services/chat_service.dart`, `app/lib/services/allergen_service.dart`
+
+---
+
+## 39. 온보딩 챗봇 입력창이 하단 시스템 네비게이션 바에 가려짐
+
+**증상:** 온보딩 챗봇 화면에서 하단 입력창("이름을 입력해주세요")이 안드로이드 3버튼 네비게이션 바에 가려 텍스트·버튼이 눌리지 않음. 키보드를 열면(Scaffold resize) 가려지지 않아 발견이 늦음.
+
+**원인:** `_buildInputBar()`의 하단 패딩이 고정 `20`px이고 시스템 네비게이션 바 인셋(`MediaQuery.padding.bottom`)을 더하지 않음. 3버튼 네비바가 있는 기기에선 20px로 부족. (`ai_chat_screen`의 입력바는 `padding.bottom`을 더해 이미 올바르게 처리하고 있었음.)
+
+**해결:**
+```dart
+// 변경 전
+padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
+
+// 변경 후 (시스템 인셋만큼 더함; 키보드 열리면 padding.bottom=0 + Scaffold resize)
+padding: EdgeInsets.fromLTRB(12, 10, 12, MediaQuery.of(context).padding.bottom + 12),
+```
+
+**관련 파일:** `app/lib/screens/onboarding_chat_screen.dart` → `_buildInputBar()`
+
+---
+
+## 40. YOLO 탐지 결과가 영양정보로 매핑되지 않음 + 카메라 탐지가 목업
+
+**증상:** ① 카메라로 음식을 찍어도 실제 YOLO(`/detect`)가 호출되지 않고 하드코딩된 음식 목록이 표시됨. ② 영양 검색/추천이 쓰는 ChromaDB(K-FCDB 범용 16천건)에는 외식 복합메뉴가 없어, YOLO 400클래스 중 27%(전주비빔밥·돼지국밥 등)가 영양정보 매핑 실패.
+
+**원인:**
+- 프론트(`food_add_screen`)가 `_FoodDB.aiDetected` 목업만 추가하고 `ChatService.detectFoods`(실제 `/detect` 호출)가 삭제돼 있었음.
+- 영양 DB가 단일 `nutrition` 컬렉션(K-FCDB)뿐이라, YOLO 탐지 매핑과 LLM 추천이 같은 풀을 공유 → 탐지 정확도/추천 품질이 상충.
+
+**해결:** ChromaDB를 **2개 컬렉션으로 분리**하고 탐지 흐름을 복원.
+- `detection`(400) : 음식분류 AI 데이터, YOLO 클래스와 1:1. 탐지 결과 영양 매핑 전용.
+- `nutrition`(K-FCDB + 질환 가이드라인) : LLM 추천·검색·RAG 전용 (외식메뉴 제외 → 추천 노이즈 방지).
+```python
+# rag_pipeline.get_collection(name="nutrition"|"detection") — 컬렉션별 캐시
+# routes_food: GET /food/search?...&collection=detection|nutrition
+```
+```dart
+// chat_service: detectFoods() 복원 → /detect 호출 후 탐지명을 detection 컬렉션에서 조회
+final found = await searchFood(name, collection: 'detection');
+// food_add_screen: 카메라/갤러리 → _analyzeImage() → ChatService.detectFoods(File)
+```
+빌드: `ai/scripts/db/build_full_db.py` (음식분류_AI_데이터_영양DB.xlsx + 20251229_음식DB 19495건.xlsx 필요).
+
+**관련 파일:** `ai/scripts/db/build_full_db.py`, `ai/rag_engine/rag_pipeline.py` → `get_collection()`, `server/api/routes_food.py` → `get_food_search()`, `app/lib/services/chat_service.dart` → `detectFoods()`/`searchFood()`, `app/lib/screens/food_add_screen.dart` → `_analyzeImage()`
+
+---
+
+## 41. 감사 후 Flutter/Detect/RAG 배포 보완 항목이 한꺼번에 실패함
+
+**증상:** `/audit` 후속 점검에서 Flutter 테스트가 `sqflite_common_ffi` 누락으로 시작조차 못 하거나, 병렬 실행 시 SQLite lock이 발생함. `/detect` 라우트 테스트는 잘못된 JPEG fixture와 실제 YOLO 모델 로딩 때문에 실패함. 앱에서 사진 경로(`photo_path`)를 넘겨도 DB에 저장되지 않았고, 끼니 용어가 `간식/기타/야식`으로 섞여 표시됨. Docker fresh volume에서는 `build_full_db.py` 실행 절차가 없어 추천 RAG DB가 비어 있을 수 있었고, 일부 보조 Python 스크립트는 한 줄로 뭉개져 `compileall`이 실패함.
+
+**원인:** 테스트 의존성과 fixture가 최신 코드 흐름을 따라가지 못함. `MealEntity`에는 `photoPath`가 있었지만 `meal` 테이블과 repository insert 경로에는 `photo_path`가 없었음. `snack` 표시 라벨이 화면마다 다르게 정의돼 있었고, Docker 문서는 현재 compose 구조와 다르게 Ollama/Chroma 초기화 절차를 설명함.
+
+**해결:**
+```dart
+// 변경 전
+static const _dbVersion = 4;
+// meal table: memo TEXT, created_at ...
+await _mealRepo.saveMealWithFoods(..., memo: memo, foods: foods);
+const m = {'snack': '기타', 'late_night': '야식'};
+
+// 변경 후
+static const _dbVersion = 5;
+// meal table: memo TEXT, photo_path TEXT, created_at ...
+await _mealRepo.saveMealWithFoods(
+  ..., memo: memo, photoPath: photoPath, foods: foods,
+);
+const m = {'snack': '간식', 'late_night': '간식'};
+```
+```python
+# 변경 전: routes_detect.py가 라우트 안에서 YOLO 모델을 직접 로드
+classify_model, quantity_model = _get_models()
+
+# 변경 후: 서비스 함수로 위임하고 테스트는 detect_foods를 mock
+result = detect_foods(contents, conf_threshold=0.4)
+return DetectResponse(**result)
+```
+```yaml
+# 변경 후
+dev_dependencies:
+  sqflite_common_ffi: ^2.3.3
+
+# app/dart_test.yaml
+concurrency: 1
+
+# docker-compose.yml
+init-chroma:
+  profiles: ["init"]
+  command: ["python", "ai/scripts/db/build_full_db.py"]
+```
+
+**관련 파일:** `app/lib/database/database_helper.dart` → `_onCreate()`/`_onUpgrade()`, `app/lib/repositories/meal_repository.dart` → `saveMealWithFoods()`, `app/lib/models/db_models.dart` → `label`/`typeFromLabel()`, `server/api/routes_detect.py` → `post_detect()`, `server/tests/test_routes_detect.py`, `docker-compose.yml` → `init-chroma`, `docs/docker-deployment.md`, `ai/scripts/db/add_manual_franchise.py`, `ai/scripts/scrape/scrape_kdclub.py`
+
+---
+
+## 42. 리포트 AI 응답에 마크다운 볼드 문법이 그대로 표시됨
+
+**증상:** 일간 리포트의 AI 코치 카드에서 `**김치찌개**`처럼 마크다운 볼드 문법이 화면에 그대로 노출됨.
+
+**원인:** 리포트 화면은 일반 채팅처럼 마크다운 렌더링을 하지 않는데, 스트리밍 청크를 그대로 누적해 서버 응답의 `**` 문자가 제거되지 않았음.
+
+**해결:**
+```dart
+// 변경 전
+_text += chunk;
+
+// 변경 후
+final cleaned = chunk.replaceAll('**', '');
+_text += cleaned;
+```
+
+**관련 파일:** `app/lib/screens/report_screen.dart` → `_AiInsightCardState._generate()`
+
+---
+
+## 43. 홈 화면 칼로리 초과 상태가 남은 칼로리처럼 표시됨
+
+**증상:** 오늘 섭취 칼로리가 목표 칼로리를 초과해도 "오늘 남은 칼로리"와 일반 색상으로 표시되어 초과 상태를 한눈에 구분하기 어려움.
+
+**원인:** 홈 화면의 일일 요약 카드가 `remaining` 값과 달성률만 표시하고, 목표 초과 여부에 따른 라벨·색상·차이값 표시를 분기하지 않았음.
+
+**해결:**
+```dart
+// 변경 전
+Text('오늘 남은 칼로리');
+Text(remaining.toString());
+
+// 변경 후
+Text(totalKcal > goalKcal ? '초과 칼로리' : '오늘 남은 칼로리');
+Text(totalKcal > goalKcal ? '+${(totalKcal - goalKcal).round()}' : remaining.toString());
+```
+
+**관련 파일:** `app/lib/screens/home_screen.dart` → `_DailyOverviewCard`
+
+---
+
+## 44. 당뇨 환자에게 카레라이스·전주비빔밥 등 고GI 음식 추천되는 문제
+
+**증상:** condition="당뇨" 사용자에게 카레라이스, 전주비빔밥 같은 혈당을 급격히 올리는 고GI 음식이 추천됨
+
+**원인:**
+1. `category == "질환맞춤"`일 때만 당뇨 ChromaDB 필터 적용 → 다른 카테고리에서는 가이드라인 컨텍스트 없음
+2. `is_diabetes=True` where 필터가 가이드라인 문서만 반환 → LLM에 구체적 음식 예시 없어서 훈련 데이터(카레라이스 등) 생성
+3. `validate_and_rank_items`에 고GI/고탄수화물 후처리 필터 없음
+
+**해결:**
+```python
+# routes_recommend.py — 변경 전
+RECOMMEND_PROMPT = "...알레르기, 질환 제약을 우선 반영하세요..."
+ranked_items = validate_and_rank_items(..., count=req.count)
+
+# 변경 후
+# 1. 당뇨/고혈압 전용 엄격 제약 지시문 추가
+def _build_condition_constraints(condition): ...
+# "카레라이스, 비빔밥, 흰쌀밥 등 추천 금지, 탄수화물 60g 이하" 지시문 삽입
+
+# 2. 당뇨 조건 시 저탄수화물 음식 예시 이차 검색
+extra_docs = await _retrieve_docs(["저탄수화물 당뇨 적합 음식 두부 닭가슴살"], where=None)
+
+# recommendation_pipeline.py — validate_and_rank_items에 추가
+if is_diabetic and carb > 70:
+    calorie_fallback.append(item)  # 탄수화물 70g 초과 폴백
+    continue
+# 저탄수화물 음식 순위 가점
+if is_diabetic:
+    score += max(0.0, 30.0 - carb * 0.5)
+```
+
+**관련 파일:** `server/api/routes_recommend.py`, `server/services/recommendation_pipeline.py`
