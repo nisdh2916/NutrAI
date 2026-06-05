@@ -150,7 +150,7 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
     if (!mounted) return;
     final appState = context.read<AppState>();
     final results = await Future.wait([
-      appState.getInitialFoods(limit: 100),
+      appState.getInitialFoods(limit: 500),
       appState.getFoodCategories(),
     ]);
     if (!mounted) return;
@@ -170,8 +170,8 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
     if (!mounted) return;
     final appState = context.read<AppState>();
     final foods = category == null
-        ? await appState.getInitialFoods(limit: 100)
-        : await appState.getFoodsByCategory(category, limit: 100);
+        ? await appState.getInitialFoods(limit: 500)
+        : await appState.getFoodsByCategory(category, limit: 500);
     if (!mounted) return;
     setState(() {
       _quickFoods = foods.map((f) => MealFood(
