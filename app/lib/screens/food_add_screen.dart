@@ -123,6 +123,9 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   List<MealFood> _searchResults = [];
 
+  // 초기 빠른 선택 목록 (DB에서 로드)
+  List<MealFood> _quickFoods = [];
+
   static const _mealLabels = ['아침', '점심', '저녁', '기타'];
   static const _mealColors = [
     AppColors.breakfast,
@@ -136,6 +139,25 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
     super.initState();
     _mealLabel = widget.initialMealLabel;
     _searchCtrl.addListener(_onSearch);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadQuickFoods());
+  }
+
+  Future<void> _loadQuickFoods() async {
+    if (!mounted) return;
+    final appState = context.read<AppState>();
+    final foods = await appState.getInitialFoods(limit: 100);
+    if (!mounted) return;
+    setState(() {
+      _quickFoods = foods
+          .map((f) => MealFood(
+                name: f.foodName,
+                kcal: f.kcal,
+                carb: f.carbG,
+                protein: f.proteinG,
+                fat: f.fatG,
+              ))
+          .toList();
+    });
   }
 
   @override
@@ -417,6 +439,7 @@ Future<void> _analyzeImage(String imagePath) async {
               else
                 SliverToBoxAdapter(
                     child: _QuickFoodGrid(
+                  foods: _quickFoods,
                   onSelect: (food) => setState(() {
                     _detectedFoods.add(food);
                     _state = _ScreenState.confirmed;
@@ -1321,12 +1344,20 @@ class _BottomSaveBar extends StatelessWidget {
 // 빠른 음식 선택 그리드 (초기 상태)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 class _QuickFoodGrid extends StatelessWidget {
+  final List<MealFood> foods;
   final ValueChanged<MealFood> onSelect;
-  const _QuickFoodGrid({required this.onSelect});
+  const _QuickFoodGrid({required this.foods, required this.onSelect});
 
   @override
   Widget build(BuildContext context) {
-    const foods = _FoodDB.all;
+    if (foods.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(16, 32, 16, 0),
+        child: Center(
+          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brand),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

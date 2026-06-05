@@ -32,6 +32,13 @@ class FoodRepository {
     return FoodEntity.fromMap(rows.first);
   }
 
+  // ── 초기 목록 (limit 건) ──────────────────────
+  Future<List<FoodEntity>> getInitialFoods({int limit = 100}) async {
+    final db   = await _db.database;
+    final rows = await db.query('food', orderBy: 'food_name ASC', limit: limit);
+    return rows.map(FoodEntity.fromMap).toList();
+  }
+
   // ── 이름으로 검색 (LIKE) ───────────────────────
   Future<List<FoodEntity>> searchFoods(String query) async {
     if (query.trim().isEmpty) return getAllFoods();
