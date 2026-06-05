@@ -1121,3 +1121,44 @@ init-chroma:
 ```
 
 **관련 파일:** `app/lib/database/database_helper.dart` → `_onCreate()`/`_onUpgrade()`, `app/lib/repositories/meal_repository.dart` → `saveMealWithFoods()`, `app/lib/models/db_models.dart` → `label`/`typeFromLabel()`, `server/api/routes_detect.py` → `post_detect()`, `server/tests/test_routes_detect.py`, `docker-compose.yml` → `init-chroma`, `docs/docker-deployment.md`, `ai/scripts/db/add_manual_franchise.py`, `ai/scripts/scrape/scrape_kdclub.py`
+
+---
+
+## 42. 리포트 AI 응답에 마크다운 볼드 문법이 그대로 표시됨
+
+**증상:** 일간 리포트의 AI 코치 카드에서 `**김치찌개**`처럼 마크다운 볼드 문법이 화면에 그대로 노출됨.
+
+**원인:** 리포트 화면은 일반 채팅처럼 마크다운 렌더링을 하지 않는데, 스트리밍 청크를 그대로 누적해 서버 응답의 `**` 문자가 제거되지 않았음.
+
+**해결:**
+```dart
+// 변경 전
+_text += chunk;
+
+// 변경 후
+final cleaned = chunk.replaceAll('**', '');
+_text += cleaned;
+```
+
+**관련 파일:** `app/lib/screens/report_screen.dart` → `_AiInsightCardState._generate()`
+
+---
+
+## 43. 홈 화면 칼로리 초과 상태가 남은 칼로리처럼 표시됨
+
+**증상:** 오늘 섭취 칼로리가 목표 칼로리를 초과해도 "오늘 남은 칼로리"와 일반 색상으로 표시되어 초과 상태를 한눈에 구분하기 어려움.
+
+**원인:** 홈 화면의 일일 요약 카드가 `remaining` 값과 달성률만 표시하고, 목표 초과 여부에 따른 라벨·색상·차이값 표시를 분기하지 않았음.
+
+**해결:**
+```dart
+// 변경 전
+Text('오늘 남은 칼로리');
+Text(remaining.toString());
+
+// 변경 후
+Text(totalKcal > goalKcal ? '초과 칼로리' : '오늘 남은 칼로리');
+Text(totalKcal > goalKcal ? '+${(totalKcal - goalKcal).round()}' : remaining.toString());
+```
+
+**관련 파일:** `app/lib/screens/home_screen.dart` → `_DailyOverviewCard`
