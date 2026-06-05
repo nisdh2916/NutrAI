@@ -97,7 +97,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollCtrl.hasClients) {
         _scrollCtrl.animateTo(
-          0,
+          _scrollCtrl.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
@@ -219,10 +219,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Widget _buildMessageList() {
     return ListView.builder(
       controller: _scrollCtrl,
-      reverse: true,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       itemCount: _messages.length,
-      itemBuilder: (_, i) => _MessageBubble(message: _messages[_messages.length - 1 - i]),
+      itemBuilder: (_, i) => _MessageBubble(message: _messages[i]),
     );
   }
 

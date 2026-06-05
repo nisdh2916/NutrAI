@@ -111,7 +111,7 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
-        0,
+        _scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
@@ -273,15 +273,13 @@ class _OnboardingChatScreenState extends State<OnboardingChatScreen> {
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              reverse: true,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               itemCount: _messages.length + (_isTyping ? 1 : 0),
               itemBuilder: (context, index) {
-                if (_isTyping && index == 0) {
+                if (_isTyping && index == _messages.length) {
                   return const _TypingBubble();
                 }
-                final msgIndex = _messages.length - 1 - (index - (_isTyping ? 1 : 0));
-                return _buildMessageRow(_messages[msgIndex]);
+                return _buildMessageRow(_messages[index]);
               },
             ),
           ),
