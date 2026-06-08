@@ -11,8 +11,8 @@ class AllergenService {
 
   static const _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000',
-  );
+    defaultValue: 'http://100.127.151.47:8001',
+  ); // 학교 서버(Tailscale IP) — nutrai-server 컨테이너 8001:8000 매핑
 
   // 알레르겐 카테고리 → 매칭 키워드
   Map<String, List<String>> _keywords = _fallbackKeywords;

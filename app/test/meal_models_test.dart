@@ -190,8 +190,12 @@ void main() {
     test('간식 → snack', () {
       expect(MealEntity.typeFromLabel('간식'), 'snack');
     });
+    test('야식/기타 → snack(간식 alias)', () {
+      expect(MealEntity.typeFromLabel('야식'), 'snack');
+      expect(MealEntity.typeFromLabel('기타'), 'snack');
+    });
     test('알 수 없는 값 → breakfast(기본값)', () {
-      expect(MealEntity.typeFromLabel('야식'), 'breakfast');
+      expect(MealEntity.typeFromLabel('브런치'), 'breakfast');
     });
   });
 }

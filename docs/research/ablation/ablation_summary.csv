@@ -1,0 +1,5 @@
+﻿condition,condition_label,scenarios,avg_recommended_count,avg_coverage,avg_allergen_violation_rate,avg_calorie_violation_rate,avg_safety_pass_rate,avg_constraint_fit_rate,scenario_safe_rate,avg_mean_distance,avg_mean_kcal,avg_quality_score
+C1,Baseline,16,5.0,1.0,0.1,0.0375,0.8625,0.6125,0.6875,279.904164,207.6875,80.25
+C2,Retrieval allergen filter only,16,5.0,1.0,0.0,0.0375,0.9625,0.6125,0.9375,280.708311,201.275,84.75
+C3,Calorie post-validator only,16,5.0,1.0,0.1,0.0,0.9,0.6375,0.75,281.102787,200.7,82.8125
+C4,Full,16,5.0,1.0,0.0,0.0,1.0,0.6375,1.0,281.906933,194.2875,87.3125

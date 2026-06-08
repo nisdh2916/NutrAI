@@ -1,8 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- release 빌드에서도 서버 통신이 가능하도록 INTERNET 권한 명시 (debug/profile 매니페스트에만 있던 것을 main 으로 이동) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="nutrai"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

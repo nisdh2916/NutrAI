@@ -1,0 +1,106 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "NutrAI: 전체 시작 (Ollama + FastAPI + adb)",
+            "type": "shell",
+            "command": "PowerShell",
+            "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}\\dev.ps1"],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "focus": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "NutrAI: FastAPI 서버",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "-m", "uvicorn",
+                "server.main:app",
+                "--host", "0.0.0.0",
+                "--port", "8000",
+                "--reload"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "NutrAI: Ollama 서버",
+            "type": "shell",
+            "command": "${env:LOCALAPPDATA}\\Programs\\Ollama\\ollama.exe",
+            "args": ["serve"],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "NutrAI: Flutter 앱 실행",
+            "type": "shell",
+            "command": "flutter",
+            "args": ["run"],
+            "options": {
+                "cwd": "${workspaceFolder}\\app"
+            },
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "NutrAI: adb 포트 포워딩",
+            "type": "shell",
+            "command": "${env:LOCALAPPDATA}\\Android\\Sdk\\platform-tools\\adb.exe",
+            "args": ["reverse", "tcp:8000", "tcp:8000"],
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "NutrAI: API 헬스체크",
+            "type": "shell",
+            "command": "Invoke-WebRequest",
+            "args": ["-Uri", "http://localhost:8000/health", "-UseBasicParsing"],
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "NutrAI: 초기 설정 (setup.ps1)",
+            "type": "shell",
+            "command": "PowerShell",
+            "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}\\setup.ps1"],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "focus": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}

@@ -20,17 +20,18 @@ class AppState extends ChangeNotifier {
   String? _error;
 
   // ── Getters ──────────────────────────────────────
-  UserProfileEntity? get user      => _user;
+  UserProfileEntity? get user => _user;
   List<MealWithFoods> get todayMeals => _todayMeals;
-  bool get loading    => _loading;
-  String? get error   => _error;
+  bool get loading => _loading;
+  String? get error => _error;
 
-  int? get userId     => _user?.id;
+  int? get userId => _user?.id;
 
-  double get todayKcal    => _todayMeals.fold(0.0, (s, m) => s + m.totalKcal);
-  double get todayCarbG   => _todayMeals.fold(0.0, (s, m) => s + m.totalCarbG);
-  double get todayProteinG=> _todayMeals.fold(0.0, (s, m) => s + m.totalProteinG);
-  double get todayFatG    => _todayMeals.fold(0.0, (s, m) => s + m.totalFatG);
+  double get todayKcal => _todayMeals.fold(0.0, (s, m) => s + m.totalKcal);
+  double get todayCarbG => _todayMeals.fold(0.0, (s, m) => s + m.totalCarbG);
+  double get todayProteinG =>
+      _todayMeals.fold(0.0, (s, m) => s + m.totalProteinG);
+  double get todayFatG => _todayMeals.fold(0.0, (s, m) => s + m.totalFatG);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 앱 초기화 (main에서 호출)
@@ -68,35 +69,35 @@ class AppState extends ChangeNotifier {
     if (_user == null) {
       // 신규 생성
       final newUser = UserProfileEntity(
-        nickname:      nickname,
-        gender:        gender,
-        age:           age,
-        heightCm:      heightCm,
-        weightKg:      weightKg,
+        nickname: nickname,
+        gender: gender,
+        age: age,
+        heightCm: heightCm,
+        weightKg: weightKg,
         activityLevel: activityLevel,
-        targetKcal:    targetKcal,
-        goal:          goal,
-        allergy:       allergy,
-        condition:     condition,
-        createdAt:     now,
-        updatedAt:     now,
+        targetKcal: targetKcal,
+        goal: goal,
+        allergy: allergy,
+        condition: condition,
+        createdAt: now,
+        updatedAt: now,
       );
       final id = await _userRepo.createUser(newUser);
       _user = await _userRepo.getUserById(id);
     } else {
       // 수정
       final updated = _user!.copyWith(
-        nickname:      nickname,
-        gender:        gender,
-        age:           age,
-        heightCm:      heightCm,
-        weightKg:      weightKg,
+        nickname: nickname,
+        gender: gender,
+        age: age,
+        heightCm: heightCm,
+        weightKg: weightKg,
         activityLevel: activityLevel,
-        targetKcal:    targetKcal,
-        goal:          goal,
-        allergy:       allergy,
-        condition:     condition,
-        updatedAt:     now,
+        targetKcal: targetKcal,
+        goal: goal,
+        allergy: allergy,
+        condition: condition,
+        updatedAt: now,
       );
       await _userRepo.updateUser(updated);
       _user = updated;
@@ -139,9 +140,13 @@ class AppState extends ChangeNotifier {
     if (exact != null) return exact.id!;
     final now = DateTime.now().toIso8601String();
     return _foodRepo.createFood(FoodEntity(
-      foodName: name, kcal: kcal,
-      carbG: carbG, proteinG: proteinG, fatG: fatG,
-      createdAt: now, updatedAt: now,
+      foodName: name,
+      kcal: kcal,
+      carbG: carbG,
+      proteinG: proteinG,
+      fatG: fatG,
+      createdAt: now,
+      updatedAt: now,
     ));
   }
 
@@ -155,11 +160,12 @@ class AppState extends ChangeNotifier {
   }) async {
     if (userId == null) return;
     await _mealRepo.saveMealWithFoods(
-      userId:   userId!,
+      userId: userId!,
       mealType: mealType,
-      eatenAt:  eatenAt,
-      memo:     memo,
-      foods:    foods,
+      eatenAt: eatenAt,
+      memo: memo,
+      photoPath: photoPath,
+      foods: foods,
     );
     await loadTodayMeals();
   }
@@ -196,8 +202,7 @@ class AppState extends ChangeNotifier {
   Future<List<FoodEntity>> searchFoods(String query) =>
       _foodRepo.searchFoods(query);
 
-  Future<List<FoodEntity>> getAllFoods() =>
-      _foodRepo.getAllFoods();
+  Future<List<FoodEntity>> getAllFoods() => _foodRepo.getAllFoods();
 
   Future<List<FoodEntity>> getInitialFoods({int limit = 100}) =>
       _foodRepo.getInitialFoods(limit: limit);
@@ -219,7 +224,7 @@ class AppState extends ChangeNotifier {
       await DatabaseHelper.instance.deleteDatabase();
       // deleteDatabase 후 _db가 null이 되므로 재초기화
       await DatabaseHelper.instance.database;
-      _user       = null;
+      _user = null;
       _todayMeals = [];
     } finally {
       _setLoading(false); // notifyListeners 포함 → _RootRouter가 온보딩으로 전환
