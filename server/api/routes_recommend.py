@@ -68,10 +68,11 @@ RECOMMEND_PROMPT = """
 
 핵심 원칙:
 - 계산값은 아래 [MEAL_STATUS]를 신뢰하고 임의로 다시 계산하지 마세요.
-- 알레르기, 질환, 저염식/저당식/고단백 같은 제약을 우선 반영하세요.
+- 알레르기, 질환, 저염식/저당식/고단백 같은 제약을 최우선으로 반영하세요.
 - 메뉴명은 일반적인 음식명으로 작성하고 브랜드명/상품명은 피하세요.
 - 존재하지 않는 가상의 메뉴나 과도하게 특수한 메뉴는 추천하지 마세요.
 - 출력은 JSON만 반환하세요.
+{condition_constraints}
 
 {context}
 
@@ -99,6 +100,42 @@ RECOMMEND_PROMPT = """
 
 추천 메뉴는 {count}개 생성하세요.
 """
+
+
+# 고GI 음식 목록 (당뇨 환자 추천 금지)
+_HIGH_GI_FOODS = {
+    "카레라이스", "카레", "비빔밥", "전주비빔밥", "볶음밥", "흰쌀밥", "공기밥",
+    "국수", "라면", "떡볶이", "떡국", "떡만둣국", "짜장면", "짬뽕",
+    "우동", "소면", "냉면", "쌀국수", "흰빵", "단팥죽", "죽(흰죽)",
+    "만두", "핫도그", "피자", "햄버거", "도넛", "케이크", "과자",
+}
+
+
+def _build_condition_constraints(condition: str | None) -> str:
+    """질환별 LLM 엄격 제약 지시문 생성."""
+    if not condition:
+        return ""
+    cond = condition.strip().lower()
+    blocks: list[str] = []
+    if "당뇨" in cond:
+        blocks.append(
+            "\n\n⚠️ [당뇨 환자 식단 제약 — 반드시 준수, 위반 금지]\n"
+            "절대 추천 금지 (고GI·고혈당 음식): "
+            "카레라이스, 카레, 비빔밥, 전주비빔밥, 볶음밥, 흰쌀밥, 공기밥, "
+            "국수, 라면, 떡볶이, 짜장면, 짬뽕, 우동, 냉면, 흰빵, 단팥죽, 만두\n"
+            "탄수화물 한 끼 기준: 반드시 60g 이하로 제한\n"
+            "우선 추천해야 하는 음식: 두부요리, 생선구이, 닭가슴살, 계란요리, "
+            "나물무침, 채소볶음, 잡곡밥(소량 100g 이하), 콩류, 미역국, 된장국(저염)"
+        )
+    if "고혈압" in cond or "혈압" in cond:
+        blocks.append(
+            "\n\n⚠️ [고혈압 환자 식단 제약 — 반드시 준수]\n"
+            "절대 추천 금지 (고나트륨): 라면, 짬뽕, 짜장면, 젓갈, 장아찌, "
+            "김치찌개(다량), 된장찌개(다량), 소금 절임 생선, 햄, 소시지\n"
+            "나트륨 한 끼 기준: 600mg 이하\n"
+            "우선 추천: 신선 채소, 생선구이(무염), 두부, 무침류(저염), 닭가슴살, 과일"
+        )
+    return "".join(blocks)
 
 
 def _build_profile_str(profile: dict) -> str:
@@ -416,7 +453,30 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
             req.category, pipeline_ctx.meal_time, profile.get("condition")
         )
         docs = await _retrieve_docs(pipeline_ctx.queries, where=where_filter)
+
+        # 질환 조건이 있으면 가이드라인 외에 적합 음식 예시도 추가 검색
+        condition_str = profile.get("condition") or ""
+        if condition_str:
+            cond_lower = condition_str.lower()
+            if "당뇨" in cond_lower:
+                extra_q = [
+                    "저탄수화물 당뇨 적합 음식 두부 닭가슴살 채소",
+                    "혈당 안정 저GI 식품 잡곡 생선 나물",
+                ]
+            elif "고혈압" in cond_lower or "혈압" in cond_lower:
+                extra_q = [
+                    "저염 고혈압 적합 음식 채소 생선",
+                    "나트륨 낮은 건강 식품",
+                ]
+            else:
+                extra_q = []
+            if extra_q:
+                extra_docs = await _retrieve_docs(extra_q, limit=4, where=None)
+                seen = set(docs)
+                docs += [d for d in extra_docs if d not in seen]
+
         context = format_context_block(pipeline_ctx, docs)
+        condition_constraints = _build_condition_constraints(condition_str)
         messages = [
             {
                 "role": "system",
@@ -425,6 +485,7 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
                     profile_str=_build_profile_str(profile),
                     meal_str=_build_meal_str(meal_history),
                     count=req.count,
+                    condition_constraints=condition_constraints,
                 ),
             },
             {
@@ -446,6 +507,7 @@ async def recommend(req: RecommendRequest) -> RecommendResponse:
             remaining_kcal=pipeline_ctx.meal_status.remaining_kcal,
             allergy_str=profile.get("allergy"),
             count=req.count,
+            condition_str=condition_str,
         )
 
         return RecommendResponse(

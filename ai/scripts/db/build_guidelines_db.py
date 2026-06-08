@@ -7,6 +7,7 @@
 실행:
   python -m ai.scripts.db.build_guidelines_db
 """
+
 import sys
 import uuid
 from pathlib import Path
@@ -48,7 +49,6 @@ GUIDELINE_FILES = [
         "is_hypertension": False,
         "is_diet": True,
     },
-    # ── 영양사도우미 (kdclub.com) 식사요법 ──
     {
         "file": "kdclub_general_diet.txt",
         "source": "영양사도우미(kdclub.com)",
@@ -172,6 +172,7 @@ def load_guideline_docs(cfg: dict) -> tuple[list[str], list[dict], list[str]]:
 
 
 def main() -> None:
+    sys.stdout.reconfigure(encoding="utf-8")
     print(f"\n{'='*60}")
     print("  NutrAI 의학 가이드라인 → ChromaDB 추가")
     print(f"{'='*60}\n")
@@ -181,7 +182,6 @@ def main() -> None:
 
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
 
-    # 잘못 생성된 nutrition_collection 정리
     try:
         client.delete_collection("nutrition_collection")
         print("nutrition_collection (오생성) 삭제")

@@ -1165,29 +1165,36 @@ Text(totalKcal > goalKcal ? '+${(totalKcal - goalKcal).round()}' : remaining.toS
 
 ---
 
-## 44. RAG 채팅이 질문 의도와 무관한 메뉴 추천·템플릿·칼로리 경고를 출력함
+## 44. 당뇨 환자에게 카레라이스·전주비빔밥 등 고GI 음식 추천되는 문제
 
-**증상:** `다리가 아파요`, `햄버거 먹어도 될까요?` 같은 질문에도 저나트륨 음식 3개를 추천하고, `음식명 (칼로리: Xkcal)` 템플릿이 그대로 노출되거나 `184.2kcal`에서 `2kcal`만 이상치로 경고함.
+**증상:** condition="당뇨" 사용자에게 카레라이스, 전주비빔밥 같은 혈당을 급격히 올리는 고GI 음식이 추천됨
 
-**원인:** 채팅 프롬프트가 모든 질문을 메뉴 3개 추천 형식으로 강제했고, 스트리밍 응답은 `post_process()`를 거치지 않아 템플릿 제거·칼로리 검증 보정이 적용되지 않았음. 또한 칼로리 정규식이 소수점을 지원하지 않아 `184.2kcal`의 끝자리 `2kcal`을 별도 값으로 오인함.
+**원인:**
+1. `category == "질환맞춤"`일 때만 당뇨 ChromaDB 필터 적용 → 다른 카테고리에서는 가이드라인 컨텍스트 없음
+2. `is_diabetes=True` where 필터가 가이드라인 문서만 반환 → LLM에 구체적 음식 예시 없어서 훈련 데이터(카레라이스 등) 생성
+3. `validate_and_rank_items`에 고GI/고탄수화물 후처리 필터 없음
 
 **해결:**
 ```python
-# 변경 전
-SystemMessage(content=SYSTEM_PROMPT)
-for chunk in _stream_ollama_raw(messages):
-    yield chunk
-_KCAL_RE = re.compile(r"(\d+)\s*kcal", re.IGNORECASE)
+# routes_recommend.py — 변경 전
+RECOMMEND_PROMPT = "...알레르기, 질환 제약을 우선 반영하세요..."
+ranked_items = validate_and_rank_items(..., count=req.count)
 
 # 변경 후
-intent = _classify_chat_intent(user_query)
-system_prompt = SYSTEM_PROMPT if intent == "menu_recommendation" else GENERAL_CHAT_SYSTEM_PROMPT
-SystemMessage(content=system_prompt)
+# 1. 당뇨/고혈압 전용 엄격 제약 지시문 추가
+def _build_condition_constraints(condition): ...
+# "카레라이스, 비빔밥, 흰쌀밥 등 추천 금지, 탄수화물 60g 이하" 지시문 삽입
 
-full_response = "".join(_stream_ollama_raw(messages))
-yield post_process(full_response, user_profile, remaining_kcal=remaining_kcal)
+# 2. 당뇨 조건 시 저탄수화물 음식 예시 이차 검색
+extra_docs = await _retrieve_docs(["저탄수화물 당뇨 적합 음식 두부 닭가슴살"], where=None)
 
-_KCAL_RE = re.compile(r"(?<![\d.])(\d+(?:\.\d+)?)\s*kcal(?![A-Za-z0-9.])", re.IGNORECASE)
+# recommendation_pipeline.py — validate_and_rank_items에 추가
+if is_diabetic and carb > 70:
+    calorie_fallback.append(item)  # 탄수화물 70g 초과 폴백
+    continue
+# 저탄수화물 음식 순위 가점
+if is_diabetic:
+    score += max(0.0, 30.0 - carb * 0.5)
 ```
 
-**관련 파일:** `ai/rag_engine/rag_pipeline.py` → `_classify_chat_intent()`/`build_messages()`/`post_process()`/`stream_recommendation()`, `server/tests/test_rag_pipeline.py` → `TestChatPromptAndStreaming`
+**관련 파일:** `server/api/routes_recommend.py`, `server/services/recommendation_pipeline.py`

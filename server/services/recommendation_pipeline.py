@@ -265,7 +265,9 @@ def validate_and_rank_items(
     remaining_kcal: float,
     allergy_str: str | None,
     count: int,
+    condition_str: str | None = None,
 ) -> list[dict]:
+    is_diabetic = bool(condition_str and "당뇨" in condition_str)
     valid: list[dict] = []
     calorie_fallback: list[dict] = []
 
@@ -274,11 +276,12 @@ def validate_and_rank_items(
         if not name:
             continue
         kcal = _as_float(raw.get("kcal", raw.get("estimated_kcal")))
+        carb = _as_float(raw.get("carb"))
         allergen_warning, allergen_names = item_has_allergen(name, allergy_str)
         item = {
             "name": name,
             "kcal": kcal,
-            "carb": _as_float(raw.get("carb")),
+            "carb": carb,
             "protein": _as_float(raw.get("protein")),
             "fat": _as_float(raw.get("fat")),
             "reason": str(raw.get("reason") or ""),
@@ -288,19 +291,28 @@ def validate_and_rank_items(
         }
         if allergen_warning:
             continue
+        # 당뇨: 탄수화물 70g 초과 항목은 폴백으로 이동
+        if is_diabetic and carb > 70:
+            calorie_fallback.append(item)
+            continue
         if remaining_kcal > 0 and kcal > remaining_kcal + KCAL_TOLERANCE:
             calorie_fallback.append(item)
             continue
         valid.append(item)
 
     candidates = valid or calorie_fallback
-    return sorted(candidates, key=lambda item: _score_item(item, remaining_kcal), reverse=True)[:count]
+    return sorted(
+        candidates,
+        key=lambda item: _score_item(item, remaining_kcal, is_diabetic),
+        reverse=True,
+    )[:count]
 
 
-def _score_item(item: dict, remaining_kcal: float) -> float:
+def _score_item(item: dict, remaining_kcal: float, is_diabetic: bool = False) -> float:
     score = 0.0
     kcal = _as_float(item.get("kcal"))
     protein = _as_float(item.get("protein"))
+    carb = _as_float(item.get("carb"))
     if remaining_kcal > 0:
         score += max(0.0, 100.0 - abs(remaining_kcal - kcal))
     if protein > 0:
@@ -309,6 +321,9 @@ def _score_item(item: dict, remaining_kcal: float) -> float:
         score += 25.0
     if item.get("reason"):
         score += 5.0
+    # 당뇨: 탄수화물 낮을수록 가점 (저탄수화물 음식 우선 노출)
+    if is_diabetic:
+        score += max(0.0, 30.0 - carb * 0.5)
     return score
 
 

@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,7 +10,6 @@ import '../models/db_models.dart';
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import '../services/allergen_service.dart';
-import '../services/chat_service.dart';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 음식 DB
@@ -62,6 +63,11 @@ class _FoodDB {
 
 List<String> _detectAllergens(String foodName, String? userAllergy) =>
     AllergenService.instance.detect(foodName, userAllergy);
+
+const _baseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://127.0.0.1:8000',
+);
 
 Color _foodColor(String name) {
   const c = [
@@ -117,7 +123,14 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   List<MealFood> _searchResults = [];
 
-  static const _mealLabels = ['아침', '점심', '저녁', '간식'];
+  // 초기 빠른 선택 목록 (DB에서 로드)
+  List<MealFood> _quickFoods = [];
+
+  // 카테고리 필터
+  List<String> _categories = [];
+  String? _selectedCategory; // null = 전체
+
+  static const _mealLabels = ['아침', '점심', '저녁', '기타'];
   static const _mealColors = [
     AppColors.breakfast,
     AppColors.lunch,
@@ -130,6 +143,42 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
     super.initState();
     _mealLabel = widget.initialMealLabel;
     _searchCtrl.addListener(_onSearch);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadInitialData());
+  }
+
+  Future<void> _loadInitialData() async {
+    if (!mounted) return;
+    final appState = context.read<AppState>();
+    final results = await Future.wait([
+      appState.getInitialFoods(limit: 500),
+      appState.getFoodCategories(),
+    ]);
+    if (!mounted) return;
+    final foods = results[0] as List<dynamic>;
+    final cats  = results[1] as List<dynamic>;
+    setState(() {
+      _quickFoods = foods.cast<FoodEntity>().map((f) => MealFood(
+            name: f.foodName, kcal: f.kcal,
+            carb: f.carbG, protein: f.proteinG, fat: f.fatG,
+          )).toList();
+      _categories = cats.cast<String>();
+    });
+  }
+
+  Future<void> _onCategorySelected(String? category) async {
+    setState(() => _selectedCategory = category);
+    if (!mounted) return;
+    final appState = context.read<AppState>();
+    final foods = category == null
+        ? await appState.getInitialFoods(limit: 500)
+        : await appState.getFoodsByCategory(category, limit: 500);
+    if (!mounted) return;
+    setState(() {
+      _quickFoods = foods.map((f) => MealFood(
+            name: f.foodName, kcal: f.kcal,
+            carb: f.carbG, protein: f.proteinG, fat: f.fatG,
+          )).toList();
+    });
   }
 
   @override
@@ -166,64 +215,57 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
   }
 
   // ── 카메라 촬영 ──
-  Future<void> _onCamera() async {
-    HapticFeedback.lightImpact();
-    final picked =
-        await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
-    if (picked == null) return;
-    await _analyzeImage(picked.path);
-  }
+Future<void> _onCamera() async {
+  HapticFeedback.lightImpact();
+  final picked = await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+  if (picked == null) return;
+  setState(() { _pickedImagePath = picked.path; _state = _ScreenState.analyzing; });
+  await _analyzeImage(picked.path);
+}
 
   // ── 갤러리 선택 ──
-  Future<void> _onGallery() async {
-    HapticFeedback.lightImpact();
-    final picked =
-        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (picked == null) return;
-    await _analyzeImage(picked.path);
-  }
+Future<void> _onGallery() async {
+  HapticFeedback.lightImpact();
+  final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+  if (picked == null) return;
+  setState(() { _pickedImagePath = picked.path; _state = _ScreenState.analyzing; });
+  await _analyzeImage(picked.path);
+}
 
-  // ── YOLO(/detect) 호출 → detection 컬렉션에서 영양정보 매핑 ──
-  Future<void> _analyzeImage(String imagePath) async {
-    setState(() {
-      _pickedImagePath = imagePath;
-      _state = _ScreenState.analyzing;
-    });
-
-    final detected = await ChatService.detectFoods(File(imagePath));
+Future<void> _analyzeImage(String imagePath) async {
+  const baseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://127.0.0.1:8000');
+  try {
+    final uri = Uri.parse('$baseUrl/detect');
+    final request = http.MultipartRequest('POST', uri);
+    request.files.add(await http.MultipartFile.fromPath('image', imagePath));
+    final response = await request.send().timeout(const Duration(seconds: 30));
+    final body = await response.stream.bytesToString();
     if (!mounted) return;
-
-    List<MealFood> foods;
-    if (detected.isEmpty) {
-      // /detect 실패 또는 탐지 결과 없음 → 목업 폴백 + 안내
-      foods = List.of(_FoodDB.aiDetected);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('AI 분석에 실패했습니다. 서버 연결을 확인해주세요.'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 3),
-        ),
-      );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(body);
+      final detections = data['detections'] as List<dynamic>;
+      final foods = detections.map((d) {
+        final n = d['nutrition'];
+        return MealFood(
+          name: d['food_name'] as String,
+          kcal: (n?['kcal'] as num?)?.toDouble() ?? 0,
+          carb: (n?['carb_g'] as num?)?.toDouble() ?? 0,
+          protein: (n?['protein_g'] as num?)?.toDouble() ?? 0,
+          fat: (n?['fat_g'] as num?)?.toDouble() ?? 0,
+        );
+      }).toList();
+      setState(() {
+        _detectedFoods..clear()..addAll(foods.isEmpty ? _FoodDB.aiDetected : foods);
+        _state = _ScreenState.confirmed;
+      });
     } else {
-      foods = detected
-          .map((f) => MealFood(
-                name: f.name,
-                kcal: f.kcal,
-                carb: f.carbG,
-                protein: f.proteinG,
-                fat: f.fatG,
-              ))
-          .toList();
+      setState(() { _detectedFoods..clear()..addAll(_FoodDB.aiDetected); _state = _ScreenState.confirmed; });
     }
-
+  } catch (e) {
     if (!mounted) return;
-    setState(() {
-      _detectedFoods
-        ..clear()
-        ..addAll(foods);
-      _state = _ScreenState.confirmed;
-    });
+    setState(() { _detectedFoods..clear()..addAll(_FoodDB.aiDetected); _state = _ScreenState.confirmed; });
   }
+}
 
   // ── 수정 버튼 탭 ──
   void _onEditTap(int index) {
@@ -415,14 +457,24 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
                     childCount: _searchResults.length,
                   )),
                 )
-              else
+              else ...[
+                if (_categories.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _CategoryChips(
+                      categories: _categories,
+                      selected: _selectedCategory,
+                      onSelect: _onCategorySelected,
+                    ),
+                  ),
                 SliverToBoxAdapter(
                     child: _QuickFoodGrid(
+                  foods: _quickFoods,
                   onSelect: (food) => setState(() {
                     _detectedFoods.add(food);
                     _state = _ScreenState.confirmed;
                   }),
                 )),
+              ],
             ],
 
             // ── 분석 중 ──
@@ -530,7 +582,6 @@ class _FoodAddScreenState extends State<FoodAddScreen> {
                           kcal: 0));
                     }),
                     child: Container(
-                      constraints: const BoxConstraints(minHeight: 44),
                       padding: const EdgeInsets.symmetric(vertical: 11),
                       decoration: BoxDecoration(
                         color: AppColors.surface,
@@ -628,7 +679,7 @@ class _MealSelector extends StatelessWidget {
               onTap: () => onChanged(labels[i]),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                height: 44,
+                height: 42,
                 decoration: BoxDecoration(
                   color: isSel ? colors[i] : AppColors.lineSoft,
                   borderRadius: BorderRadius.circular(10),
@@ -894,18 +945,18 @@ class _DetectedFoodRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.redSoft,
+                  color: const Color(0xFFFEF2F2),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.warning_amber_rounded,
-                      size: 11, color: AppColors.red),
+                      size: 11, color: Color(0xFFEF4444)),
                   SizedBox(width: 2),
                   Text('알레르기',
                       style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.red)),
+                          color: Color(0xFFEF4444))),
                 ]),
               ),
             ],
@@ -920,7 +971,7 @@ class _DetectedFoodRow extends StatelessWidget {
               child: Text('⚠ ${allergens.join(', ')} 포함',
                   style: const TextStyle(
                       fontSize: 11,
-                      color: AppColors.red,
+                      color: Color(0xFFEF4444),
                       fontWeight: FontWeight.w600)),
             ),
         ])),
@@ -930,7 +981,6 @@ class _DetectedFoodRow extends StatelessWidget {
           onTap: onEdit,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: AppColors.lineSoft,
@@ -949,8 +999,8 @@ class _DetectedFoodRow extends StatelessWidget {
         GestureDetector(
           onTap: onRemove,
           child: Container(
-            width: 44,
-            height: 44,
+            width: 28,
+            height: 28,
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
             child: const Icon(Icons.close_rounded,
                 size: 16, color: AppColors.textMuted),
@@ -1186,14 +1236,13 @@ class _AllergyWarningBanner extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.redSoft,
+          color: const Color(0xFFFEF2F2),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-              color: AppColors.red.withValues(alpha: 0.24), width: 1),
+          border: Border.all(color: const Color(0xFFFECACA), width: 1),
         ),
         child: Row(children: [
           const Icon(Icons.warning_amber_rounded,
-              size: 20, color: AppColors.red),
+              size: 20, color: Color(0xFFEF4444)),
           const SizedBox(width: 10),
           Expanded(
               child: Column(
@@ -1203,10 +1252,11 @@ class _AllergyWarningBanner extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.red)),
+                        color: Color(0xFFDC2626))),
                 const SizedBox(height: 2),
                 Text('${triggered.join(', ')} 성분이 포함된 음식이 있어요.',
-                    style: const TextStyle(fontSize: 12, color: AppColors.red)),
+                    style: const TextStyle(
+                        fontSize: 12, color: Color(0xFFEF4444))),
               ])),
         ]),
       ),
@@ -1324,12 +1374,20 @@ class _BottomSaveBar extends StatelessWidget {
 // 빠른 음식 선택 그리드 (초기 상태)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 class _QuickFoodGrid extends StatelessWidget {
+  final List<MealFood> foods;
   final ValueChanged<MealFood> onSelect;
-  const _QuickFoodGrid({required this.onSelect});
+  const _QuickFoodGrid({required this.foods, required this.onSelect});
 
   @override
   Widget build(BuildContext context) {
-    const foods = _FoodDB.all;
+    if (foods.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(16, 32, 16, 0),
+        child: Center(
+          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brand),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1403,6 +1461,58 @@ class _QuickFoodGrid extends StatelessWidget {
           },
         ),
       ]),
+    );
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 카테고리 칩 필터
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+class _CategoryChips extends StatelessWidget {
+  final List<String> categories;
+  final String? selected;
+  final ValueChanged<String?> onSelect;
+
+  const _CategoryChips({
+    required this.categories,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+        itemCount: categories.length + 1,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (ctx, i) {
+          final isAll = i == 0;
+          final label = isAll ? '전체' : categories[i - 1];
+          final isSelected = isAll ? selected == null : selected == label;
+          return GestureDetector(
+            onTap: () => onSelect(isAll ? null : label),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.brand : AppColors.lineSoft,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? Colors.white : AppColors.textSub,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
